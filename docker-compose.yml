@@ -1,0 +1,10 @@
+services:
+  redis:
+    image: redis:latest
+    container_name: moodtail-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    environment:
+      - TZ=Asia/Seoul
+    command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --notify-keyspace-events Ex
