@@ -148,28 +148,7 @@ chore     설정, 패키지, 빌드, CI/CD 등 기타 작업
 hotfix    운영 긴급 수정
 ```
 
-### 7. Issue Template
-
-이슈는 아래 양식을 사용한다.
-
-```md
----
-name: Backend Task
-about: Moodtail 백엔드 작업 또는 이슈를 등록합니다.
-title: "[FEAT] "
----
-
-### 작업 내용
-- 
-
-### 작업 범위
-- 도메인:
-- API:
-- 화면/기능 ID:
-
-### 참고 사항
-- 
-```
+### 7. Issue
 
 이슈 제목의 type은 PR type과 동일하게 작성한다.
 
@@ -180,7 +159,7 @@ title: "[FEAT] "
 [TEST] 추천 서비스 테스트 추가
 ```
 
-### 8. Pull Request Template
+### 8. Pull Request
 
 PR 제목은 아래 형식을 사용한다.
 
