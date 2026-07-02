@@ -1,10 +1,51 @@
 services:
+  moodtail-app:
+    container_name: MoodTail-server
+    image: ${DOCKERHUB_USERNAME}/moodtail-be:latest
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redis
+    environment:
+      - TZ=Asia/Seoul
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+
+      - DATABASE_HOST=${DATABASE_HOST}
+      - DATABASE_USERNAME=${DATABASE_USERNAME}
+      - DATABASE_PASSWORD=${DATABASE_PASSWORD}
+      - DATABASE_NAME=${DATABASE_NAME}
+
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ACCESS_EXPIRATION=${JWT_ACCESS_EXPIRATION}
+      - JWT_REFRESH_EXPIRATION=${JWT_REFRESH_EXPIRATION}
+
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - USAGE_TIMEOUT=${USAGE_TIMEOUT}
+    deploy:
+      resources:
+        limits:
+          memory: 600M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   redis:
     image: redis:latest
-    container_name: moodtail-redis
+    container_name: MoodTail-redis
     restart: always
     ports:
       - "6379:6379"
     environment:
       - TZ=Asia/Seoul
     command: redis-server --maxmemory 200mb --maxmemory-policy allkeys-lru --notify-keyspace-events Ex
+    deploy:
+      resources:
+        limits:
+          memory: 250M
