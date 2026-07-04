@@ -60,28 +60,28 @@ hotfix
 기능 개발, 버그 수정, 문서 작업, 테스트 작업, 기타 작업은 `develop` 브랜치에서 분기해서 진행한다.
 
 ```bash
-git checkout develop
-git pull origin develop
+git checkout dev
+git pull origin dev
 
 git checkout -b feat/mood-test
 ```
 
-작업이 완료되면 원격 브랜치에 push하고, GitHub에서 `develop` 브랜치로 Pull Request를 생성한다.
+작업이 완료되면 원격 브랜치에 push하고, GitHub에서 `dev` 브랜치로 Pull Request를 생성한다.
 
 ```bash
 git push origin feat/mood-test
 ```
 
-PR은 리뷰를 받은 뒤 `develop` 브랜치에 병합한다.
+PR은 리뷰를 받은 뒤 `dev` 브랜치에 병합한다.
 
 ```text
-feature branch -> Pull Request -> review -> develop
+feature branch -> Pull Request -> review -> dev
 ```
 
-`develop`에 병합된 기능들이 최종 검토를 통과하면 `main` 브랜치로 병합한다.
+`dev`에 병합된 기능들이 최종 검토를 통과하면 `main` 브랜치로 병합한다.
 
 ```text
-develop -> final review -> main
+dev -> final review -> main
 ```
 
 `main` 브랜치는 운영 배포 브랜치이므로 직접 push하지 않는다.
@@ -94,7 +94,7 @@ develop -> final review -> main
 Do not push directly to main.
 ```
 
-`develop` 브랜치에도 직접 작업 커밋을 push하지 않는다. 모든 작업은 작업 브랜치에서 진행하고 PR 리뷰 후 `develop`에 병합한다.
+`dev` 브랜치에도 직접 작업 커밋을 push하지 않는다. 모든 작업은 작업 브랜치에서 진행하고 PR 리뷰 후 `dev`에 병합한다.
 
 권장 보호 규칙은 다음과 같다.
 
@@ -105,7 +105,7 @@ main
 - 최종 검토 후 develop에서 main으로 병합
 - CI 성공 후 병합
 
-develop
+dev
 - 직접 작업 커밋 push 금지
 - PR merge만 허용
 - 리뷰 승인 후 병합
