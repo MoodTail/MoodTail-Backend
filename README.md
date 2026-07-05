@@ -15,13 +15,13 @@ UMC 10th 프로젝트 무드테일 - Backend
 
 이 문서는 Moodtail 프로젝트의 Git 브랜치 전략, 커밋 메시지 규칙, Pull Request 규칙, 병합 및 배포 흐름을 정리한다.
 
-Moodtail은 `develop` 브랜치를 기준으로 기능을 통합하고, PR 리뷰 후 `develop`에 병합한다. 최종 검토가 끝난 안정 버전만 `main`에 병합한다.
+Moodtail은 `dev` 브랜치를 기준으로 기능을 통합하고, PR 리뷰 후 `dev`에 병합한다. 최종 검토가 끝난 안정 버전만 `main`에 병합한다.
 
 ### 1. Branch Strategy
 
 ```text
 main        운영 배포 브랜치
-develop     개발 통합 브랜치
+dev     개발 통합 브랜치
 feat/*      기능 개발 브랜치
 fix/*       버그 수정 브랜치
 docs/*      문서 추가 또는 수정 브랜치
@@ -57,7 +57,7 @@ hotfix
 
 ### 3. Development Flow
 
-기능 개발, 버그 수정, 문서 작업, 테스트 작업, 기타 작업은 `develop` 브랜치에서 분기해서 진행한다.
+기능 개발, 버그 수정, 문서 작업, 테스트 작업, 기타 작업은 `dev` 브랜치에서 분기해서 진행한다.
 
 ```bash
 git checkout dev
@@ -102,7 +102,7 @@ Do not push directly to main.
 main
 - direct push 금지
 - PR merge만 허용
-- 최종 검토 후 develop에서 main으로 병합
+- 최종 검토 후 dev에서 main으로 병합
 - CI 성공 후 병합
 
 dev
@@ -218,15 +218,15 @@ PR은 코드리뷰를 거친 뒤 병합한다.
 ### 11. Merge Rule
 
 ```text
-feat/*      -> develop
-fix/*       -> develop
-docs/*      -> develop
-style/*     -> develop
-refactor/*  -> develop
-test/*      -> develop
-chore/*     -> develop
-hotfix/*    -> main, develop
-develop     -> main
+feat/*      -> dev
+fix/*       -> dev
+docs/*      -> dev
+style/*     -> dev
+refactor/*  -> dev
+test/*      -> dev
+chore/*     -> dev
+hotfix/*    -> main, dev
+dev     -> main
 ```
 
 `main`에는 직접 작업하지 않는다.
@@ -234,14 +234,14 @@ develop     -> main
 일반 작업은 다음 흐름을 따른다.
 
 ```text
-develop -> work branch -> PR review -> develop -> final review -> main
+dev -> work branch -> PR review -> dev -> final review -> main
 ```
 
-긴급 수정이 필요한 경우 `hotfix/*` 브랜치에서 작업하고, 수정 사항을 `main`과 `develop` 양쪽에 반영한다.
+긴급 수정이 필요한 경우 `hotfix/*` 브랜치에서 작업하고, 수정 사항을 `main`과 `dev` 양쪽에 반영한다.
 
 ```text
 main -> hotfix/* -> PR review -> main
-main -> hotfix/* -> develop
+main -> hotfix/* -> dev
 ```
 
 ### 12. Deploy Rule
@@ -255,7 +255,7 @@ main merge -> CI/CD 실행 -> 운영 배포
 배포 전 최종 검토 항목은 다음과 같다.
 
 ```text
-- develop 브랜치 기능 검증 완료
+- dev 브랜치 기능 검증 완료
 - PR 리뷰 반영 완료
 - CI 통과
 - 주요 API Swagger 확인
