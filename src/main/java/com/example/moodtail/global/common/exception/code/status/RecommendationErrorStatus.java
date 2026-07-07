@@ -8,10 +8,8 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 @AllArgsConstructor
-public enum MoodTestErrorStatus implements BaseCodeInterface {
-    MOOD_TEST_QUESTION_QUERY_FAILED(HttpStatus.BAD_REQUEST, "MOOD_TEST400", "테스트 문항 조회에 실패했습니다."),
-    MOOD_TEST_INVALID_ANSWER(HttpStatus.BAD_REQUEST, "MOOD_TEST400", "답변 개수 또는 형식이 올바르지 않습니다."),
-    MOOD_TEST_QUESTION_OR_OPTION_NOT_FOUND(HttpStatus.NOT_FOUND, "MOOD_TEST404", "문항 또는 선택지를 찾을 수 없습니다.");
+public enum RecommendationErrorStatus implements BaseCodeInterface {
+    RECOMMENDATION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION422", "추천 결과를 산출할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;
