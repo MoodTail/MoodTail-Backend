@@ -19,16 +19,18 @@ public class RedisRepositoryImpl implements RedisRepository {
 
 	private final RedisTemplate<String, String> redisTemplate;
 	private static final long USAGE_EXPIRATION_TIME = 60 * 60 * 24;		// in이 찍히고 24시간동안 out이 안된다면 삭제
-	private static final long REFRESH_EXPIRATION_TIME = 60 * 60 * 24 * 14;
 
 	@Value("${app.usage.timeout}")
 	private long usageTimeout;
+
+	@Value("${jwt.refreshExpiration}")
+	private long jwtRefreshExpirationMillis;
 
 	// refresh token을 key로 저장 (rotation 시 유리)
 	@Override
 	public void save(Long userId, String refreshToken) {
 		redisTemplate.opsForValue()
-		             .set("refresh:" + refreshToken, userId.toString(), REFRESH_EXPIRATION_TIME, TimeUnit.SECONDS);
+		             .set("refresh:" + refreshToken, userId.toString(), jwtRefreshExpirationMillis, TimeUnit.MILLISECONDS);
 	}
 
 	@Override
@@ -49,23 +51,23 @@ public class RedisRepositoryImpl implements RedisRepository {
 		long ttl = expiration.getTime() - System.currentTimeMillis();
 
 		if (ttl > 0) {
-			// key = 토큰 문자열 그대로, value = 상태값 (blacklisted 라는 값은 그냥 value 채우기 용)
+			String jti = claims.getId();
 			redisTemplate.opsForValue()
-			             .set("blacklist_access_token:" + accessToken, "blacklisted", ttl, TimeUnit.MILLISECONDS);
+			             .set("blacklist_access_token:" + jti, "blacklisted", ttl, TimeUnit.MILLISECONDS);
 		}
 
 		return true;
 	}
 
 	@Override
-	public Boolean isJtiBlocked(String accessToken) {
-		return redisTemplate.hasKey("blacklist_access_token:" + accessToken);
+	public Boolean isJtiBlocked(String jti) {
+		return redisTemplate.hasKey("blacklist_access_token:" + jti);
 	}
 
 	@Override
 	public void saveLastLogin(String email, LocalDateTime lastLogin){
 		String key = "last_login:" + email;
-		redisTemplate.opsForValue().set(key, lastLogin.toString(), REFRESH_EXPIRATION_TIME, TimeUnit.SECONDS);
+		redisTemplate.opsForValue().set(key, lastLogin.toString(), jwtRefreshExpirationMillis, TimeUnit.MILLISECONDS);
 	}
 
 	@Override
@@ -143,7 +145,7 @@ public class RedisRepositoryImpl implements RedisRepository {
 		redisTemplate.opsForValue().set(
 				"RT:" + userId,
 				refreshJti,
-				Duration.ofMillis(REFRESH_EXPIRATION_TIME)
+				Duration.ofMillis(jwtRefreshExpirationMillis)
 		);
 	}
 

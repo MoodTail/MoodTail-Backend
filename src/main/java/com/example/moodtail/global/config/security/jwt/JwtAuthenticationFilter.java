@@ -25,8 +25,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	private final RedisRepository redisRepository;
 	private final AntPathMatcher pathMatcher = new AntPathMatcher();
 	private static final List<String> WHITELIST = List.of(
-		"/api/auth/login",
-		"/api/auth/token/reissue"
+		"/api/v1/auth/**"
 	);
 
 	@Override
@@ -44,7 +43,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			chain.doFilter(request, response);
 			return;
 		}
-		System.out.println("[JwtAuthenticationFilter] Request URI: " + uri);
 		
 		String token = jwtTokenProvider.resolveToken(request); // 헤더에서 토큰을 받아옴
 
@@ -69,7 +67,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	}
 
 	private boolean isLogoutOrOutRequest(String uri) {
-		return uri.contains("/user/logout") || uri.contains("/user/out");
+		return uri.equals("/api/v1/users/logout") || uri.equals("/api/v1/users");
 	}
 
 	private Authentication getAuthentication(String token) {

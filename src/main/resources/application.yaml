@@ -10,6 +10,8 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      repositories:
+        enabled: false
 
   datasource:
     url: jdbc:mysql://${DATABASE_HOST:localhost}:3306/${DATABASE_NAME:moodtail}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8

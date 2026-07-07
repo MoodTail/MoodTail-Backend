@@ -47,3 +47,6 @@ application-prod.yml
 ### .json ###
 firebase-service-account.json
 google-services.json
+
+### MAC ###
+.DS_Store
