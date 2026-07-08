@@ -1,0 +1,73 @@
+package com.example.moodtail.domain.moodtest.entity;
+
+import com.example.moodtail.domain.recommendation.model.TasteProfile;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+
+import java.math.BigDecimal;
+
+@Entity
+@Table(name = "cocktails")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+public class Cocktail {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "mood_type_id", nullable = false)
+    private MoodType moodType;
+
+    @Column(name = "name_ko", nullable = false, length = 100)
+    private String nameKo;
+
+    @Column(name = "name_en", nullable = false, unique = true, length = 100)
+    private String nameEn;
+
+    @Column(name = "short_description")
+    private String shortDescription;
+
+    @Column(name = "alcohol_degree", precision = 4, scale = 1)
+    private BigDecimal alcoholDegree;
+
+    @Column(name = "alcohol_intensity", nullable = false, precision = 2, scale = 1)
+    private BigDecimal alcoholIntensity;
+
+    @Column(nullable = false, precision = 2, scale = 1)
+    private BigDecimal sweetness;
+
+    @Column(nullable = false, precision = 2, scale = 1)
+    private BigDecimal sourness;
+
+    @Column(nullable = false, precision = 2, scale = 1)
+    private BigDecimal refreshing;
+
+    @Column(nullable = false, precision = 2, scale = 1)
+    private BigDecimal bitterness;
+
+    @Column(name = "image_id")
+    private Long imageId;
+
+    @Column(name = "pairing_snack")
+    private String pairingSnack;
+
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
+    public TasteProfile toTasteProfile() {
+        return TasteProfile.of(alcoholIntensity, sweetness, sourness, refreshing, bitterness);
+    }
+}
