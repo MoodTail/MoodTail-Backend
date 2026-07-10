@@ -59,10 +59,10 @@ public class MyPageService {
     }
 
     private void validateRole(String role) {
-        if (UserRole.ROLE_GUEST.name().equals(role)) {
+        if (UserRole.GUEST.name().equals(role)) {
             throw new RestApiException(LOGIN_USER_REQUIRED);
         }
-        if (!UserRole.ROLE_USER.name().equals(role) && !UserRole.ROLE_ADMIN.name().equals(role)) {
+        if (!UserRole.USER.name().equals(role) && !UserRole.ADMIN.name().equals(role)) {
             throw new RestApiException(INVALID_ROLE);
         }
     }

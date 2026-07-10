@@ -51,7 +51,7 @@ public class User extends BaseEntity {
 
     public static User createGuest() {
         return User.builder()
-                .role(UserRole.ROLE_GUEST)
+                .role(UserRole.GUEST)
                 .build();
     }
 }

@@ -90,11 +90,11 @@ public class InquiryService {
     }
 
     private User findInquiryUser(PrincipalDetails principalDetails) {
-        if (principalDetails == null || UserRole.ROLE_GUEST.name().equals(principalDetails.getRole())) {
+        if (principalDetails == null || UserRole.GUEST.name().equals(principalDetails.getRole())) {
             return null;
         }
-        if (!UserRole.ROLE_USER.name().equals(principalDetails.getRole())
-                && !UserRole.ROLE_ADMIN.name().equals(principalDetails.getRole())) {
+        if (!UserRole.USER.name().equals(principalDetails.getRole())
+                && !UserRole.ADMIN.name().equals(principalDetails.getRole())) {
             throw new RestApiException(INVALID_ROLE);
         }
         return userRepository.findById(principalDetails.getUserId())

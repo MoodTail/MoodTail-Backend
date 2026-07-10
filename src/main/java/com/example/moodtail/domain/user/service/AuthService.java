@@ -41,7 +41,7 @@ public class AuthService {
                 .email(request.email())
                 .nickname(request.nickname())
                 .password(passwordEncoder.encode(request.password()))
-                .role(UserRole.ROLE_USER)
+                .role(UserRole.USER)
                 .build());
 
         return new SignupResponse(user.getId(), user.getEmail(), user.getNickname());
