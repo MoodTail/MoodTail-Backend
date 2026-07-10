@@ -1,7 +1,8 @@
 package com.example.moodtail.global.config.security.jwt;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.base.BaseResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -10,10 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
-
 public class JwtExceptionFilter extends OncePerRequestFilter {
 
 	//JwtExceptionFilter는 발생하는
@@ -33,12 +30,15 @@ public class JwtExceptionFilter extends OncePerRequestFilter {
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
 		response.setStatus(exception.getErrorCode().getHttpStatus().value());
 
-		Map<String, Object> errorDetails = new HashMap<>();
-		errorDetails.put("code", exception.getErrorCode());
-		errorDetails.put("message", exception.getMessage());
-		errorDetails.put("timestamp", LocalDateTime.now().toString());
-
 		ObjectMapper mapper = new ObjectMapper();
-		mapper.writeValue(response.getOutputStream(), errorDetails);
+		mapper.findAndRegisterModules();
+		mapper.writeValue(
+				response.getOutputStream(),
+				BaseResponse.onFailure(
+						exception.getErrorCode().getCode(),
+						exception.getErrorCode().getMessage(),
+						null
+				)
+		);
 	}
 }

@@ -10,6 +10,8 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      repositories:
+        enabled: false
 
   datasource:
     url: jdbc:mysql://${DATABASE_HOST:localhost}:3306/${DATABASE_NAME:moodtail}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
@@ -27,6 +29,11 @@ spring:
         default_batch_fetch_size: 100
     open-in-view: false
 
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+
 server:
   port: 8080
 
@@ -36,12 +43,47 @@ logging:
     org.springframework.security: DEBUG
 
 jwt:
-  secret: ${JWT_SECRET:bW9vZHRhaWwtdGVzdC1zZWNyZXQta2V5LTMyYnl0ZXMhIQ==}
+  secret: ${JWT_SECRET}
   accessExpiration: ${JWT_ACCESS_EXPIRATION:900000}
   refreshExpiration: ${JWT_REFRESH_EXPIRATION:1209600000}
 
+auth:
+  refresh-cookie:
+    name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
+    path: ${JWT_REFRESH_COOKIE_PATH:/}
+    domain: ${JWT_REFRESH_COOKIE_DOMAIN:}
+    secure: ${JWT_COOKIE_SECURE:false}
+    same-site: ${JWT_COOKIE_SAME_SITE:Lax}
+  oauth:
+    state-expiration-millis: ${OAUTH_STATE_EXPIRATION:300000}
+    connect-timeout-millis: ${OAUTH_CONNECT_TIMEOUT:3000}
+    read-timeout-millis: ${OAUTH_READ_TIMEOUT:5000}
+    kakao:
+      enabled: ${KAKAO_OAUTH_ENABLED:true}
+      client-id: ${KAKAO_CLIENT_ID:}
+      client-secret: ${KAKAO_CLIENT_SECRET:}
+      redirect-uri: ${KAKAO_REDIRECT_URI:}
+      token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
+      user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}  guest-login:
+    client-ip-header: ${GUEST_LOGIN_CLIENT_IP_HEADER:}
+    default-nickname: ${GUEST_DEFAULT_NICKNAME:게스트}
+    uuid-rate-limit:
+      max-attempts: ${GUEST_LOGIN_RATE_MAX_ATTEMPTS:10}
+      window-millis: ${GUEST_LOGIN_RATE_WINDOW:60000}
+    client-rate-limit:
+      max-attempts: ${GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS:60}
+      window-millis: ${GUEST_LOGIN_CLIENT_RATE_WINDOW:60000}
+  concurrency:
+    lock-ttl-millis: ${AUTH_LOCK_TTL:10000}
+    retry-interval-millis: ${AUTH_LOCK_RETRY_INTERVAL:25}
+    acquire-timeout-millis: ${AUTH_LOCK_ACQUIRE_TIMEOUT:3000}
+    social-registration-max-attempts: ${SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS:3}
+  redis:
+    key-prefix: ${AUTH_REDIS_KEY_PREFIX:moodtail:local:auth:}
+
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
+  max-age: ${CORS_MAX_AGE:3600}
 
 app:
   usage:

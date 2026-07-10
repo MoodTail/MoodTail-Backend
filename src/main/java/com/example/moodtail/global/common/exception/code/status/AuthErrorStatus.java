@@ -23,7 +23,18 @@ public enum AuthErrorStatus implements BaseCodeInterface {
     EMAIL_SEND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH012", "이메일 발송 중 오류가 발생했습니다."),
     EMAIL_CODE_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH013", "인증 코드가 만료되었습니다."),
     EMAIL_CODE_MISMATCH(HttpStatus.UNAUTHORIZED, "AUTH014", "인증 코드가 일치하지 않습니다."),
-    EMAIL_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH015", "이메일 토큰이 만료되었거나 일치하지 않습니다.");
+    EMAIL_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH015", "이메일 토큰이 만료되었거나 일치하지 않습니다."),
+    INVALID_SOCIAL_LOGIN(HttpStatus.UNAUTHORIZED, "AUTH016", "소셜 로그인 인증 정보가 유효하지 않습니다."),
+    SOCIAL_LOGIN_CONFIGURATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH017", "소셜 로그인 설정이 올바르지 않습니다."),
+    INVALID_OAUTH_STATE(HttpStatus.UNAUTHORIZED, "AUTH018", "OAuth state가 만료되었거나 유효하지 않습니다."),
+    INVALID_GUEST_SESSION(HttpStatus.UNAUTHORIZED, "AUTH019", "유효한 게스트 세션이 필요합니다."),
+    INACTIVE_USER(HttpStatus.FORBIDDEN, "AUTH020", "비활성화된 사용자입니다."),
+    TOO_MANY_GUEST_LOGIN_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "AUTH021", "게스트 로그인 요청이 너무 많습니다."),
+    SOCIAL_ACCOUNT_ALREADY_EXISTS(HttpStatus.CONFLICT, "AUTH022", "이미 가입된 소셜 계정입니다."),
+    SOCIAL_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH023", "가입되지 않은 소셜 계정입니다."),
+    REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST, "AUTH024", "필수 약관에 모두 동의해야 합니다."),
+    TERMS_CONFIGURATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH025", "활성 필수 약관 설정이 올바르지 않습니다."),
+    INVALID_TERM_AGREEMENT(HttpStatus.BAD_REQUEST, "AUTH026", "약관 동의 정보가 유효하지 않습니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;

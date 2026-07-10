@@ -3,6 +3,7 @@ package com.example.moodtail.global.token.repository.redis;
 import io.jsonwebtoken.Claims;
 
 import java.time.LocalDateTime;
+import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
 
@@ -19,9 +20,17 @@ public interface RedisRepository {
 
 	void saveRefreshJti(Long userId, String refreshJti);
 
+	boolean replaceRefreshJti(Long userId, String expectedRefreshJti, String newRefreshJti);
+
 	Optional<String> findRefreshJtiByUserId(Long userId);
 
 	void deleteRefreshJti(Long userId);
+
+	void saveOAuthState(String state, Long guestUserId, String provider, Duration ttl);
+
+	Optional<Long> consumeOAuthState(String state, String provider);
+
+	boolean acquireGuestLoginSlot(String fingerprint, int maxAttempts, Duration window);
 
 	void saveLastLogin(String email, LocalDateTime lastLogin);
 
