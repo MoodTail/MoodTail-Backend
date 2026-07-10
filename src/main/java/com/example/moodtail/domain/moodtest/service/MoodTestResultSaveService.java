@@ -1,18 +1,13 @@
 package com.example.moodtail.domain.moodtest.service;
 
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultSaveRequest;
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
-import com.example.moodtail.domain.moodtest.entity.RecommendationItem;
-import com.example.moodtail.domain.moodtest.entity.RecommendationSession;
-import com.example.moodtail.domain.moodtest.entity.RecommendationSessionType;
-import com.example.moodtail.domain.moodtest.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
-import com.example.moodtail.domain.moodtest.repository.RecommendationItemRepository;
-import com.example.moodtail.domain.moodtest.repository.RecommendationSessionRepository;
+import com.example.moodtail.domain.recommendation.model.RecommendationItemCommand;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
+import com.example.moodtail.domain.recommendation.service.RecommendationPersistenceService;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -25,15 +20,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
-import static com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus.MOOD_TEST_COCKTAIL_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus.MOOD_TEST_INVALID_RESULT;
 import static com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus.MOOD_TEST_MOOD_TYPE_NOT_FOUND;
 
@@ -41,16 +30,13 @@ import static com.example.moodtail.global.common.exception.code.status.MoodTestE
 @RequiredArgsConstructor
 public class MoodTestResultSaveService {
 
-    private static final int REQUIRED_RECOMMENDATION_COUNT = 4;
     private static final ZoneId RESULT_DATE_ZONE = ZoneId.of("Asia/Seoul");
     private static final String USER_DATE_UNIQUE_CONSTRAINT = "uk_mood_test_result_user_date";
 
     private final UserRepository userRepository;
     private final MoodTypeRepository moodTypeRepository;
-    private final CocktailRepository cocktailRepository;
     private final MoodTestResultRepository moodTestResultRepository;
-    private final RecommendationSessionRepository recommendationSessionRepository;
-    private final RecommendationItemRepository recommendationItemRepository;
+    private final RecommendationPersistenceService recommendationPersistenceService;
     private final PlatformTransactionManager transactionManager;
 
     public Long saveResult(Long userId, MoodTestResultSaveRequest request) {
@@ -80,7 +66,12 @@ public class MoodTestResultSaveService {
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
         MoodType moodType = getMoodType(request.moodType());
         TasteProfile tasteProfile = toTasteProfile(request.tasteProfile());
-        List<Cocktail> recommendedCocktails = getRecommendedCocktails(request.recommendedCocktails());
+        List<RecommendationItemCommand> recommendationCommands = request.recommendedCocktails().stream()
+                .map(recommendation -> new RecommendationItemCommand(
+                        recommendation.cocktailId(),
+                        recommendation.matchScore()
+                ))
+                .toList();
 
         LocalDate resultDate = LocalDate.now(RESULT_DATE_ZONE);
         MoodTestResult moodTestResult = moodTestResultRepository.findByUserIdAndResultDate(userId, resultDate)
@@ -91,7 +82,11 @@ public class MoodTestResultSaveService {
                 .orElseGet(() -> MoodTestResult.create(user, moodType, resultDate, tasteProfile));
 
         MoodTestResult savedResult = moodTestResultRepository.saveAndFlush(moodTestResult);
-        replaceRecommendation(user, savedResult, request.recommendedCocktails(), recommendedCocktails);
+        recommendationPersistenceService.replaceTestResultRecommendation(
+                user,
+                savedResult,
+                recommendationCommands
+        );
 
         return savedResult.getId();
     }
@@ -133,63 +128,5 @@ public class MoodTestResultSaveService {
                 tasteProfile.refreshing(),
                 tasteProfile.bitterness()
         );
-    }
-
-    private List<Cocktail> getRecommendedCocktails(
-            List<MoodTestResultSaveRequest.RecommendedCocktailDto> recommendedCocktails
-    ) {
-        if (recommendedCocktails.size() != REQUIRED_RECOMMENDATION_COUNT) {
-            throw new RestApiException(MOOD_TEST_INVALID_RESULT);
-        }
-
-        List<Long> cocktailIds = recommendedCocktails.stream()
-                .map(MoodTestResultSaveRequest.RecommendedCocktailDto::cocktailId)
-                .toList();
-        Set<Long> distinctCocktailIds = new HashSet<>(cocktailIds);
-        if (distinctCocktailIds.size() != REQUIRED_RECOMMENDATION_COUNT) {
-            throw new RestApiException(MOOD_TEST_INVALID_RESULT);
-        }
-
-        List<Cocktail> cocktails = cocktailRepository.findAllById(cocktailIds);
-        if (cocktails.size() != REQUIRED_RECOMMENDATION_COUNT) {
-            throw new RestApiException(MOOD_TEST_COCKTAIL_NOT_FOUND);
-        }
-        return cocktails;
-    }
-
-    private void replaceRecommendation(
-            User user,
-            MoodTestResult moodTestResult,
-            List<MoodTestResultSaveRequest.RecommendedCocktailDto> recommendationRequests,
-            List<Cocktail> recommendedCocktails
-    ) {
-        List<RecommendationSession> oldSessions = recommendationSessionRepository.findByMoodTestResultIdAndSessionType(
-                moodTestResult.getId(),
-                RecommendationSessionType.TEST_RESULT
-        );
-        if (!oldSessions.isEmpty()) {
-            recommendationItemRepository.deleteByRecommendationSessionIn(oldSessions);
-            recommendationSessionRepository.deleteAll(oldSessions);
-        }
-
-        RecommendationSession recommendationSession = recommendationSessionRepository.save(
-                RecommendationSession.forTestResult(user, moodTestResult)
-        );
-        Map<Long, Cocktail> cocktailMap = recommendedCocktails.stream()
-                .collect(Collectors.toMap(Cocktail::getId, Function.identity()));
-
-        for (int i = 0; i < recommendationRequests.size(); i++) {
-            MoodTestResultSaveRequest.RecommendedCocktailDto recommendationRequest = recommendationRequests.get(i);
-            Cocktail cocktail = cocktailMap.get(recommendationRequest.cocktailId());
-            if (cocktail == null) {
-                throw new RestApiException(MOOD_TEST_COCKTAIL_NOT_FOUND);
-            }
-            recommendationItemRepository.save(RecommendationItem.create(
-                    recommendationSession,
-                    cocktail,
-                    i + 1,
-                    recommendationRequest.matchScore()
-            ));
-        }
     }
 }

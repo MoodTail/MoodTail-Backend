@@ -1,5 +1,6 @@
-package com.example.moodtail.domain.moodtest.entity;
+package com.example.moodtail.domain.recommendation.entity;
 
+import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;

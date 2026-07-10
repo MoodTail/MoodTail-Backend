@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.moodtest.entity;
+package com.example.moodtail.domain.recommendation.entity;
 
 public enum RecommendationSessionType {
     TEST_RESULT,

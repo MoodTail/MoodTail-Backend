@@ -1,7 +1,7 @@
-package com.example.moodtail.domain.moodtest.repository;
+package com.example.moodtail.domain.recommendation.repository;
 
-import com.example.moodtail.domain.moodtest.entity.RecommendationItem;
-import com.example.moodtail.domain.moodtest.entity.RecommendationSession;
+import com.example.moodtail.domain.recommendation.entity.RecommendationItem;
+import com.example.moodtail.domain.recommendation.entity.RecommendationSession;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Collection;
