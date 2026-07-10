@@ -1,5 +1,7 @@
 package com.example.moodtail.domain.user.service;
 
+import com.example.moodtail.domain.collection.entity.UserUnlockedMoodType;
+import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.user.dto.request.UserProfileUpdateRequest;
 import com.example.moodtail.domain.user.dto.response.MyPageResponse;
 import com.example.moodtail.domain.user.dto.response.MyPageResponse.RepresentativeMoodTypeResponse;
@@ -20,6 +22,8 @@ import static com.example.moodtail.global.common.exception.code.status.AuthError
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.LOGIN_USER_REQUIRED;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.INVALID_NICKNAME;
+import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.INVALID_PROFILE_UPDATE;
+import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.REPRESENTATIVE_MOOD_TYPE_NOT_UNLOCKED;
 
 @Service
 @RequiredArgsConstructor
@@ -29,6 +33,7 @@ public class MyPageService {
     private static final ZoneId KOREA_ZONE_ID = ZoneId.of("Asia/Seoul");
 
     private final UserRepository userRepository;
+    private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
 
     public MyPageResponse getMyPage(Long userId, String role) {
         validateRole(role);
@@ -69,20 +74,31 @@ public class MyPageService {
             UserProfileUpdateRequest request
     ) {
         validateRole(role);
-        String nickname = validateNickname(request);
+        validateProfileUpdateRequest(request);
+        String nickname = request.nickname() == null ? null : validateNickname(request.nickname());
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
-        user.updateNickname(nickname);
-
-        return new UserProfileUpdateResponse(user.getId(), user.getNickname());
-    }
-
-    private String validateNickname(UserProfileUpdateRequest request) {
-        if (request == null || request.nickname() == null) {
-            throw new RestApiException(INVALID_NICKNAME);
+        if (nickname != null) {
+            user.updateNickname(nickname);
+        }
+        if (request.representativeMoodTypeId() != null) {
+            UserUnlockedMoodType unlockedMoodType = userUnlockedMoodTypeRepository
+                    .findByUserIdAndMoodTypeId(userId, request.representativeMoodTypeId())
+                    .orElseThrow(() -> new RestApiException(REPRESENTATIVE_MOOD_TYPE_NOT_UNLOCKED));
+            user.updateRepresentativeMoodType(unlockedMoodType.getMoodType());
         }
 
-        String nickname = request.nickname().trim();
+        return UserProfileUpdateResponse.from(user);
+    }
+
+    private void validateProfileUpdateRequest(UserProfileUpdateRequest request) {
+        if (request == null || (request.nickname() == null && request.representativeMoodTypeId() == null)) {
+            throw new RestApiException(INVALID_PROFILE_UPDATE);
+        }
+    }
+
+    private String validateNickname(String nicknameValue) {
+        String nickname = nicknameValue.trim();
         if (nickname.isEmpty() || nickname.length() > 50) {
             throw new RestApiException(INVALID_NICKNAME);
         }

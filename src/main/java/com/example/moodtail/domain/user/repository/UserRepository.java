@@ -2,6 +2,7 @@ package com.example.moodtail.domain.user.repository;
 
 import com.example.moodtail.domain.user.entity.User;
 import jakarta.persistence.LockModeType;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
@@ -15,6 +16,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmail(String email);
 
     Optional<User> findByEmail(String email);
+
+    @Override
+    @EntityGraph(attributePaths = {"representativeMoodType", "representativeMoodType.characterImage"})
+    Optional<User> findById(Long userId);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select user from User user where user.id = :userId")

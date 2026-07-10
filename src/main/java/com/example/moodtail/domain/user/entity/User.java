@@ -58,4 +58,8 @@ public class User extends BaseEntity {
     public void updateNickname(String nickname) {
         this.nickname = nickname;
     }
+
+    public void updateRepresentativeMoodType(MoodType moodType) {
+        this.representativeMoodType = moodType;
+    }
 }
