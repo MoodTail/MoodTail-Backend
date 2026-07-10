@@ -64,7 +64,8 @@ auth:
       client-secret: ${KAKAO_CLIENT_SECRET:}
       redirect-uri: ${KAKAO_REDIRECT_URI:}
       token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
-      user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}  guest-login:
+      user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
+  guest-login:
     client-ip-header: ${GUEST_LOGIN_CLIENT_IP_HEADER:}
     default-nickname: ${GUEST_DEFAULT_NICKNAME:게스트}
     uuid-rate-limit:
