@@ -17,8 +17,11 @@ import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import lombok.RequiredArgsConstructor;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -40,6 +43,7 @@ public class MoodTestResultSaveService {
 
     private static final int REQUIRED_RECOMMENDATION_COUNT = 4;
     private static final ZoneId RESULT_DATE_ZONE = ZoneId.of("Asia/Seoul");
+    private static final String USER_DATE_UNIQUE_CONSTRAINT = "uk_mood_test_result_user_date";
 
     private final UserRepository userRepository;
     private final MoodTypeRepository moodTypeRepository;
@@ -47,10 +51,32 @@ public class MoodTestResultSaveService {
     private final MoodTestResultRepository moodTestResultRepository;
     private final RecommendationSessionRepository recommendationSessionRepository;
     private final RecommendationItemRepository recommendationItemRepository;
+    private final PlatformTransactionManager transactionManager;
 
-    @Transactional
     public Long saveResult(Long userId, MoodTestResultSaveRequest request) {
-        User user = userRepository.findById(userId)
+        try {
+            return executeSaveTransaction(userId, request);
+        } catch (RuntimeException exception) {
+            if (!isUserDateUniqueConstraintViolation(exception)) {
+                throw exception;
+            }
+            return executeSaveTransaction(userId, request);
+        }
+    }
+
+    private Long executeSaveTransaction(Long userId, MoodTestResultSaveRequest request) {
+        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
+        transactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+        Long resultId = transactionTemplate.execute(status -> saveResultInTransaction(userId, request));
+        if (resultId == null) {
+            throw new IllegalStateException("테스트 결과 저장 트랜잭션이 결과 ID 없이 종료되었습니다.");
+        }
+        return resultId;
+    }
+
+    private Long saveResultInTransaction(Long userId, MoodTestResultSaveRequest request) {
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
         MoodType moodType = getMoodType(request.moodType());
         TasteProfile tasteProfile = toTasteProfile(request.tasteProfile());
@@ -64,10 +90,28 @@ public class MoodTestResultSaveService {
                 })
                 .orElseGet(() -> MoodTestResult.create(user, moodType, resultDate, tasteProfile));
 
-        MoodTestResult savedResult = moodTestResultRepository.save(moodTestResult);
+        MoodTestResult savedResult = moodTestResultRepository.saveAndFlush(moodTestResult);
         replaceRecommendation(user, savedResult, request.recommendedCocktails(), recommendedCocktails);
 
         return savedResult.getId();
+    }
+
+    private boolean isUserDateUniqueConstraintViolation(Throwable throwable) {
+        Throwable current = throwable;
+        while (current != null) {
+            if (current instanceof ConstraintViolationException constraintViolationException
+                    && USER_DATE_UNIQUE_CONSTRAINT.equalsIgnoreCase(
+                    constraintViolationException.getConstraintName()
+            )) {
+                return true;
+            }
+            String message = current.getMessage();
+            if (message != null && message.toLowerCase().contains(USER_DATE_UNIQUE_CONSTRAINT)) {
+                return true;
+            }
+            current = current.getCause();
+        }
+        return false;
     }
 
     private MoodType getMoodType(MoodTestResultSaveRequest.MoodTypeDto requestMoodType) {
