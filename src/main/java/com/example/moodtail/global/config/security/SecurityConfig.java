@@ -65,6 +65,8 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 						.requestMatchers("/api/v1/tests/questions").permitAll()
 						.requestMatchers("/api/v1/tests/results").permitAll()
+
+						.requestMatchers("/api/v1/cocktails/*").permitAll()
 						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().authenticated()
 				)
