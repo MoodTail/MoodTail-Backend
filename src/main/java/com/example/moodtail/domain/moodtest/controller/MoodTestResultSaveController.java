@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/test/results")
+@RequestMapping("/api/v1/tests/results")
 public class MoodTestResultSaveController {
 
     private final MoodTestResultSaveService moodTestResultSaveService;
