@@ -1,7 +1,6 @@
 package com.example.moodtail.domain.recommendation.calculator;
 
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionOption;
-import com.example.moodtail.domain.moodtest.entity.MoodQuestionOptionScore;
 import com.example.moodtail.domain.moodtest.entity.QuestionScoreType;
 import com.example.moodtail.domain.moodtest.entity.TasteMetricType;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
