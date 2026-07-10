@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.user.entity;
 
+import com.example.moodtail.domain.term.entity.Term;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

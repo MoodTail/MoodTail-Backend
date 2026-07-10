@@ -1,15 +1,15 @@
 package com.example.moodtail.domain.user.service;
 
 import com.example.moodtail.domain.user.client.SocialUserProfile;
+import com.example.moodtail.domain.term.entity.Term;
+import com.example.moodtail.domain.term.entity.TermType;
+import com.example.moodtail.domain.term.repository.TermRepository;
 import com.example.moodtail.domain.user.entity.SocialAccount;
-import com.example.moodtail.domain.user.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserTermAgreement;
 import com.example.moodtail.domain.user.enums.SocialProvider;
-import com.example.moodtail.domain.user.enums.TermType;
 import com.example.moodtail.domain.user.enums.UserRole;
 import com.example.moodtail.domain.user.repository.SocialAccountRepository;
-import com.example.moodtail.domain.user.repository.TermRepository;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
 import com.example.moodtail.domain.user.support.AuthPropertiesFixtures;
@@ -90,7 +90,7 @@ class SocialAccountRegistrationServiceTest {
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findAllByActiveTrue()).thenReturn(List.of(requiredTerm));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
         when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -161,7 +161,7 @@ class SocialAccountRegistrationServiceTest {
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findAllByActiveTrue()).thenReturn(List.of(requiredTerm));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
 
         assertThatThrownBy(() -> service.register(
                 kakaoProfile(),
@@ -183,7 +183,7 @@ class SocialAccountRegistrationServiceTest {
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findAllByActiveTrue()).thenReturn(List.of(requiredTerm));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
 
         assertThatThrownBy(() -> service.register(
                 kakaoProfile(),
@@ -205,7 +205,15 @@ class SocialAccountRegistrationServiceTest {
     }
 
     private Term activeTerm(Long id, TermType termType, boolean required) {
-        Term term = Term.create(termType, "약관", "약관 본문", required, "1.0.0", true);
+        Term term = Term.builder()
+                .termType(termType)
+                .title("약관")
+                .content("약관 본문")
+                .required(required)
+                .version("1.0.0")
+                .active(true)
+                .createdAt(LocalDateTime.now())
+                .build();
         ReflectionTestUtils.setField(term, "id", id);
         return term;
     }

@@ -2,12 +2,12 @@ package com.example.moodtail.domain.user.service;
 
 import com.example.moodtail.domain.user.client.SocialUserProfile;
 import com.example.moodtail.domain.user.config.AuthProperties;
+import com.example.moodtail.domain.term.entity.Term;
+import com.example.moodtail.domain.term.repository.TermRepository;
 import com.example.moodtail.domain.user.entity.SocialAccount;
-import com.example.moodtail.domain.user.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserTermAgreement;
 import com.example.moodtail.domain.user.repository.SocialAccountRepository;
-import com.example.moodtail.domain.user.repository.TermRepository;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -140,7 +140,7 @@ public class SocialAccountRegistrationService {
         if (consents == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_TERM_AGREEMENT);
         }
-        List<Term> activeTerms = termRepository.findAllByActiveTrue();
+        List<Term> activeTerms = termRepository.findByActiveTrueOrderByIdAsc();
         List<Term> requiredTerms = activeTerms.stream().filter(Term::isRequired).toList();
         long activeTermTypeCount = activeTerms.stream().map(Term::getTermType).distinct().count();
         if (requiredTerms.isEmpty() || activeTermTypeCount != activeTerms.size()) {
