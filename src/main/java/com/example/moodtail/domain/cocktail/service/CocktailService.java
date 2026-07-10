@@ -75,7 +75,7 @@ public class CocktailService {
                                 .cocktailId(c.getId())
                                 .name(c.getNameKo())
                                 .shortDescription(c.getShortDescription())
-                                .imageUrl(characterImageUrl)
+                                .imageUrl(imageService.getImageUrl(c.getImageId()))
                                 .build())
                         .toList())
                 .build();
