@@ -33,7 +33,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		ServletException,
 		IOException {
 		String uri = request.getRequestURI();
-		if (isActuatorRequest(uri)) {
+		if (isActuatorRequest(uri) || isLogoutRequest(uri)) {
 			chain.doFilter(request, response);
 			return;
 		}
@@ -43,7 +43,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			Authentication authentication = getAuthentication(token); // 인증 정보를 받아옴
 			SecurityContextHolder.getContext().setAuthentication(authentication); // 인증 정보를 설정
 
-			if (!isLogoutOrOutRequest(uri)) {
+			if (!isUserOutRequest(uri)) {
 				PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal();
 				Long userId = principalDetails.getUserId();
 				redisRepository.extendUserTimer(userId);
@@ -59,8 +59,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		return uri.equals("/actuator") || uri.startsWith("/actuator/");
 	}
 
-	private boolean isLogoutOrOutRequest(String uri) {
-		return uri.equals("/api/v1/auth/logout") || uri.equals("/api/v1/users");
+	private boolean isLogoutRequest(String uri) {
+		return "/api/v1/auth/logout".equals(uri);
+	}
+
+	private boolean isUserOutRequest(String uri) {
+		return "/api/v1/users".equals(uri);
 	}
 
 	private Authentication getAuthentication(String token) {

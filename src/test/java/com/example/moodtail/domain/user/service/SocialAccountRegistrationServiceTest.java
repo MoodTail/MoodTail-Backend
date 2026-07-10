@@ -118,6 +118,32 @@ class SocialAccountRegistrationServiceTest {
                 });
     }
 
+    @Test
+    void loginReturnsExistingSocialAccountWithoutTouchingGuest() {
+        User existingUser = guestWithId(99L);
+        existingUser.upgradeToUser("기존유저", LocalDateTime.now());
+        SocialAccount account = SocialAccount.create(
+                existingUser,
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com"
+        );
+        SocialUserProfile profile = new SocialUserProfile(
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com",
+                "ignored"
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.GOOGLE, "google-id"))
+                .thenReturn(Optional.of(account));
+
+        SocialLoginUser result = service.login(profile);
+
+        assertThat(result.userId()).isEqualTo(99L);
+        assertThat(result.isNewUser()).isFalse();
+        verify(userRepository, never()).findByIdForUpdate(anyLong());
+        verify(userTermAgreementRepository, never()).saveAll(any());
+    }
 
     @Test
     void loginRejectsUnregisteredSocialAccount() {
@@ -128,6 +154,45 @@ class SocialAccountRegistrationServiceTest {
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH023")
                 );
+    }
+
+    @Test
+    void loginRejectsSoftDeletedSocialUser() {
+        User deletedUser = guestWithId(99L);
+        deletedUser.upgradeToUser("탈퇴회원", LocalDateTime.now());
+        deletedUser.delete();
+        SocialAccount account = SocialAccount.create(
+                deletedUser,
+                SocialProvider.KAKAO,
+                "12345",
+                null
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> service.login(kakaoProfile()))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
+                );
+    }
+
+    @Test
+    void registerRejectsSoftDeletedGuestSession() {
+        User deletedGuest = guestWithId(2L);
+        deletedGuest.delete();
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(deletedGuest));
+
+        assertThatThrownBy(() -> service.register(
+                kakaoProfile(),
+                2L,
+                List.of(new SocialAccountRegistrationService.TermAgreementConsent(1L, true))
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
+        );
+
+        verify(termRepository, never()).findByActiveTrueOrderByIdAsc();
     }
 
     @Test

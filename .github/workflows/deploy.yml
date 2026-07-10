@@ -117,11 +117,17 @@ jobs:
             JWT_REFRESH_COOKIE_DOMAIN=${{ secrets.JWT_REFRESH_COOKIE_DOMAIN }}
             JWT_COOKIE_SECURE=${{ secrets.JWT_COOKIE_SECURE }}
             JWT_COOKIE_SAME_SITE=${{ secrets.JWT_COOKIE_SAME_SITE }}
+            SECURITY_LOG_LEVEL=${{ secrets.SECURITY_LOG_LEVEL }}
 
             KAKAO_OAUTH_ENABLED=${{ secrets.KAKAO_OAUTH_ENABLED }}
             KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
             KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
             KAKAO_REDIRECT_URI=${{ secrets.KAKAO_REDIRECT_URI }}
+
+            GOOGLE_OAUTH_ENABLED=${{ secrets.GOOGLE_OAUTH_ENABLED }}
+            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+            GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}
 
             OAUTH_STATE_EXPIRATION=${{ secrets.OAUTH_STATE_EXPIRATION }}
             OAUTH_CONNECT_TIMEOUT=${{ secrets.OAUTH_CONNECT_TIMEOUT }}

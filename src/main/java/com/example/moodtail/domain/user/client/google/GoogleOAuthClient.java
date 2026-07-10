@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.user.client.kakao;
+package com.example.moodtail.domain.user.client.google;
 
 import com.example.moodtail.domain.user.client.OAuthClient;
 import com.example.moodtail.domain.user.client.OAuthRestClientFactory;
@@ -19,7 +19,7 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
 @Component
-public class KakaoOAuthClient implements OAuthClient {
+public class GoogleOAuthClient implements OAuthClient {
 
     private static final String AUTHORIZATION_CODE_GRANT_TYPE = "authorization_code";
     private static final MediaType FORM_URLENCODED_UTF8 =
@@ -34,13 +34,16 @@ public class KakaoOAuthClient implements OAuthClient {
     private final String userInfoUri;
 
     @Autowired
-    public KakaoOAuthClient(OAuthRestClientFactory restClientFactory, AuthProperties authProperties) {
-        this(restClientFactory.create(), authProperties.oauth().kakao());
+    public GoogleOAuthClient(OAuthRestClientFactory restClientFactory, AuthProperties authProperties) {
+        this(restClientFactory.create(), authProperties.oauth().google());
     }
 
-    KakaoOAuthClient(RestClient restClient, AuthProperties.Provider properties) {
+    GoogleOAuthClient(RestClient restClient, AuthProperties.Provider properties) {
         this.restClient = restClient;
         this.enabled = properties.enabled();
+        if (enabled && !StringUtils.hasText(properties.clientSecret())) {
+            throw new IllegalArgumentException("Enabled Google OAuth requires a client secret");
+        }
         this.clientId = properties.clientId();
         this.clientSecret = properties.clientSecret();
         this.redirectUri = properties.redirectUri();
@@ -50,7 +53,7 @@ public class KakaoOAuthClient implements OAuthClient {
 
     @Override
     public SocialProvider provider() {
-        return SocialProvider.KAKAO;
+        return SocialProvider.GOOGLE;
     }
 
     @Override
@@ -61,41 +64,39 @@ public class KakaoOAuthClient implements OAuthClient {
     @Override
     public SocialUserProfile requestUserProfile(String authorizationCode, String requestRedirectUri) {
         String resolvedRedirectUri = resolveRedirectUri(requestRedirectUri);
-        KakaoTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri);
-        KakaoUserInfoResponse userInfo = requestUserInfo(token.accessToken());
+        GoogleTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri);
+        GoogleUserInfoResponse userInfo = requestUserInfo(token.accessToken());
 
         if (!StringUtils.hasText(userInfo.providerUserId())) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
 
         return new SocialUserProfile(
-                SocialProvider.KAKAO,
+                SocialProvider.GOOGLE,
                 userInfo.providerUserId(),
                 userInfo.verifiedEmail(),
                 userInfo.nickname()
         );
     }
 
-    private KakaoTokenResponse requestToken(String authorizationCode, String redirectUri) {
+    private GoogleTokenResponse requestToken(String authorizationCode, String redirectUri) {
         validateTokenRequest(authorizationCode, redirectUri);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", AUTHORIZATION_CODE_GRANT_TYPE);
         form.add("client_id", clientId);
+        form.add("client_secret", clientSecret);
         form.add("redirect_uri", redirectUri);
         form.add("code", authorizationCode);
-        if (StringUtils.hasText(clientSecret)) {
-            form.add("client_secret", clientSecret);
-        }
 
         try {
-            KakaoTokenResponse response = restClient.post()
+            GoogleTokenResponse response = restClient.post()
                     .uri(tokenUri)
                     .contentType(FORM_URLENCODED_UTF8)
                     .accept(MediaType.APPLICATION_JSON)
                     .body(form)
                     .retrieve()
-                    .body(KakaoTokenResponse.class);
+                    .body(GoogleTokenResponse.class);
 
             if (response == null || !StringUtils.hasText(response.accessToken())) {
                 throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
@@ -108,18 +109,18 @@ public class KakaoOAuthClient implements OAuthClient {
         }
     }
 
-    private KakaoUserInfoResponse requestUserInfo(String accessToken) {
+    private GoogleUserInfoResponse requestUserInfo(String accessToken) {
         if (!StringUtils.hasText(accessToken)) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
 
         try {
-            KakaoUserInfoResponse response = restClient.get()
+            GoogleUserInfoResponse response = restClient.get()
                     .uri(userInfoUri)
                     .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
                     .accept(MediaType.APPLICATION_JSON)
                     .retrieve()
-                    .body(KakaoUserInfoResponse.class);
+                    .body(GoogleUserInfoResponse.class);
 
             if (response == null || !StringUtils.hasText(response.providerUserId())) {
                 throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
@@ -135,6 +136,7 @@ public class KakaoOAuthClient implements OAuthClient {
     private void validateTokenRequest(String authorizationCode, String redirectUri) {
         if (!enabled
                 || !StringUtils.hasText(clientId)
+                || !StringUtils.hasText(clientSecret)
                 || !StringUtils.hasText(redirectUri)
                 || !StringUtils.hasText(tokenUri)
                 || !StringUtils.hasText(userInfoUri)) {

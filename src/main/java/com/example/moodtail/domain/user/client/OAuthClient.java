@@ -6,5 +6,7 @@ public interface OAuthClient {
 
     SocialProvider provider();
 
+    boolean isEnabled();
+
     SocialUserProfile requestUserProfile(String authorizationCode, String redirectUri);
 }

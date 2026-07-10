@@ -13,7 +13,8 @@ public final class AuthPropertiesFixtures {
                         300_000L,
                         3_000L,
                         5_000L,
-                        kakaoProvider()
+                        kakaoProvider(),
+                        googleProvider()
                 ),
                 new AuthProperties.RefreshCookie("refreshToken", "/", null, false, "Lax"),
                 new AuthProperties.GuestLogin(
@@ -32,10 +33,20 @@ public final class AuthPropertiesFixtures {
                 true,
                 "kakao-client-id",
                 "kakao-client-secret",
-                "http://frontend/kakao/callback",
+                "http://localhost:5173/auth/kakao/callback",
                 "https://kauth.kakao.com/oauth/token",
                 "https://kapi.kakao.com/v2/user/me"
         );
     }
 
+    public static AuthProperties.Provider googleProvider() {
+        return new AuthProperties.Provider(
+                true,
+                "google-client-id",
+                "google-client-secret",
+                "http://localhost:5173/auth/google/callback",
+                "https://oauth2.googleapis.com/token",
+                "https://openidconnect.googleapis.com/v1/userinfo"
+        );
+    }
 }

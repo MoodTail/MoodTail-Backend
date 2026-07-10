@@ -63,7 +63,7 @@ public class GuestUserRegistrationService {
     }
 
     private GuestLoginUser restoreGuest(User user) {
-        if (!user.isActive()) {
+        if (!user.isActive() || user.isDeleted()) {
             throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
         }
         user.updateLastAccessedAt(LocalDateTime.now());

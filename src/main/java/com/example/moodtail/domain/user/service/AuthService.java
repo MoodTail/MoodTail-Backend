@@ -22,6 +22,7 @@ import com.example.moodtail.global.config.security.jwt.JwtProvider;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import io.jsonwebtoken.Claims;
+import jakarta.annotation.PostConstruct;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -38,6 +39,7 @@ import org.springframework.util.StringUtils;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -63,6 +65,19 @@ public class AuthService {
     @Value("${jwt.refreshExpiration}")
     private long jwtRefreshExpirationMillis;
 
+    @PostConstruct
+    void validateOAuthClients() {
+        EnumSet<SocialProvider> registeredProviders = EnumSet.noneOf(SocialProvider.class);
+        for (OAuthClient client : oAuthClients) {
+            if (client == null || client.provider() == null || !registeredProviders.add(client.provider())) {
+                throw new IllegalStateException("Each social provider must have exactly one OAuth client");
+            }
+        }
+        if (!registeredProviders.equals(EnumSet.allOf(SocialProvider.class))) {
+            throw new IllegalStateException("Every social provider must have an OAuth client");
+        }
+    }
+
     public GuestLoginResponse guestLogin(
             GuestLoginRequest request,
             HttpServletRequest httpRequest,
@@ -77,6 +92,7 @@ public class AuthService {
 
     public OAuthStateResponse createOAuthState(String providerName, Long guestUserId) {
         SocialProvider provider = parseSocialProvider(providerName);
+        findEnabledOAuthClient(provider);
         return OAuthStateResponse.from(oAuthStateService.issue(guestUserId, provider));
     }
 
@@ -163,7 +179,7 @@ public class AuthService {
                         redisRepository.deleteRefreshJti(userId);
                         return new RestApiException(AuthErrorStatus.USER_NOT_FOUND);
                     });
-            if (!user.isActive()) {
+            if (!user.isActive() || user.isDeleted()) {
                 redisRepository.deleteRefreshJti(userId);
                 throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
             }
@@ -178,21 +194,55 @@ public class AuthService {
     }
 
     public void logout(HttpServletRequest request, HttpServletResponse response) {
+        try {
+            Optional<Long> accessTokenUserId = revokeAccessToken(request);
+            if (accessTokenUserId.isPresent()) {
+                redisRepository.deleteRefreshJti(accessTokenUserId.get());
+            } else {
+                revokeRefreshToken(request);
+            }
+        } finally {
+            clearRefreshTokenCookie(response);
+            SecurityContextHolder.clearContext();
+        }
+    }
+
+    private Optional<Long> revokeAccessToken(HttpServletRequest request) {
         String accessToken = jwtProvider.resolveToken(request);
-        if (!StringUtils.hasText(accessToken)) {
-            throw new RestApiException(AuthErrorStatus.EMPTY_JWT);
-        }
-        if (!jwtProvider.validateAccessToken(accessToken)) {
-            throw new RestApiException(AuthErrorStatus.INVALID_ACCESS_TOKEN);
+        if (!StringUtils.hasText(accessToken) || !jwtProvider.validateAccessToken(accessToken)) {
+            return Optional.empty();
         }
 
-        Claims accessClaims = jwtProvider.getAccessTokenClaims(accessToken);
-        Long userId = parseUserId(accessClaims, AuthErrorStatus.INVALID_ACCESS_TOKEN);
+        try {
+            Claims accessClaims = jwtProvider.getAccessTokenClaims(accessToken);
+            Long userId = parseUserId(accessClaims, AuthErrorStatus.INVALID_ACCESS_TOKEN);
+            redisRepository.blockAccessToken(accessToken, accessClaims);
+            return Optional.of(userId);
+        } catch (RestApiException ignored) {
+            return Optional.empty();
+        }
+    }
 
-        redisRepository.blockAccessToken(accessToken, accessClaims);
-        redisRepository.deleteRefreshJti(userId);
-        clearRefreshTokenCookie(response);
-        SecurityContextHolder.clearContext();
+    private void revokeRefreshToken(HttpServletRequest request) {
+        Optional<String> refreshToken = resolveRefreshToken(request);
+        if (refreshToken.isEmpty()) {
+            return;
+        }
+
+        try {
+            Claims refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken.get());
+            Long userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
+            String refreshJti = refreshClaims.getId();
+            if (!StringUtils.hasText(refreshJti)) {
+                return;
+            }
+
+            redisRepository.findRefreshJtiByUserId(userId)
+                    .filter(refreshJti::equals)
+                    .ifPresent(ignored -> redisRepository.deleteRefreshJti(userId));
+        } catch (RestApiException ignored) {
+            // Logout is idempotent: an invalid or expired cookie is cleared without exposing token details.
+        }
     }
 
     private TokenInfo issueToken(Long userId, UserRole role, HttpServletResponse response) {
@@ -234,11 +284,15 @@ public class AuthService {
         }
     }
 
-    private OAuthClient findOAuthClient(SocialProvider provider) {
-        return oAuthClients.stream()
-                .filter(oAuthClient -> oAuthClient.provider() == provider)
+    private OAuthClient findEnabledOAuthClient(SocialProvider provider) {
+        OAuthClient oAuthClient = oAuthClients.stream()
+                .filter(client -> client.provider() == provider)
                 .findFirst()
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR));
+        if (!oAuthClient.isEnabled()) {
+            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
+        }
+        return oAuthClient;
     }
 
     private SocialAuthentication authenticateSocial(
@@ -247,8 +301,8 @@ public class AuthService {
             String redirectUri,
             String state
     ) {
+        OAuthClient oAuthClient = findEnabledOAuthClient(provider);
         Long guestUserId = oAuthStateService.consume(state, provider);
-        OAuthClient oAuthClient = findOAuthClient(provider);
         SocialUserProfile profile = oAuthClient.requestUserProfile(authorizationCode, redirectUri);
         validateSocialUserProfile(provider, profile);
         return new SocialAuthentication(guestUserId, profile);

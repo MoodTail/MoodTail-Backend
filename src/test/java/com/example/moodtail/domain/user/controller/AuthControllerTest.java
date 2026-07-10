@@ -18,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
+import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
@@ -67,6 +68,10 @@ class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.CACHE_CONTROL, "no-store"))
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
+                        .string(HttpHeaders.PRAGMA, "no-cache"))
                 .andExpect(jsonPath("$.code").value("COMMON200"))
                 .andExpect(jsonPath("$.result.provider").value("KAKAO"))
                 .andExpect(jsonPath("$.result.isNewUser").value(true));
@@ -77,6 +82,40 @@ class AuthControllerTest {
                 .isEqualTo("kakao-authorization-code");
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().state())
                 .isEqualTo("oauth-state");
+    }
+
+    @Test
+    void googleLoginUsesCommonProviderEndpoint() throws Exception {
+        SocialLoginResponse socialLoginResponse = new SocialLoginResponse(
+                2L,
+                "google@example.com",
+                "구글유저",
+                SocialProvider.GOOGLE,
+                false,
+                "Bearer",
+                "access-token"
+        );
+        when(authService.socialLogin(eq("google"), any(SocialLoginRequest.class), any(HttpServletResponse.class)))
+                .thenReturn(socialLoginResponse);
+
+        mockMvc.perform(post("/api/v1/auth/login/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "google-authorization-code",
+                                  "redirectUri": "https://frontend.example.com/oauth/google/callback",
+                                  "state": "google-oauth-state"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.provider").value("GOOGLE"))
+                .andExpect(jsonPath("$.result.email").value("google@example.com"))
+                .andExpect(jsonPath("$.result.isNewUser").value(false));
+
+        ArgumentCaptor<SocialLoginRequest> requestCaptor = ArgumentCaptor.forClass(SocialLoginRequest.class);
+        verify(authService).socialLogin(eq("google"), requestCaptor.capture(), any(HttpServletResponse.class));
+        org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().redirectUri())
+                .isEqualTo("https://frontend.example.com/oauth/google/callback");
     }
 
     @Test
