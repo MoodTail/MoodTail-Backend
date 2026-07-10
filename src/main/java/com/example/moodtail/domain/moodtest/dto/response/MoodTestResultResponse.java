@@ -26,7 +26,9 @@ public record MoodTestResultResponse(
                 .name(moodType.getName())
                 .shortDescription(moodType.getShortDescription())
                 .characterQuote(moodType.getCharacterQuote())
-                .characterImageUrl(null)
+                .characterImageUrl(moodType.getCharacterImage() == null
+                        ? null
+                        : moodType.getCharacterImage().getImageUrl())
                 .displayTasteScores(displayTasteScoresDto(moodType.toTasteProfile()))
                 .build();
     }
@@ -58,7 +60,7 @@ public record MoodTestResultResponse(
                 .nameKo(cocktail.getNameKo())
                 .nameEn(cocktail.getNameEn())
                 .shortDescription(cocktail.getShortDescription())
-                .imageUrl(null)
+                .imageUrl(cocktail.getImage() == null ? null : cocktail.getImage().getImageUrl())
                 .matchScore(matchScore)
                 .build();
     }

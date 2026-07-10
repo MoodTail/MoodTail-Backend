@@ -1,7 +1,6 @@
 package com.example.moodtail.domain.user.entity;
 
 import com.example.moodtail.domain.moodtest.entity.MoodType;
-import com.example.moodtail.domain.user.enums.UserRole;
 import com.example.moodtail.domain.user.enums.UserStatus;
 import com.example.moodtail.global.common.base.BaseEntity;
 import jakarta.persistence.Column;
@@ -58,7 +57,7 @@ public class User extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private UserRole role;
+    private com.example.moodtail.domain.user.enums.UserRole role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -72,21 +71,21 @@ public class User extends BaseEntity {
         return User.builder()
                 .guestUuid(guestUuid)
                 .nickname(truncateNickname(nickname))
-                .role(UserRole.GUEST)
+                .role(com.example.moodtail.domain.user.enums.UserRole.GUEST)
                 .status(UserStatus.ACTIVE)
                 .lastAccessedAt(accessedAt)
                 .build();
     }
 
     public void upgradeToUser(String socialNickname, LocalDateTime accessedAt) {
-        if (role != UserRole.GUEST || guestUuid == null) {
+        if (role != com.example.moodtail.domain.user.enums.UserRole.GUEST || guestUuid == null) {
             throw new IllegalStateException("게스트 사용자만 소셜 계정으로 전환할 수 있습니다.");
         }
         if (socialNickname != null && !socialNickname.isBlank()) {
             nickname = truncateNickname(socialNickname.trim());
         }
         guestUuid = null;
-        role = UserRole.USER;
+        role = com.example.moodtail.domain.user.enums.UserRole.USER;
         lastAccessedAt = accessedAt;
     }
 
@@ -94,8 +93,16 @@ public class User extends BaseEntity {
         lastAccessedAt = accessedAt;
     }
 
+    public void updateNickname(String nickname) {
+        this.nickname = truncateNickname(nickname);
+    }
+
+    public void updateRepresentativeMoodType(MoodType moodType) {
+        representativeMoodType = moodType;
+    }
+
     public boolean isGuest() {
-        return role == UserRole.GUEST;
+        return role == com.example.moodtail.domain.user.enums.UserRole.GUEST;
     }
 
     public boolean isActive() {

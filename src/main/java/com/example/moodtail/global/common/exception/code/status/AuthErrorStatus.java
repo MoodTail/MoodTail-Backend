@@ -34,7 +34,8 @@ public enum AuthErrorStatus implements BaseCodeInterface {
     SOCIAL_ACCOUNT_NOT_FOUND(HttpStatus.NOT_FOUND, "AUTH023", "가입되지 않은 소셜 계정입니다."),
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST, "AUTH024", "필수 약관에 모두 동의해야 합니다."),
     TERMS_CONFIGURATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH025", "활성 필수 약관 설정이 올바르지 않습니다."),
-    INVALID_TERM_AGREEMENT(HttpStatus.BAD_REQUEST, "AUTH026", "약관 동의 정보가 유효하지 않습니다.");
+    INVALID_TERM_AGREEMENT(HttpStatus.BAD_REQUEST, "AUTH026", "약관 동의 정보가 유효하지 않습니다."),
+    LOGIN_USER_REQUIRED(HttpStatus.FORBIDDEN, "AUTH027", "로그인 사용자만 이용할 수 있습니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;

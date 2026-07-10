@@ -10,12 +10,16 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.Collections;
 
-@Getter
 @AllArgsConstructor
 public class PrincipalDetails implements UserDetails {
 
+	@Getter
 	private final Long userId;
 	private final UserRole role;
+
+	public String getRole() {
+		return role == null ? null : role.name();
+	}
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {

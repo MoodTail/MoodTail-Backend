@@ -1,0 +1,9 @@
+SET NAMES utf8mb4;
+
+UPDATE users
+SET role = CASE role
+    WHEN 'ROLE_USER' THEN 'USER'
+    WHEN 'ROLE_GUEST' THEN 'GUEST'
+    WHEN 'ROLE_ADMIN' THEN 'ADMIN'
+    ELSE role
+END;

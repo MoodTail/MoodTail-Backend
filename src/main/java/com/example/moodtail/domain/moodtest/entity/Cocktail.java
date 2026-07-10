@@ -1,15 +1,8 @@
 package com.example.moodtail.domain.moodtest.entity;
 
+import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -58,8 +51,9 @@ public class Cocktail {
     @Column(nullable = false, precision = 2, scale = 1)
     private BigDecimal bitterness;
 
-    @Column(name = "image_id")
-    private Long imageId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "image_id")
+    private Image image;
 
     @Column(name = "pairing_snack")
     private String pairingSnack;

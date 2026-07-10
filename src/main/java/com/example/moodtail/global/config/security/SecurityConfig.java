@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -67,8 +68,10 @@ public class SecurityConfig {
 									"/api/v1/auth/login/**",
 									"/api/v1/auth/reissue"
 							).permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 							.requestMatchers("/api/v1/tests/questions").permitAll()
 							.requestMatchers("/api/v1/tests/results").permitAll()
+							.requestMatchers("/api/v1/cocktails/*").permitAll()
 							.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().authenticated()
 				)
