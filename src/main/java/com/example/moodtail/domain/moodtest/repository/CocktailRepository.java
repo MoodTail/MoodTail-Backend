@@ -8,6 +8,6 @@ import java.util.List;
 
 public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
 
-    @EntityGraph(attributePaths = "moodType")
+    @EntityGraph(attributePaths = {"moodType", "image"})
     List<Cocktail> findByMoodTypeId(Long moodTypeId);
 }

@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.moodtest.entity;
 
+import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -58,8 +59,9 @@ public class Cocktail {
     @Column(nullable = false, precision = 2, scale = 1)
     private BigDecimal bitterness;
 
-    @Column(name = "image_id")
-    private Long imageId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "image_id")
+    private Image image;
 
     @Column(name = "pairing_snack")
     private String pairingSnack;
