@@ -2,6 +2,7 @@ package com.example.moodtail.domain.cocktail.controller;
 
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
+import com.example.moodtail.global.common.base.BaseResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -19,9 +20,8 @@ public class CocktailController {
 
     @GetMapping("/{typeId}")
     @Operation(summary = "타입 정보 조회")
-    public ResponseEntity<MoodTypeResponse> getMoodType(@PathVariable Long typeId){
-        MoodTypeResponse response = moodTypeService.getMoodType(typeId);
-        return ResponseEntity.ok(response);
+    public BaseResponse<MoodTypeResponse> getMoodType(@PathVariable Long typeId) {
+        return BaseResponse.onSuccess(moodTypeService.getMoodType(typeId));
     }
 
 }
