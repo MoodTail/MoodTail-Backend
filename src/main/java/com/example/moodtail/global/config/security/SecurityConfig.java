@@ -1,5 +1,6 @@
 package com.example.moodtail.global.config.security;
 
+import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.config.security.auth.CustomAccessDeniedHandler;
 import com.example.moodtail.global.config.security.auth.CustomAuthenticationEntryPoint;
 import com.example.moodtail.global.config.security.jwt.JwtAuthenticationFilter;
@@ -16,11 +17,10 @@ import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.annotation.web.configuration.WebSecurityCustomizer;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
@@ -40,14 +40,13 @@ public class SecurityConfig {
 	private final RedisRepository redisRepository;
 	private final CustomAccessDeniedHandler customAccessDeniedHandler;
 	private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+	private final UserRepository userRepository;
 
 	@Value("${cors.allowed-origins}")
 	private List<String> allowedOrigins;
 
-	@Bean
-	public WebSecurityCustomizer webSecurityCustomizer() {
-		return web -> web.ignoring().requestMatchers("/error");
-	}
+	@Value("${cors.max-age}")
+	private long corsMaxAge;
 
 	@Bean
 	public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -56,18 +55,24 @@ public class SecurityConfig {
 				.cors(Customizer.withDefaults())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.formLogin(AbstractHttpConfigurer::disable)
-				.httpBasic(AbstractHttpConfigurer::disable)
-				.authorizeHttpRequests(auth -> auth
-						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-						.requestMatchers("/error").permitAll()
-						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers("/api/auth/**").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
-						.requestMatchers("/api/v1/tests/questions").permitAll()
-						.requestMatchers("/api/v1/tests/results").permitAll()
-
-						.requestMatchers("/api/v1/cocktails/*").permitAll()
-						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+					.httpBasic(AbstractHttpConfigurer::disable)
+					.authorizeHttpRequests(auth -> auth
+							.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+							.requestMatchers("/error").permitAll()
+							.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+							.requestMatchers("/api/v1/auth/oauth-states/**").hasRole("GUEST")
+							.requestMatchers("/api/v1/auth/logout").authenticated()
+							.requestMatchers(
+									"/api/v1/auth/guest",
+									"/api/v1/auth/signup",
+									"/api/v1/auth/login/**",
+									"/api/v1/auth/reissue"
+							).permitAll()
+							.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
+							.requestMatchers("/api/v1/tests/questions").permitAll()
+							.requestMatchers("/api/v1/tests/results").permitAll()
+							.requestMatchers("/api/v1/cocktails/*").permitAll()
+							.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().authenticated()
 				)
 				.exceptionHandling(exceptionHandling -> exceptionHandling
@@ -75,14 +80,16 @@ public class SecurityConfig {
 						.authenticationEntryPoint(customAuthenticationEntryPoint)
 				)
 				.addFilterBefore(new JwtExceptionFilter(), LogoutFilter.class)
-				.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, redisRepository),
-						UsernamePasswordAuthenticationFilter.class)
-				.build();
+					.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository),
+							UsernamePasswordAuthenticationFilter.class)
+					.build();
 	}
 
 	@Bean
-	public PasswordEncoder passwordEncoder() {
-		return new BCryptPasswordEncoder();
+	public UserDetailsService userDetailsService() {
+		return username -> {
+			throw new UsernameNotFoundException(username);
+		};
 	}
 
 	@Bean
@@ -92,7 +99,7 @@ public class SecurityConfig {
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
 		configuration.setAllowCredentials(true);
-		configuration.setMaxAge(3600L);
+		configuration.setMaxAge(corsMaxAge);
 
 		UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
 		source.registerCorsConfiguration("/**", configuration);

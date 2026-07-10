@@ -1,5 +1,10 @@
 package com.example.moodtail.global.config.security.jwt;
 
+import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.domain.user.repository.UserRepository;
+import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import io.jsonwebtoken.Claims;
@@ -11,11 +16,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Locale;
 
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
@@ -23,18 +27,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtProvider jwtTokenProvider;
 	private final RedisRepository redisRepository;
-	private final AntPathMatcher pathMatcher = new AntPathMatcher();
-	private static final List<String> WHITELIST = List.of(
-		"/api/auth/login",
-		"/api/auth/token/reissue"
-	);
-
-	@Override
-	protected boolean shouldNotFilter(HttpServletRequest request) {
-		String uri = request.getRequestURI();
-		return WHITELIST.stream().anyMatch(p -> pathMatcher.match(p, uri));
-	}
-
+	private final UserRepository userRepository;
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws
 		ServletException,
@@ -44,15 +37,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			chain.doFilter(request, response);
 			return;
 		}
-		System.out.println("[JwtAuthenticationFilter] Request URI: " + uri);
-		
 		String token = jwtTokenProvider.resolveToken(request); // 헤더에서 토큰을 받아옴
 
-		if (token != null && jwtTokenProvider.validateToken(token)) { // 토큰이 유효하다면
+		if (token != null && jwtTokenProvider.validateAccessToken(token)) { // 토큰이 유효하다면
 			Authentication authentication = getAuthentication(token); // 인증 정보를 받아옴
 			SecurityContextHolder.getContext().setAuthentication(authentication); // 인증 정보를 설정
 
-			if(!isLogoutOrOutRequest(uri)){
+			if (!isLogoutOrOutRequest(uri)) {
 				PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal();
 				Long userId = principalDetails.getUserId();
 				redisRepository.extendUserTimer(userId);
@@ -69,17 +60,49 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	}
 
 	private boolean isLogoutOrOutRequest(String uri) {
-		return uri.contains("/user/logout") || uri.contains("/user/out");
+		return uri.equals("/api/v1/auth/logout") || uri.equals("/api/v1/users");
 	}
 
 	private Authentication getAuthentication(String token) {
-		Claims claims = jwtTokenProvider.getClaims(token);
+		Claims claims = jwtTokenProvider.getAccessTokenClaims(token);
 
-		Long userId = Long.valueOf(claims.getSubject());
-		String role = claims.get("role", String.class); // role 정보 추출 (기존 토큰 호환성을 위해 null 체크)
+		Long userId = parseUserId(claims.getSubject());
+		String roleClaim = claims.get("role", String.class);
+		UserRole tokenRole = parseRole(roleClaim);
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
+		if (!user.isActive() || user.isDeleted()) {
+			throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
+		}
+		if (user.getRole() != tokenRole) {
+			throw new RestApiException(AuthErrorStatus.INVALID_ROLE);
+		}
 
-		PrincipalDetails principalDetails = new PrincipalDetails(userId, role);
+		PrincipalDetails principalDetails = new PrincipalDetails(userId, user.getRole());
 
 		return new UsernamePasswordAuthenticationToken(principalDetails, "", principalDetails.getAuthorities());
+	}
+
+	private UserRole parseRole(String roleClaim) {
+		if (roleClaim == null || roleClaim.isBlank()) {
+			throw new RestApiException(AuthErrorStatus.INVALID_ROLE);
+		}
+		String normalizedRole = roleClaim.toUpperCase(Locale.ROOT);
+		if (normalizedRole.startsWith("ROLE_")) {
+			normalizedRole = normalizedRole.substring("ROLE_".length());
+		}
+		try {
+			return UserRole.valueOf(normalizedRole);
+		} catch (IllegalArgumentException e) {
+			throw new RestApiException(AuthErrorStatus.INVALID_ROLE);
+		}
+	}
+
+	private Long parseUserId(String subject) {
+		try {
+			return Long.valueOf(subject);
+		} catch (NumberFormatException e) {
+			throw new RestApiException(AuthErrorStatus.INVALID_ACCESS_TOKEN);
+		}
 	}
 }

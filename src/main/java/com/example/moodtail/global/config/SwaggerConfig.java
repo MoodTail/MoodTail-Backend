@@ -12,7 +12,7 @@ public class SwaggerConfig {
 
     @Bean
     public OpenAPI openAPI() {
-        String jwtSchemeName = "JWT";
+        String jwtSchemeName = "bearerAuth";
 
         SecurityRequirement securityRequirement = new SecurityRequirement().addList(jwtSchemeName);
 

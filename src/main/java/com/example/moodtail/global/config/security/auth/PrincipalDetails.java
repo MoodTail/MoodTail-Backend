@@ -1,5 +1,6 @@
 package com.example.moodtail.global.config.security.auth;
 
+import com.example.moodtail.domain.user.enums.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -9,19 +10,23 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.Collections;
 
-@Getter
 @AllArgsConstructor
 public class PrincipalDetails implements UserDetails {
 
+	@Getter
 	private final Long userId;
-	private final String role;
+	private final UserRole role;
+
+	public String getRole() {
+		return role == null ? null : role.name();
+	}
 
 	@Override
 	public Collection<? extends GrantedAuthority> getAuthorities() {
 		if (role == null) {
 			return Collections.emptyList();
 		}
-		return Collections.singletonList(new SimpleGrantedAuthority(role));
+		return Collections.singletonList(new SimpleGrantedAuthority(role.toAuthority()));
 	}
 
 	@Override

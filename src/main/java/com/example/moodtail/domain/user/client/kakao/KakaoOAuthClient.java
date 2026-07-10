@@ -1,0 +1,159 @@
+package com.example.moodtail.domain.user.client.kakao;
+
+import com.example.moodtail.domain.user.client.OAuthClient;
+import com.example.moodtail.domain.user.client.OAuthRestClientFactory;
+import com.example.moodtail.domain.user.client.SocialUserProfile;
+import com.example.moodtail.domain.user.config.AuthProperties;
+import com.example.moodtail.domain.user.enums.SocialProvider;
+import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
+
+@Component
+public class KakaoOAuthClient implements OAuthClient {
+
+    private static final String AUTHORIZATION_CODE_GRANT_TYPE = "authorization_code";
+    private static final MediaType FORM_URLENCODED_UTF8 =
+            MediaType.valueOf("application/x-www-form-urlencoded;charset=utf-8");
+
+    private final RestClient restClient;
+    private final boolean enabled;
+    private final String clientId;
+    private final String clientSecret;
+    private final String redirectUri;
+    private final String tokenUri;
+    private final String userInfoUri;
+
+    @Autowired
+    public KakaoOAuthClient(OAuthRestClientFactory restClientFactory, AuthProperties authProperties) {
+        this(restClientFactory.create(), authProperties.oauth().kakao());
+    }
+
+    KakaoOAuthClient(RestClient restClient, AuthProperties.Provider properties) {
+        this.restClient = restClient;
+        this.enabled = properties.enabled();
+        this.clientId = properties.clientId();
+        this.clientSecret = properties.clientSecret();
+        this.redirectUri = properties.redirectUri();
+        this.tokenUri = properties.tokenUri();
+        this.userInfoUri = properties.userInfoUri();
+    }
+
+    @Override
+    public SocialProvider provider() {
+        return SocialProvider.KAKAO;
+    }
+
+    @Override
+    public SocialUserProfile requestUserProfile(String authorizationCode, String requestRedirectUri) {
+        String resolvedRedirectUri = resolveRedirectUri(requestRedirectUri);
+        KakaoTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri);
+        KakaoUserInfoResponse userInfo = requestUserInfo(token.accessToken());
+
+        if (!StringUtils.hasText(userInfo.providerUserId())) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+
+        return new SocialUserProfile(
+                SocialProvider.KAKAO,
+                userInfo.providerUserId(),
+                userInfo.email(),
+                userInfo.nickname()
+        );
+    }
+
+    private KakaoTokenResponse requestToken(String authorizationCode, String redirectUri) {
+        validateTokenRequest(authorizationCode, redirectUri);
+
+        MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+        form.add("grant_type", AUTHORIZATION_CODE_GRANT_TYPE);
+        form.add("client_id", clientId);
+        form.add("redirect_uri", redirectUri);
+        form.add("code", authorizationCode);
+        if (StringUtils.hasText(clientSecret)) {
+            form.add("client_secret", clientSecret);
+        }
+
+        try {
+            KakaoTokenResponse response = restClient.post()
+                    .uri(tokenUri)
+                    .contentType(FORM_URLENCODED_UTF8)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .body(form)
+                    .retrieve()
+                    .body(KakaoTokenResponse.class);
+
+            if (response == null || !StringUtils.hasText(response.accessToken())) {
+                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+            }
+            return response;
+        } catch (RestClientResponseException e) {
+            throw socialLoginException(e);
+        } catch (RestClientException e) {
+            throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+        }
+    }
+
+    private KakaoUserInfoResponse requestUserInfo(String accessToken) {
+        if (!StringUtils.hasText(accessToken)) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+
+        try {
+            KakaoUserInfoResponse response = restClient.get()
+                    .uri(userInfoUri)
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + accessToken)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .retrieve()
+                    .body(KakaoUserInfoResponse.class);
+
+            if (response == null || !StringUtils.hasText(response.providerUserId())) {
+                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+            }
+            return response;
+        } catch (RestClientResponseException e) {
+            throw socialLoginException(e);
+        } catch (RestClientException e) {
+            throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+        }
+    }
+
+    private void validateTokenRequest(String authorizationCode, String redirectUri) {
+        if (!enabled
+                || !StringUtils.hasText(clientId)
+                || !StringUtils.hasText(redirectUri)
+                || !StringUtils.hasText(tokenUri)
+                || !StringUtils.hasText(userInfoUri)) {
+            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
+        }
+        if (!StringUtils.hasText(authorizationCode)) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+    }
+
+    private String resolveRedirectUri(String requestRedirectUri) {
+        if (!StringUtils.hasText(redirectUri)) {
+            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
+        }
+        if (StringUtils.hasText(requestRedirectUri) && !redirectUri.equals(requestRedirectUri)) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+        return redirectUri;
+    }
+
+    private RestApiException socialLoginException(RestClientResponseException e) {
+        if (e.getStatusCode().is4xxClientError()) {
+            return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+        return new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+    }
+}
