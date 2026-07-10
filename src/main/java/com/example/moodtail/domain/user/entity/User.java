@@ -1,11 +1,17 @@
 package com.example.moodtail.domain.user.entity;
 
+import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.global.common.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -26,15 +32,26 @@ public class User extends BaseEntity {
     @Column(name = "user_id")
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(unique = true, length = 100)
     private String email;
 
-    @Column(nullable = false, length = 50)
+    @Column(length = 50)
     private String nickname;
 
-    @Column(nullable = false)
+    @Column
     private String password;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private String role;
+    private UserRole role;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "representative_mood_type_id")
+    private MoodType representativeMoodType;
+
+    public static User createGuest() {
+        return User.builder()
+                .role(UserRole.ROLE_GUEST)
+                .build();
+    }
 }

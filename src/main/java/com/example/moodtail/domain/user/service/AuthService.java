@@ -5,6 +5,7 @@ import com.example.moodtail.domain.user.dto.request.SignupRequest;
 import com.example.moodtail.domain.user.dto.response.LoginResponse;
 import com.example.moodtail.domain.user.dto.response.SignupResponse;
 import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -25,8 +26,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional(readOnly = true)
 public class AuthService {
 
-    private static final String DEFAULT_ROLE = "ROLE_USER";
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtProvider jwtProvider;
@@ -42,7 +41,7 @@ public class AuthService {
                 .email(request.email())
                 .nickname(request.nickname())
                 .password(passwordEncoder.encode(request.password()))
-                .role(DEFAULT_ROLE)
+                .role(UserRole.ROLE_USER)
                 .build());
 
         return new SignupResponse(user.getId(), user.getEmail(), user.getNickname());
@@ -56,7 +55,7 @@ public class AuthService {
             throw new RestApiException(AuthErrorStatus.INVALID_CREDENTIALS);
         }
 
-        TokenInfo tokenInfo = jwtProvider.generateToken(user.getId(), user.getRole());
+        TokenInfo tokenInfo = jwtProvider.generateToken(user.getId(), user.getRole().name());
         Claims refreshClaims = jwtProvider.getClaims(tokenInfo.refreshToken());
 
         redisRepository.saveRefreshJti(user.getId(), refreshClaims.getId());

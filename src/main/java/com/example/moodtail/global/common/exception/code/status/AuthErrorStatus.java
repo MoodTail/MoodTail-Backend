@@ -23,7 +23,8 @@ public enum AuthErrorStatus implements BaseCodeInterface {
     EMAIL_SEND_FAILED(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH012", "이메일 발송 중 오류가 발생했습니다."),
     EMAIL_CODE_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH013", "인증 코드가 만료되었습니다."),
     EMAIL_CODE_MISMATCH(HttpStatus.UNAUTHORIZED, "AUTH014", "인증 코드가 일치하지 않습니다."),
-    EMAIL_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH015", "이메일 토큰이 만료되었거나 일치하지 않습니다.");
+    EMAIL_TOKEN_EXPIRED(HttpStatus.UNAUTHORIZED, "AUTH015", "이메일 토큰이 만료되었거나 일치하지 않습니다."),
+    LOGIN_USER_REQUIRED(HttpStatus.FORBIDDEN, "AUTH016", "로그인 사용자만 이용할 수 있습니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;
