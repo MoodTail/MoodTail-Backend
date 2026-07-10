@@ -10,7 +10,7 @@ import java.util.Optional;
 
 public interface MoodTypeCompatibilityRepository extends JpaRepository<MoodTypeCompatibility, Long> {
 
-    @EntityGraph(attributePaths = "targetMoodType")
+    @EntityGraph(attributePaths = {"targetMoodType", "targetMoodType.characterImage"})
     Optional<MoodTypeCompatibility> findByMoodTypeIdAndCompatibilityType(Long moodTypeId, CompatibilityType compatibilityType);
 
     Optional<MoodTypeCompatibility> findByMoodTypeAndCompatibilityType(MoodType moodType, CompatibilityType compatibilityType);

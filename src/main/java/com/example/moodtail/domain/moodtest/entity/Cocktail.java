@@ -51,8 +51,9 @@ public class Cocktail {
     @Column(nullable = false, precision = 2, scale = 1)
     private BigDecimal bitterness;
 
-    @Column(name = "image_id")
-    private Long imageId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "image_id")
+    private Image image;
 
     @Column(name = "pairing_snack")
     private String pairingSnack;

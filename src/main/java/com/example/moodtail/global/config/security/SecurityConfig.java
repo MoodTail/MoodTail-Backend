@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -61,6 +62,7 @@ public class SecurityConfig {
 						.requestMatchers("/error").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
 						.requestMatchers("/api/auth/**").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 						.requestMatchers("/api/v1/tests/questions").permitAll()
 						.requestMatchers("/api/v1/tests/results").permitAll()
 

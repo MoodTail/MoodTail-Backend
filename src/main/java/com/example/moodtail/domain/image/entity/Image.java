@@ -9,7 +9,6 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
@@ -18,15 +17,16 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Image {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id")
     private Long id;
 
-    @Column(name = "image_url", nullable = false, length = 500)
+    @Column(name = "image_url", nullable = false)
     private String imageUrl;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "image_source_type", nullable = false)
+    @Column(name = "source_type", nullable = false)
     private ImageSourceType sourceType;
-
 }
