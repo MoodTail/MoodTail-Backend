@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.moodtest.repository;
 
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
+import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -11,4 +12,6 @@ public interface MoodTypeCompatibilityRepository extends JpaRepository<MoodTypeC
 
     @EntityGraph(attributePaths = "targetMoodType")
     Optional<MoodTypeCompatibility> findByMoodTypeIdAndCompatibilityType(Long moodTypeId, CompatibilityType compatibilityType);
+
+    Optional<MoodTypeCompatibility> findByMoodTypeAndCompatibilityType(MoodType moodType, CompatibilityType compatibilityType);
 }
