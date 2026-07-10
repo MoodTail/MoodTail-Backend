@@ -1,12 +1,8 @@
 package com.example.moodtail.domain.moodtest.entity;
 
+import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
-import jakarta.persistence.Id;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;

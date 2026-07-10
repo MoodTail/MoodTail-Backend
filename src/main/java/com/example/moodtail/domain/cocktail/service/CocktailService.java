@@ -1,6 +1,9 @@
 package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
+import com.example.moodtail.domain.image.entity.Image;
+import com.example.moodtail.domain.image.repository.ImageRepository;
+import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.moodtest.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
@@ -10,6 +13,7 @@ import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepo
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus;
+import com.example.moodtail.global.common.exception.code.status.ImageErrorStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,12 +27,14 @@ public class CocktailService {
     private final MoodTypeRepository moodTypeRepository;
     private final MoodTypeCompatibilityRepository compatibilityRepository;
     private final CocktailRepository cocktailRepository;
+    private final ImageService imageService;
 
     @Transactional(readOnly = true)
     public MoodTypeResponse getMoodType(Long typeId) {
         MoodType moodType = moodTypeRepository.findById(typeId)
                 .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_TYPE_NOT_FOUND));
 
+        String characterImageUrl = imageService.getImageUrl(moodType.getCharacterImageId());
 
         MoodType bestMatch = compatibilityRepository.findByMoodTypeAndCompatibilityType(moodType, CompatibilityType.BEST)
                 .map(MoodTypeCompatibility::getTargetMoodType)
@@ -46,7 +52,7 @@ public class CocktailService {
                         .typeCode(moodType.getCode())
                         .name(moodType.getName())
                         .description(moodType.getDescription())
-                        .imageUrl("https://") // todo S3 연결 전 하드코딩
+                        .imageUrl(characterImageUrl) // todo S3 연결 전 하드코딩
                         .typePercent(68)      // todo 기능 구현 전 임시 하드코딩
                         .build())
                 .typeFigures(MoodTypeResponse.TypeFiguresDto.builder()
@@ -69,7 +75,7 @@ public class CocktailService {
                                 .cocktailId(c.getId())
                                 .name(c.getNameKo())
                                 .shortDescription(c.getShortDescription())
-                                .imageUrl("https://...") //todo S3 연결 후 고치기
+                                .imageUrl(characterImageUrl)
                                 .build())
                         .toList())
                 .build();
