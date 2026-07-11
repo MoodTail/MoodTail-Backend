@@ -2,7 +2,7 @@ package com.example.moodtail.domain.moodtest.service;
 
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultRequest;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultResponse;
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
+import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionOption;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionType;

@@ -1,6 +1,6 @@
 package com.example.moodtail.domain.recommendation.service;
 
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
+import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.repository.CocktailRepository;
 import com.example.moodtail.domain.recommendation.entity.RecommendationItem;
