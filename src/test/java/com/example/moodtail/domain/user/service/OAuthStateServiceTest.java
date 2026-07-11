@@ -71,4 +71,50 @@ class OAuthStateServiceTest {
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH018")
                 );
     }
+
+    @Test
+    void consumeReturnsStateOwnerOnlyWhileGuestSessionIsStillValid() {
+        User guest = User.createGuest(
+                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
+                "게스트",
+                LocalDateTime.now()
+        );
+        when(redisRepository.consumeOAuthState("valid-state", "GOOGLE")).thenReturn(Optional.of(2L));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(guest));
+
+        assertThat(service.consume("valid-state", SocialProvider.GOOGLE)).isEqualTo(2L);
+    }
+
+    @Test
+    void consumeRejectsStateAfterGuestWasAlreadyUpgraded() {
+        User upgradedUser = User.createGuest(
+                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
+                "게스트",
+                LocalDateTime.now()
+        );
+        upgradedUser.upgradeToUser("회원", LocalDateTime.now());
+        when(redisRepository.consumeOAuthState("stale-state", "KAKAO")).thenReturn(Optional.of(2L));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(upgradedUser));
+
+        assertThatThrownBy(() -> service.consume("stale-state", SocialProvider.KAKAO))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
+                );
+    }
+
+    @Test
+    void issueRejectsSoftDeletedGuest() {
+        User guest = User.createGuest(
+                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
+                "게스트",
+                LocalDateTime.now()
+        );
+        guest.delete();
+        when(userRepository.findById(2L)).thenReturn(Optional.of(guest));
+
+        assertThatThrownBy(() -> service.issue(2L, SocialProvider.KAKAO))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
+                );
+    }
 }

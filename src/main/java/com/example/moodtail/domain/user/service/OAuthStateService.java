@@ -30,7 +30,7 @@ public class OAuthStateService {
     public OAuthState issue(Long guestUserId, SocialProvider provider) {
         User guestUser = userRepository.findById(guestUserId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guestUser.isGuest() || !guestUser.isActive()) {
+        if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
             throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
 
@@ -41,8 +41,14 @@ public class OAuthStateService {
     }
 
     public Long consume(String state, SocialProvider provider) {
-        return redisRepository.consumeOAuthState(state, provider.name())
+        Long guestUserId = redisRepository.consumeOAuthState(state, provider.name())
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE));
+        User guestUser = userRepository.findById(guestUserId)
+                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
+        if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
+            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+        }
+        return guestUserId;
     }
 
     private String generateState() {

@@ -40,7 +40,7 @@ server:
 logging:
   level:
     root: INFO
-    org.springframework.security: DEBUG
+    org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
 
 jwt:
   secret: ${JWT_SECRET}
@@ -65,6 +65,13 @@ auth:
       redirect-uri: ${KAKAO_REDIRECT_URI:}
       token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
+    google:
+      enabled: ${GOOGLE_OAUTH_ENABLED:true}
+      client-id: ${GOOGLE_CLIENT_ID:}
+      client-secret: ${GOOGLE_CLIENT_SECRET:}
+      redirect-uri: ${GOOGLE_REDIRECT_URI:}
+      token-uri: ${GOOGLE_TOKEN_URI:https://oauth2.googleapis.com/token}
+      user-info-uri: ${GOOGLE_USER_INFO_URI:https://openidconnect.googleapis.com/v1/userinfo}
   guest-login:
     client-ip-header: ${GUEST_LOGIN_CLIENT_IP_HEADER:}
     default-nickname: ${GUEST_DEFAULT_NICKNAME:게스트}

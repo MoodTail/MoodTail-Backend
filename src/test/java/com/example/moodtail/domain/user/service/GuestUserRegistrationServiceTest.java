@@ -21,6 +21,7 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
@@ -93,6 +94,17 @@ class GuestUserRegistrationServiceTest {
         assertThat(result.userId()).isEqualTo(9L);
         assertThat(result.role()).isEqualTo(UserRole.GUEST);
         assertThat(result.isNewUser()).isFalse();
+    }
+
+    @Test
+    void rejectsSoftDeletedGuestInsteadOfRestoringSession() {
+        User deletedGuest = User.createGuest(GUEST_UUID.toString(), "게스트", LocalDateTime.now());
+        deletedGuest.delete();
+        when(userRepository.findByGuestUuidAndRole(GUEST_UUID.toString(), UserRole.GUEST))
+                .thenReturn(Optional.of(deletedGuest));
+
+        assertThatThrownBy(() -> service.findOrCreate(GUEST_UUID))
+                .isInstanceOf(com.example.moodtail.global.common.exception.RestApiException.class);
     }
 
     @SuppressWarnings("unchecked")

@@ -116,7 +116,7 @@ public class SocialAccountRegistrationService {
 
         User guestUser = userRepository.findByIdForUpdate(guestUserId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guestUser.isGuest() || !guestUser.isActive()) {
+        if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
             throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
 
@@ -170,7 +170,7 @@ public class SocialAccountRegistrationService {
     }
 
     private void validateActive(User user) {
-        if (!user.isActive()) {
+        if (!user.isActive() || user.isDeleted()) {
             throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
         }
     }

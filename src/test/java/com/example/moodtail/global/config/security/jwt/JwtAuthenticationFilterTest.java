@@ -26,6 +26,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -90,7 +91,19 @@ class JwtAuthenticationFilterTest {
                 filterChain
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH009")
-        );
+                );
+    }
+
+    @Test
+    void logoutSkipsAuthenticationSoExpiredSessionsCanClearCookie() throws Exception {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/logout");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(jwtProvider, redisRepository, userRepository);
     }
 
     private User guestWithId(Long id) {

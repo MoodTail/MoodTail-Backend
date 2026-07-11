@@ -19,6 +19,12 @@ class AuthConfigurationTest {
                     "auth.oauth.kakao.redirect-uri=https://frontend.example.com/kakao/callback",
                     "auth.oauth.kakao.token-uri=https://kauth.kakao.com/oauth/token",
                     "auth.oauth.kakao.user-info-uri=https://kapi.kakao.com/v2/user/me",
+                    "auth.oauth.google.client-id=google-client-id",
+                    "auth.oauth.google.enabled=true",
+                    "auth.oauth.google.client-secret=google-client-secret",
+                    "auth.oauth.google.redirect-uri=https://frontend.example.com/google/callback",
+                    "auth.oauth.google.token-uri=https://oauth2.googleapis.com/token",
+                    "auth.oauth.google.user-info-uri=https://openidconnect.googleapis.com/v1/userinfo",
                     "auth.refresh-cookie.name=refreshToken",
                     "auth.refresh-cookie.path=/api/v1/auth",
                     "auth.refresh-cookie.domain=.example.com",
@@ -43,6 +49,8 @@ class AuthConfigurationTest {
             assertThat(context).hasSingleBean(AuthProperties.class);
             AuthProperties properties = context.getBean(AuthProperties.class);
             assertThat(properties.oauth().kakao().clientId()).isEqualTo("kakao-client-id");
+            assertThat(properties.oauth().google().clientId()).isEqualTo("google-client-id");
+            assertThat(properties.oauth().google().enabled()).isTrue();
             assertThat(properties.oauth().connectTimeoutMillis()).isEqualTo(3_000L);
             assertThat(properties.refreshCookie().domain()).isEqualTo(".example.com");
             assertThat(properties.refreshCookie().sameSite()).isEqualTo("None");

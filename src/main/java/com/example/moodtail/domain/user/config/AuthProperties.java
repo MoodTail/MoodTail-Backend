@@ -5,6 +5,7 @@ import org.springframework.util.StringUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Locale;
 
 @ConfigurationProperties(prefix = "auth")
 public record AuthProperties(
@@ -25,13 +26,14 @@ public record AuthProperties(
             long stateExpirationMillis,
             long connectTimeoutMillis,
             long readTimeoutMillis,
-            Provider kakao
+            Provider kakao,
+            Provider google
     ) {
         public OAuth {
             requirePositive(stateExpirationMillis, "auth.oauth.state-expiration-millis");
             requirePositiveIntRange(connectTimeoutMillis, "auth.oauth.connect-timeout-millis");
             requirePositiveIntRange(readTimeoutMillis, "auth.oauth.read-timeout-millis");
-            if (kakao == null) {
+            if (kakao == null || google == null) {
                 throw new IllegalArgumentException("OAuth provider configuration is required");
             }
         }
@@ -165,8 +167,14 @@ public record AuthProperties(
         try {
             URI uri = new URI(value);
             if (!uri.isAbsolute() || (!"http".equalsIgnoreCase(uri.getScheme())
-                    && !"https".equalsIgnoreCase(uri.getScheme()))) {
+                    && !"https".equalsIgnoreCase(uri.getScheme()))
+                    || !StringUtils.hasText(uri.getHost())
+                    || uri.getUserInfo() != null
+                    || uri.getFragment() != null) {
                 throw new IllegalArgumentException(name + " must be an absolute HTTP(S) URI");
+            }
+            if ("http".equalsIgnoreCase(uri.getScheme()) && !isLoopbackHost(uri.getHost())) {
+                throw new IllegalArgumentException(name + " must use HTTPS outside a local environment");
             }
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(name + " is invalid", e);
@@ -176,11 +184,23 @@ public record AuthProperties(
     private static void requireAbsoluteHttpsUri(String value, String name) {
         try {
             URI uri = new URI(value);
-            if (!uri.isAbsolute() || !"https".equalsIgnoreCase(uri.getScheme())) {
+            if (!uri.isAbsolute()
+                    || !"https".equalsIgnoreCase(uri.getScheme())
+                    || !StringUtils.hasText(uri.getHost())
+                    || uri.getUserInfo() != null
+                    || uri.getFragment() != null) {
                 throw new IllegalArgumentException(name + " must be an absolute HTTPS URI");
             }
         } catch (URISyntaxException e) {
             throw new IllegalArgumentException(name + " is invalid", e);
         }
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        String normalizedHost = host.toLowerCase(Locale.ROOT);
+        return "localhost".equals(normalizedHost)
+                || normalizedHost.endsWith(".localhost")
+                || normalizedHost.startsWith("127.")
+                || "::1".equals(normalizedHost);
     }
 }

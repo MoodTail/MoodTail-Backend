@@ -9,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
@@ -21,6 +22,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 class KakaoOAuthClientTest {
 
@@ -45,7 +47,9 @@ class KakaoOAuthClientTest {
                 .andExpect(content().string(containsString("grant_type=authorization_code")))
                 .andExpect(content().string(containsString("client_id=kakao-client-id")))
                 .andExpect(content().string(containsString("client_secret=kakao-client-secret")))
-                .andExpect(content().string(containsString("redirect_uri=http%3A%2F%2Ffrontend%2Fkakao%2Fcallback")))
+                .andExpect(content().string(containsString(
+                        "redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fauth%2Fkakao%2Fcallback"
+                )))
                 .andExpect(content().string(containsString("code=kakao-code")))
                 .andRespond(withSuccess(
                         """
@@ -65,6 +69,8 @@ class KakaoOAuthClientTest {
                                   "id": 12345,
                                   "kakao_account": {
                                     "email": "kakao@example.com",
+                                    "is_email_valid": true,
+                                    "is_email_verified": true,
                                     "profile": {
                                       "nickname": "카카오유저"
                                     }
@@ -123,7 +129,7 @@ class KakaoOAuthClientTest {
                         false,
                         "",
                         "",
-                        "http://frontend/kakao/callback",
+                        "http://localhost:5173/auth/kakao/callback",
                         "https://kauth.kakao.com/oauth/token",
                         "https://kapi.kakao.com/v2/user/me"
                 )
@@ -167,5 +173,32 @@ class KakaoOAuthClientTest {
 
         assertThat(result.providerUserId()).isEqualTo("12345");
         assertThat(result.email()).isNull();
+    }
+
+    @Test
+    void unverifiedKakaoEmailIsNotUsedAsAccountEmail() {
+        KakaoUserInfoResponse userInfo = new KakaoUserInfoResponse(
+                12345L,
+                new KakaoUserInfoResponse.KakaoAccount(
+                        "unverified@example.com",
+                        true,
+                        false,
+                        new KakaoUserInfoResponse.Profile("카카오유저")
+                )
+        );
+
+        assertThat(userInfo.verifiedEmail()).isNull();
+    }
+
+    @Test
+    void kakaoRateLimitIsTreatedAsTemporaryProviderFailure() {
+        server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
+                .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH008")
+                );
+        server.verify();
     }
 }

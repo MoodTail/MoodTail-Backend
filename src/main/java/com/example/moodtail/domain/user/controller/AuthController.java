@@ -16,6 +16,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,6 +29,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class AuthController implements AuthControllerDocs {
 
+    private static final String NO_STORE = "no-store";
+
     private final AuthService authService;
 
     @PostMapping("/guest")
@@ -37,6 +40,7 @@ public class AuthController implements AuthControllerDocs {
             HttpServletRequest httpRequest,
             HttpServletResponse response
     ) {
+        preventCaching(response);
         return BaseResponse.onSuccess(authService.guestLogin(request, httpRequest, response));
     }
 
@@ -44,8 +48,10 @@ public class AuthController implements AuthControllerDocs {
     @Override
     public BaseResponse<OAuthStateResponse> createOAuthState(
             @PathVariable String provider,
-            @AuthenticationPrincipal PrincipalDetails principal
+            @AuthenticationPrincipal PrincipalDetails principal,
+            HttpServletResponse response
     ) {
+        preventCaching(response);
         return BaseResponse.onSuccess(authService.createOAuthState(provider, principal.getUserId()));
     }
 
@@ -56,6 +62,7 @@ public class AuthController implements AuthControllerDocs {
             @Valid @RequestBody SocialLoginRequest request,
             HttpServletResponse response
     ) {
+        preventCaching(response);
         return BaseResponse.onSuccess(authService.socialLogin(provider, request, response));
     }
 
@@ -65,6 +72,7 @@ public class AuthController implements AuthControllerDocs {
             @Valid @RequestBody SocialSignupRequest request,
             HttpServletResponse response
     ) {
+        preventCaching(response);
         return BaseResponse.onSuccess(authService.socialSignup(request, response));
     }
 
@@ -74,6 +82,7 @@ public class AuthController implements AuthControllerDocs {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
+        preventCaching(response);
         return BaseResponse.onSuccess(authService.reissue(request, response));
     }
 
@@ -83,7 +92,13 @@ public class AuthController implements AuthControllerDocs {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
+        preventCaching(response);
         authService.logout(request, response);
         return BaseResponse.onSuccess(null);
+    }
+
+    private void preventCaching(HttpServletResponse response) {
+        response.setHeader(HttpHeaders.CACHE_CONTROL, NO_STORE);
+        response.setHeader(HttpHeaders.PRAGMA, "no-cache");
     }
 }

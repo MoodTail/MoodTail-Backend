@@ -31,7 +31,7 @@ public interface AuthControllerDocs {
     BaseResponse<GuestLoginResponse> guestLogin(
             GuestLoginRequest request,
             @Parameter(hidden = true) HttpServletRequest httpRequest,
-            HttpServletResponse response
+            @Parameter(hidden = true) HttpServletResponse response
     );
 
     @Operation(
@@ -43,46 +43,59 @@ public interface AuthControllerDocs {
     BaseResponse<OAuthStateResponse> createOAuthState(
             @Parameter(
                     description = "소셜 로그인 제공자",
-                    schema = @Schema(allowableValues = {"kakao"}),
+                    schema = @Schema(allowableValues = {"kakao", "google"}),
                     example = "kakao"
             )
             String provider,
-            @Parameter(hidden = true) PrincipalDetails principal
+            @Parameter(hidden = true) PrincipalDetails principal,
+            @Parameter(hidden = true) HttpServletResponse response
     );
 
     @Operation(
             operationId = "socialLogin",
             summary = "소셜 로그인",
-            description = "인가 코드와 Redis의 일회성 state를 검증하고 게스트 사용자를 소셜 사용자로 전환합니다."
+            description = "인가 코드와 Redis의 일회성 state를 검증하고 가입된 소셜 계정으로 로그인합니다. "
+                    + "Google 인가 요청에는 openid, profile, email scope를 사용합니다."
     )
     @SecurityRequirements
     BaseResponse<SocialLoginResponse> socialLogin(
             @Parameter(
                     description = "소셜 로그인 제공자",
-                    schema = @Schema(allowableValues = {"kakao"}),
+                    schema = @Schema(allowableValues = {"kakao", "google"}),
                     example = "kakao"
             )
             String provider,
             SocialLoginRequest request,
-            HttpServletResponse response
+            @Parameter(hidden = true) HttpServletResponse response
     );
 
     @Operation(
             operationId = "socialSignup",
             summary = "소셜 회원가입",
-            description = "카카오 OAuth 인증 후 게스트 사용자를 정회원으로 전환하고 약관 동의를 저장합니다."
+            description = "카카오 또는 구글 OAuth 인증 후 게스트 사용자를 정회원으로 전환하고 약관 동의를 저장합니다. "
+                    + "Google 인가 요청에는 openid, profile, email scope를 사용합니다."
     )
     @SecurityRequirements
     BaseResponse<SocialSignupResponse> socialSignup(
             SocialSignupRequest request,
-            HttpServletResponse response
+            @Parameter(hidden = true) HttpServletResponse response
     );
 
     @Operation(operationId = "reissue", summary = "토큰 재발급")
     @SecurityRequirements
-    BaseResponse<TokenResponse> reissue(HttpServletRequest request, HttpServletResponse response);
+    BaseResponse<TokenResponse> reissue(
+            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) HttpServletResponse response
+    );
 
-    @Operation(operationId = "logout", summary = "로그아웃")
-    @SecurityRequirement(name = "bearerAuth")
-    BaseResponse<Void> logout(HttpServletRequest request, HttpServletResponse response);
+    @Operation(
+            operationId = "logout",
+            summary = "로그아웃",
+            description = "액세스 토큰 또는 현재 리프레시 토큰을 폐기하고 인증 쿠키를 제거합니다. 반복 호출해도 성공합니다."
+    )
+    @SecurityRequirements
+    BaseResponse<Void> logout(
+            @Parameter(hidden = true) HttpServletRequest request,
+            @Parameter(hidden = true) HttpServletResponse response
+    );
 }

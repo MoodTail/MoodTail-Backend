@@ -49,7 +49,7 @@ public class SocialAccount {
     private User user;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
+    @Column(nullable = false, length = 20, columnDefinition = "varchar(20)")
     private SocialProvider provider;
 
     @Column(
