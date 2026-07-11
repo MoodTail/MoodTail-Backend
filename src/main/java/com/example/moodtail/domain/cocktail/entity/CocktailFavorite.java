@@ -1,6 +1,5 @@
-package com.example.moodtail.domain.history.entity;
+package com.example.moodtail.domain.cocktail.entity;
 
-import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.user.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -10,20 +9,26 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-
 @Entity
-@Table(name = "drinking_records")
+@Table(
+        name = "cocktail_favorites",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_cocktail_favorites_user_cocktail",
+                        columnNames = {"user_id", "cocktail_id"}
+                )
+        }
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DrinkingRecord {
+public class CocktailFavorite {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -38,20 +43,16 @@ public class DrinkingRecord {
     @JoinColumn(name = "cocktail_id", nullable = false)
     private Cocktail cocktail;
 
-    @Column(name = "record_date", nullable = false)
-    private LocalDate recordDate;
+    @Builder
+    private CocktailFavorite(User user, Cocktail cocktail) {
+        this.user = user;
+        this.cocktail = cocktail;
+    }
 
-    @Column(name = "recorded_at", nullable = false, updatable = false)
-    private LocalDateTime recordedAt;
-
-    @Column
-    private Integer satisfaction;
-
-    @Column(length = 255)
-    private String memo;
-
-    @PrePersist
-    void prePersist() {
-        this.recordedAt = LocalDateTime.now();
+    public static CocktailFavorite create(User user, Cocktail cocktail) {
+        return CocktailFavorite.builder()
+                .user(user)
+                .cocktail(cocktail)
+                .build();
     }
 }
