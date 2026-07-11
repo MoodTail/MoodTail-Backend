@@ -84,7 +84,7 @@ public class CocktailService {
                         .typeCode(moodType.getCode())
                         .name(moodType.getName())
                         .description(moodType.getDescription())
-                        .imageUrl(characterImageUrl)
+                        .imageUrl(characterImageUrl) // todo S3 연결 전 하드코딩
                         .typePercent(68)      // todo 기능 구현 전 임시 하드코딩
                         .build())
                 .typeFigures(MoodTypeResponse.TypeFiguresDto.builder()
@@ -111,6 +111,16 @@ public class CocktailService {
                                 .build())
                         .toList())
                 .build();
+    }
+
+    @Transactional(readOnly = true)
+    public CocktailDetailResponse getCocktailDetail(Long cocktailId) {
+        Cocktail cocktail = cocktailRepository.findDetailById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+
+        boolean isFavorite = false; // TODO: 인증 붙으면 실제 즐겨찾기 여부로 교체
+
+        return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
     }
 
     private String getImageUrl(Image image) {
