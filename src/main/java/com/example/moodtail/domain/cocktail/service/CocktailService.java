@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.cocktail.service;
 
+import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
@@ -122,6 +123,7 @@ public class CocktailService {
 
         return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
     }
+
 
     private String getImageUrl(Image image) {
         return image == null ? null : image.getImageUrl();

@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Optional;
 
 public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
 
@@ -30,4 +31,13 @@ public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
             @Param("maxAlcoholDegree") BigDecimal maxAlcoholDegree,
             @Param("keyword") String keyword
     );
+
+    @Query("""
+            SELECT cocktail
+            FROM Cocktail cocktail
+            LEFT JOIN FETCH cocktail.image
+            LEFT JOIN FETCH cocktail.ingredients
+            WHERE cocktail.id = :cocktailId
+            """)
+    Optional<Cocktail> findDetailById(@Param("cocktailId") Long cocktailId);
 }
