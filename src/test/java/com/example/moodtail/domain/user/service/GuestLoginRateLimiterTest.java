@@ -8,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.time.Duration;
@@ -83,6 +84,20 @@ class GuestLoginRateLimiterTest {
                 org.mockito.ArgumentMatchers.eq(10),
                 any()
         );
+    }
+
+    @Test
+    void redisFailureFailsClosedWithServiceUnavailable() {
+        GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, defaults());
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setRemoteAddr("203.0.113.7");
+        when(redisRepository.acquireGuestLoginSlot(anyString(), anyInt(), any()))
+                .thenThrow(new RedisConnectionFailureException("redis unavailable"));
+
+        assertThatThrownBy(() -> limiter.check(GUEST_UUID, request))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
+                );
     }
 
     private AuthProperties withGuestLogin(AuthProperties.GuestLogin guestLogin) {

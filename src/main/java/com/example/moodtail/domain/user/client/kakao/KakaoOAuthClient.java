@@ -59,9 +59,13 @@ public class KakaoOAuthClient implements OAuthClient {
     }
 
     @Override
-    public SocialUserProfile requestUserProfile(String authorizationCode, String requestRedirectUri) {
+    public SocialUserProfile requestUserProfile(
+            String authorizationCode,
+            String requestRedirectUri,
+            String codeVerifier
+    ) {
         String resolvedRedirectUri = resolveRedirectUri(requestRedirectUri);
-        KakaoTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri);
+        KakaoTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri, codeVerifier);
         KakaoUserInfoResponse userInfo = requestUserInfo(token.accessToken());
 
         if (!StringUtils.hasText(userInfo.providerUserId())) {
@@ -76,7 +80,7 @@ public class KakaoOAuthClient implements OAuthClient {
         );
     }
 
-    private KakaoTokenResponse requestToken(String authorizationCode, String redirectUri) {
+    private KakaoTokenResponse requestToken(String authorizationCode, String redirectUri, String codeVerifier) {
         validateTokenRequest(authorizationCode, redirectUri);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -86,6 +90,9 @@ public class KakaoOAuthClient implements OAuthClient {
         form.add("code", authorizationCode);
         if (StringUtils.hasText(clientSecret)) {
             form.add("client_secret", clientSecret);
+        }
+        if (StringUtils.hasText(codeVerifier)) {
+            form.add("code_verifier", codeVerifier);
         }
 
         try {
@@ -98,13 +105,13 @@ public class KakaoOAuthClient implements OAuthClient {
                     .body(KakaoTokenResponse.class);
 
             if (response == null || !StringUtils.hasText(response.accessToken())) {
-                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
             }
             return response;
         } catch (RestClientResponseException e) {
             throw socialLoginException(e);
         } catch (RestClientException e) {
-            throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+            throw new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
         }
     }
 
@@ -122,13 +129,13 @@ public class KakaoOAuthClient implements OAuthClient {
                     .body(KakaoUserInfoResponse.class);
 
             if (response == null || !StringUtils.hasText(response.providerUserId())) {
-                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
             }
             return response;
         } catch (RestClientResponseException e) {
             throw socialLoginException(e);
         } catch (RestClientException e) {
-            throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+            throw new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
         }
     }
 
@@ -157,11 +164,11 @@ public class KakaoOAuthClient implements OAuthClient {
 
     private RestApiException socialLoginException(RestClientResponseException e) {
         if (e.getStatusCode().value() == 429) {
-            return new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+            return new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
         }
         if (e.getStatusCode().is4xxClientError()) {
             return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        return new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+        return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
     }
 }

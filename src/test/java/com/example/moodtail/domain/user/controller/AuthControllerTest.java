@@ -1,11 +1,14 @@
 package com.example.moodtail.domain.user.controller;
 
 import com.example.moodtail.domain.user.dto.request.GuestLoginRequest;
+import com.example.moodtail.domain.user.dto.request.LocalLoginRequest;
+import com.example.moodtail.domain.user.dto.request.LocalSignupRequest;
 import com.example.moodtail.domain.user.dto.response.GuestLoginResponse;
+import com.example.moodtail.domain.user.dto.response.LocalAuthResponse;
+import com.example.moodtail.domain.user.dto.response.PasswordResetCodeResponse;
+import com.example.moodtail.domain.user.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.user.dto.request.SocialLoginRequest;
-import com.example.moodtail.domain.user.dto.request.SocialSignupRequest;
 import com.example.moodtail.domain.user.dto.response.SocialLoginResponse;
-import com.example.moodtail.domain.user.dto.response.SocialSignupResponse;
 import com.example.moodtail.domain.user.enums.SocialProvider;
 import com.example.moodtail.domain.user.service.AuthService;
 import com.example.moodtail.global.common.exception.ExceptionAdvice;
@@ -19,14 +22,17 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
+import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -42,6 +48,7 @@ class AuthControllerTest {
     void setUp() {
         mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
                 .setControllerAdvice(new ExceptionAdvice())
+                .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
     }
 
@@ -64,7 +71,9 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "code": "kakao-authorization-code",
-                                  "state": "oauth-state"
+                                  "state": "oauth-state",
+                                  "nickname": "카카오유저",
+                                  "agreements": [{"termId": 1, "agreed": true}]
                                 }
                                 """))
                 .andExpect(status().isOk())
@@ -148,26 +157,25 @@ class AuthControllerTest {
     }
 
     @Test
-    void socialSignupAcceptsProviderOAuthAndAgreements() throws Exception {
-        SocialSignupResponse signupResponse = new SocialSignupResponse(
+    void localSignupCreatesIndependentLocalAccount() throws Exception {
+        LocalAuthResponse signupResponse = new LocalAuthResponse(
                 2L,
                 "user@example.com",
                 "무드테일러",
-                SocialProvider.KAKAO,
                 true,
                 "Bearer",
                 "signup-access-token"
         );
-        when(authService.socialSignup(any(SocialSignupRequest.class), any(HttpServletResponse.class)))
+        when(authService.localSignup(any(LocalSignupRequest.class), isNull(), any(HttpServletResponse.class)))
                 .thenReturn(signupResponse);
 
-        mockMvc.perform(post("/api/v1/auth/signup")
+        mockMvc.perform(post("/api/v1/auth/signup/local")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "provider": "kakao",
-                                  "code": "kakao-authorization-code",
-                                  "state": "oauth-state",
+                                  "email": "user@example.com",
+                                  "password": "password123!",
+                                  "passwordConfirm": "password123!",
                                   "nickname": "무드테일러",
                                   "agreements": [
                                     {"termId": 1, "agreed": true}
@@ -177,24 +185,82 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"))
                 .andExpect(jsonPath("$.result.userId").value(2L))
-                .andExpect(jsonPath("$.result.provider").value("KAKAO"))
+                .andExpect(jsonPath("$.result.email").value("user@example.com"))
                 .andExpect(jsonPath("$.result.isNewUser").value(true));
     }
 
     @Test
-    void socialSignupRejectsMissingAgreements() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/signup")
+    void localSignupRejectsMissingAgreements() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup/local")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "provider": "kakao",
-                                  "code": "kakao-authorization-code",
-                                  "state": "oauth-state",
+                                  "email": "user@example.com",
+                                  "password": "password123!",
+                                  "passwordConfirm": "password123!",
+                                  "nickname": "무드테일러",
                                   "agreements": []
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON402"));
+    }
+
+    @Test
+    void localLoginUsesDedicatedEndpoint() throws Exception {
+        LocalAuthResponse loginResponse = new LocalAuthResponse(
+                2L,
+                "user@example.com",
+                "무드테일러",
+                false,
+                "Bearer",
+                "login-access-token"
+        );
+        when(authService.localLogin(any(LocalLoginRequest.class), isNull(), any(HttpServletResponse.class)))
+                .thenReturn(loginResponse);
+
+        mockMvc.perform(post("/api/v1/auth/login/local")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "user@example.com",
+                                  "password": "password123!"
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.isNewUser").value(false))
+                .andExpect(jsonPath("$.result.accessToken").value("login-access-token"));
+    }
+
+    @Test
+    void passwordResetFlowExposesCodeVerificationAndPasswordChangeEndpoints() throws Exception {
+        when(authService.requestPasswordResetCode(any(), any()))
+                .thenReturn(new PasswordResetCodeResponse(300L));
+        when(authService.verifyPasswordResetCode(any()))
+                .thenReturn(new PasswordResetVerificationResponse("reset-token", 600L));
+
+        mockMvc.perform(post("/api/v1/auth/password-reset/codes")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.expiresInSeconds").value(300));
+
+        mockMvc.perform(post("/api/v1/auth/password-reset/codes/verify")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"user@example.com\",\"code\":\"123456\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.resetToken").value("reset-token"));
+
+        mockMvc.perform(patch("/api/v1/auth/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "resetToken":"reset-token",
+                                  "newPassword":"new-password123!",
+                                  "newPasswordConfirm":"new-password123!"
+                                }
+                                """))
+                .andExpect(status().isOk());
     }
 
     @Test

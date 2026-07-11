@@ -26,11 +26,45 @@ public interface RedisRepository {
 
 	void deleteRefreshJti(Long userId);
 
-	void saveOAuthState(String state, Long guestUserId, String provider, Duration ttl);
+	void saveOAuthState(String state, Long guestUserId, String provider, String codeVerifier, Duration ttl);
 
-	Optional<Long> consumeOAuthState(String state, String provider);
+	Optional<OAuthStateSession> consumeOAuthStateSession(String state, String provider);
+
+	default void saveOAuthState(String state, Long guestUserId, String provider, Duration ttl) {
+		saveOAuthState(state, guestUserId, provider, "", ttl);
+	}
+
+	default Optional<Long> consumeOAuthState(String state, String provider) {
+		return consumeOAuthStateSession(state, provider).map(OAuthStateSession::guestUserId);
+	}
+
+	boolean acquireOAuthStateSlot(Long guestUserId, String provider, int maxAttempts, Duration window);
 
 	boolean acquireGuestLoginSlot(String fingerprint, int maxAttempts, Duration window);
+
+	boolean acquirePasswordResetClientSlot(String fingerprint, int maxAttempts, Duration window);
+
+	boolean acquirePasswordResetCooldown(String emailFingerprint, Duration ttl);
+
+	void savePasswordResetCode(
+			String emailFingerprint,
+			Long localAccountId,
+			int passwordVersion,
+			String codeDigest,
+			Duration ttl
+	);
+
+	Optional<PasswordResetTokenSession> verifyPasswordResetCode(
+			String emailFingerprint,
+			String codeDigest,
+			int maxAttempts
+	);
+
+	void deletePasswordResetCode(String emailFingerprint);
+
+	void savePasswordResetToken(String token, PasswordResetTokenSession session, Duration ttl);
+
+	Optional<PasswordResetTokenSession> consumePasswordResetToken(String token);
 
 	void saveLastLogin(String email, LocalDateTime lastLogin);
 
@@ -51,4 +85,10 @@ public interface RedisRepository {
 
 	// 현재 활동중인 사용자 ID 목록 조회 (usage:in:* 키가 있는 userId)
 	List<Long> getAllActiveUserIds();
+
+	record OAuthStateSession(Long guestUserId, String codeVerifier) {
+	}
+
+	record PasswordResetTokenSession(Long localAccountId, int passwordVersion) {
+	}
 }

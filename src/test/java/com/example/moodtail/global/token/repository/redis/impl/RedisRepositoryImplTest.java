@@ -1,6 +1,7 @@
 package com.example.moodtail.global.token.repository.redis.impl;
 
 import com.example.moodtail.domain.user.support.AuthPropertiesFixtures;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,10 +15,16 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
 import java.util.Date;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class RedisRepositoryImplTest {
@@ -32,9 +39,13 @@ class RedisRepositoryImplTest {
 
     @BeforeEach
     void setUp() {
-        repository = new RedisRepositoryImpl(redisTemplate, AuthPropertiesFixtures.defaults());
+        repository = new RedisRepositoryImpl(
+                redisTemplate,
+                AuthPropertiesFixtures.defaults(),
+                new ObjectMapper()
+        );
         ReflectionTestUtils.setField(repository, "jwtRefreshExpirationMillis", 1_209_600_000L);
-        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        lenient().when(redisTemplate.opsForValue()).thenReturn(valueOperations);
     }
 
     @Test
@@ -52,10 +63,16 @@ class RedisRepositoryImplTest {
     void storesOAuthStateInsideConfiguredAuthNamespace() {
         repository.saveOAuthState("state-value", 7L, "KAKAO", Duration.ofMinutes(5));
 
-        verify(valueOperations).set(
-                "moodtail:auth:test:oauth-state:state-value",
-                "KAKAO:7",
-                Duration.ofMinutes(5)
+        verify(redisTemplate).execute(
+                any(),
+                eq(List.of(
+                        "moodtail:auth:test:oauth-state-owner:kakao:7",
+                        "moodtail:auth:test:oauth-state:kakao:state-value"
+                )),
+                eq("moodtail:auth:test:oauth-state:kakao:"),
+                anyString(),
+                eq("300000"),
+                eq("state-value")
         );
     }
 
@@ -71,6 +88,40 @@ class RedisRepositoryImplTest {
                 org.mockito.ArgumentMatchers.eq("blacklisted"),
                 org.mockito.ArgumentMatchers.longThat(ttl -> ttl > 0 && ttl <= 60_000L),
                 org.mockito.ArgumentMatchers.eq(TimeUnit.MILLISECONDS)
+        );
+    }
+
+    @Test
+    void storesPasswordResetCodeWithoutEmailOrRawCodeInKey() {
+        repository.savePasswordResetCode(
+                "email-fingerprint",
+                3L,
+                2,
+                "code-digest",
+                Duration.ofMinutes(5)
+        );
+
+        verify(valueOperations).set(
+                "moodtail:auth:test:password-reset-code:email-fingerprint",
+                "3:2:code-digest:0",
+                Duration.ofMinutes(5)
+        );
+    }
+
+    @Test
+    void passwordResetCooldownUsesAtomicSetIfAbsent() {
+        when(valueOperations.setIfAbsent(anyString(), eq("1"), any(Duration.class))).thenReturn(true);
+
+        boolean acquired = repository.acquirePasswordResetCooldown(
+                "email-fingerprint",
+                Duration.ofMinutes(1)
+        );
+
+        assertThat(acquired).isTrue();
+        verify(valueOperations).setIfAbsent(
+                "moodtail:auth:test:password-reset-cooldown:email-fingerprint",
+                "1",
+                Duration.ofMinutes(1)
         );
     }
 }

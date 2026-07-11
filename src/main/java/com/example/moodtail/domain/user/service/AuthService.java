@@ -4,12 +4,19 @@ import com.example.moodtail.domain.user.client.OAuthClient;
 import com.example.moodtail.domain.user.client.SocialUserProfile;
 import com.example.moodtail.domain.user.config.AuthProperties;
 import com.example.moodtail.domain.user.dto.request.GuestLoginRequest;
+import com.example.moodtail.domain.user.dto.request.LocalLoginRequest;
+import com.example.moodtail.domain.user.dto.request.LocalSignupRequest;
+import com.example.moodtail.domain.user.dto.request.PasswordChangeRequest;
+import com.example.moodtail.domain.user.dto.request.PasswordResetCodeRequest;
+import com.example.moodtail.domain.user.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.user.dto.request.SocialLoginRequest;
-import com.example.moodtail.domain.user.dto.request.SocialSignupRequest;
+import com.example.moodtail.domain.user.dto.request.TermAgreementRequest;
 import com.example.moodtail.domain.user.dto.response.GuestLoginResponse;
+import com.example.moodtail.domain.user.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.user.dto.response.OAuthStateResponse;
+import com.example.moodtail.domain.user.dto.response.PasswordResetCodeResponse;
+import com.example.moodtail.domain.user.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.user.dto.response.SocialLoginResponse;
-import com.example.moodtail.domain.user.dto.response.SocialSignupResponse;
 import com.example.moodtail.domain.user.dto.response.TokenResponse;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.enums.SocialProvider;
@@ -34,6 +41,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
 import java.time.Duration;
@@ -41,8 +50,14 @@ import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.LinkedHashSet;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.Set;
+
+import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE;
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
 
 @Service
 @RequiredArgsConstructor
@@ -60,6 +75,9 @@ public class AuthService {
     private final GuestUserRegistrationService guestUserRegistrationService;
     private final OAuthStateService oAuthStateService;
     private final GuestLoginRateLimiter guestLoginRateLimiter;
+    private final LocalAccountService localAccountService;
+    private final PasswordResetService passwordResetService;
+    private final AuthRequestOriginValidator authRequestOriginValidator;
     private final AuthProperties authProperties;
 
     @Value("${jwt.refreshExpiration}")
@@ -110,11 +128,22 @@ public class AuthService {
                 request.state()
         );
 
-        SocialLoginUser socialLoginUser = socialAccountRegistrationService.login(authentication.profile());
-        if (!authentication.guestUserId().equals(socialLoginUser.userId())) {
-            redisRepository.deleteRefreshJti(authentication.guestUserId());
-        }
-        TokenInfo tokenInfo = issueToken(socialLoginUser.userId(), socialLoginUser.role(), response);
+        SocialUserProfile requestedProfile = withRequestedNickname(authentication.profile(), request.nickname());
+        CompletedSocialLogin completedLogin = socialAccountRegistrationService.authenticateAndComplete(
+                requestedProfile,
+                authentication.guestUserId(),
+                toConsents(request.agreements()),
+                socialLoginUser -> {
+                    TokenInfo tokenInfo = issueTokenSession(socialLoginUser.userId(), socialLoginUser.role());
+                    if (!authentication.guestUserId().equals(socialLoginUser.userId())) {
+                        deleteRefreshSessionWithRollback(authentication.guestUserId());
+                    }
+                    return new CompletedSocialLogin(socialLoginUser, tokenInfo);
+                }
+        );
+        SocialLoginUser socialLoginUser = completedLogin.user();
+        TokenInfo tokenInfo = completedLogin.tokenInfo();
+        addRefreshTokenCookie(response, tokenInfo.refreshToken());
         return SocialLoginResponse.of(
                 socialLoginUser.userId(),
                 socialLoginUser.nickname(),
@@ -126,36 +155,95 @@ public class AuthService {
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)
-    public SocialSignupResponse socialSignup(
-            SocialSignupRequest request,
+    public LocalAuthResponse localSignup(
+            LocalSignupRequest request,
+            Long guestUserId,
             HttpServletResponse response
     ) {
-        SocialProvider provider = parseSocialProvider(request.provider());
-        SocialAuthentication authentication = authenticateSocial(
-                provider,
-                request.authorizationCode(),
-                request.redirectUri(),
-                request.state()
+        CompletedLocalLogin completed = localAccountService.signupAndComplete(
+                request.email(),
+                request.password(),
+                request.passwordConfirm(),
+                request.nickname(),
+                toConsents(request.agreements()),
+                guestUserId,
+                user -> new CompletedLocalLogin(
+                        user,
+                        issueTokenSession(user.userId(), user.role())
+                )
         );
-        SocialUserProfile signupProfile = withRequestedNickname(authentication.profile(), request.nickname());
-        List<SocialAccountRegistrationService.TermAgreementConsent> consents = request.agreements().stream()
-                .map(agreement -> new SocialAccountRegistrationService.TermAgreementConsent(
+        addRefreshTokenCookie(response, completed.tokenInfo().refreshToken());
+        return LocalAuthResponse.of(
+                completed.user().userId(),
+                completed.user().email(),
+                completed.user().nickname(),
+                true,
+                completed.tokenInfo()
+        );
+    }
+
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
+    public LocalAuthResponse localLogin(
+            LocalLoginRequest request,
+            Long guestUserId,
+            HttpServletResponse response
+    ) {
+        CompletedLocalLogin completed = localAccountService.loginAndComplete(
+                request.email(),
+                request.password(),
+                guestUserId,
+                user -> {
+                    TokenInfo tokenInfo = issueTokenSession(user.userId(), user.role());
+                    if (guestUserId != null && !guestUserId.equals(user.userId())) {
+                        deleteRefreshSessionWithRollback(guestUserId);
+                    }
+                    return new CompletedLocalLogin(user, tokenInfo);
+                }
+        );
+        addRefreshTokenCookie(response, completed.tokenInfo().refreshToken());
+        return LocalAuthResponse.of(
+                completed.user().userId(),
+                completed.user().email(),
+                completed.user().nickname(),
+                false,
+                completed.tokenInfo()
+        );
+    }
+
+    public PasswordResetCodeResponse requestPasswordResetCode(
+            PasswordResetCodeRequest request,
+            HttpServletRequest httpRequest
+    ) {
+        return passwordResetService.requestCode(request.email(), httpRequest);
+    }
+
+    public PasswordResetVerificationResponse verifyPasswordResetCode(PasswordResetCodeVerifyRequest request) {
+        return passwordResetService.verifyCode(request.email(), request.code());
+    }
+
+    public void changePassword(PasswordChangeRequest request) {
+        passwordResetService.changePassword(
+                request.resetToken(),
+                request.newPassword(),
+                request.newPasswordConfirm()
+        );
+    }
+
+    private List<TermAgreementService.Consent> toConsents(List<TermAgreementRequest> agreements) {
+        if (agreements == null) {
+            return null;
+        }
+        return agreements.stream()
+                .map(agreement -> new TermAgreementService.Consent(
                         agreement.termId(),
                         Boolean.TRUE.equals(agreement.agreed())
                 ))
                 .toList();
-
-        SocialLoginUser signupUser = socialAccountRegistrationService.register(
-                signupProfile,
-                authentication.guestUserId(),
-                consents
-        );
-        TokenInfo tokenInfo = issueToken(signupUser.userId(), signupUser.role(), response);
-        return SocialSignupResponse.of(signupUser, tokenInfo);
     }
 
     @Transactional
     public TokenResponse reissue(HttpServletRequest request, HttpServletResponse response) {
+        authRequestOriginValidator.validateCookieAuthenticatedRequest(request);
         try {
             String refreshToken = resolveRefreshToken(request)
                     .orElseThrow(() -> new RestApiException(AuthErrorStatus.EMPTY_JWT));
@@ -167,7 +255,10 @@ public class AuthService {
 
             Long userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
             String refreshJti = refreshClaims.getId();
-            String storedRefreshJti = redisRepository.findRefreshJtiByUserId(userId)
+            String storedRefreshJti = required(
+                    "find refresh session",
+                    () -> redisRepository.findRefreshJtiByUserId(userId)
+            )
                     .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN));
 
             if (!StringUtils.hasText(refreshJti) || !storedRefreshJti.equals(refreshJti)) {
@@ -176,11 +267,11 @@ public class AuthService {
 
             User user = userRepository.findById(userId)
                     .orElseThrow(() -> {
-                        redisRepository.deleteRefreshJti(userId);
+                        required("delete orphaned refresh session", () -> redisRepository.deleteRefreshJti(userId));
                         return new RestApiException(AuthErrorStatus.USER_NOT_FOUND);
                     });
             if (!user.isActive() || user.isDeleted()) {
-                redisRepository.deleteRefreshJti(userId);
+                required("delete inactive user refresh session", () -> redisRepository.deleteRefreshJti(userId));
                 throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
             }
             user.updateLastAccessedAt(LocalDateTime.now());
@@ -188,18 +279,26 @@ public class AuthService {
             TokenInfo tokenInfo = rotateRefreshToken(user, refreshJti, response);
             return TokenResponse.from(tokenInfo);
         } catch (RestApiException e) {
-            clearRefreshTokenCookie(response);
+            if (!isAuthInfrastructureUnavailable(e)) {
+                clearRefreshTokenCookie(response);
+            }
             throw e;
         }
     }
 
     public void logout(HttpServletRequest request, HttpServletResponse response) {
+        authRequestOriginValidator.validateCookieAuthenticatedRequest(request);
         try {
             Optional<Long> accessTokenUserId = revokeAccessToken(request);
-            if (accessTokenUserId.isPresent()) {
-                redisRepository.deleteRefreshJti(accessTokenUserId.get());
-            } else {
-                revokeRefreshToken(request);
+            Optional<Long> refreshTokenUserId = resolveCurrentRefreshSessionUser(request);
+            Set<Long> sessionUserIds = new LinkedHashSet<>();
+            accessTokenUserId.ifPresent(sessionUserIds::add);
+            refreshTokenUserId.ifPresent(sessionUserIds::add);
+            for (Long userId : sessionUserIds) {
+                required(
+                        "delete logout refresh session",
+                        () -> redisRepository.deleteRefreshJti(userId)
+                );
             }
         } finally {
             clearRefreshTokenCookie(response);
@@ -213,62 +312,142 @@ public class AuthService {
             return Optional.empty();
         }
 
+        Claims accessClaims;
+        Long userId;
         try {
-            Claims accessClaims = jwtProvider.getAccessTokenClaims(accessToken);
-            Long userId = parseUserId(accessClaims, AuthErrorStatus.INVALID_ACCESS_TOKEN);
-            redisRepository.blockAccessToken(accessToken, accessClaims);
-            return Optional.of(userId);
+            accessClaims = jwtProvider.getAccessTokenClaims(accessToken);
+            userId = parseUserId(accessClaims, AuthErrorStatus.INVALID_ACCESS_TOKEN);
         } catch (RestApiException ignored) {
             return Optional.empty();
         }
+
+        required(
+                "blacklist logout access token",
+                () -> redisRepository.blockAccessToken(accessToken, accessClaims)
+        );
+        return Optional.of(userId);
     }
 
-    private void revokeRefreshToken(HttpServletRequest request) {
+    private Optional<Long> resolveCurrentRefreshSessionUser(HttpServletRequest request) {
         Optional<String> refreshToken = resolveRefreshToken(request);
         if (refreshToken.isEmpty()) {
-            return;
+            return Optional.empty();
         }
 
+        Claims refreshClaims;
+        Long userId;
         try {
-            Claims refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken.get());
-            Long userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
-            String refreshJti = refreshClaims.getId();
-            if (!StringUtils.hasText(refreshJti)) {
-                return;
-            }
-
-            redisRepository.findRefreshJtiByUserId(userId)
-                    .filter(refreshJti::equals)
-                    .ifPresent(ignored -> redisRepository.deleteRefreshJti(userId));
+            refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken.get());
+            userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
         } catch (RestApiException ignored) {
             // Logout is idempotent: an invalid or expired cookie is cleared without exposing token details.
+            return Optional.empty();
         }
+
+        String refreshJti = refreshClaims.getId();
+        if (!StringUtils.hasText(refreshJti)) {
+            return Optional.empty();
+        }
+
+        boolean currentSession = required(
+                "find logout refresh session",
+                () -> redisRepository.findRefreshJtiByUserId(userId)
+        )
+                .filter(refreshJti::equals)
+                .isPresent();
+        return currentSession ? Optional.of(userId) : Optional.empty();
     }
 
     private TokenInfo issueToken(Long userId, UserRole role, HttpServletResponse response) {
+        TokenInfo tokenInfo = issueTokenSession(userId, role);
+        addRefreshTokenCookie(response, tokenInfo.refreshToken());
+        return tokenInfo;
+    }
+
+    private TokenInfo issueTokenSession(Long userId, UserRole role) {
+        Optional<String> previousRefreshJti = required(
+                "find previous refresh session",
+                () -> redisRepository.findRefreshJtiByUserId(userId)
+        );
         TokenInfo tokenInfo = jwtProvider.generateToken(userId, role);
         Claims refreshClaims = jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken());
 
-        redisRepository.saveRefreshJti(userId, refreshClaims.getId());
-        addRefreshTokenCookie(response, tokenInfo.refreshToken());
+        required("save refresh session", () -> redisRepository.saveRefreshJti(userId, refreshClaims.getId()));
+        registerRollbackAction(() -> restoreRefreshSessionBestEffort(userId, previousRefreshJti));
 
         return tokenInfo;
+    }
+
+    private void deleteRefreshSessionWithRollback(Long userId) {
+        Optional<String> previousRefreshJti = required(
+                "find refresh session before deletion",
+                () -> redisRepository.findRefreshJtiByUserId(userId)
+        );
+        required("delete merged guest refresh session", () -> redisRepository.deleteRefreshJti(userId));
+        registerRollbackAction(() -> restoreRefreshSessionBestEffort(userId, previousRefreshJti));
+    }
+
+    private void restoreRefreshSessionBestEffort(Long userId, Optional<String> previousRefreshJti) {
+        bestEffort("restore refresh session after database rollback", () -> {
+            if (previousRefreshJti.isPresent()) {
+                redisRepository.saveRefreshJti(userId, previousRefreshJti.get());
+            } else {
+                redisRepository.deleteRefreshJti(userId);
+            }
+        });
+    }
+
+    private void registerRollbackAction(Runnable rollbackAction) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCompletion(int status) {
+                if (status != TransactionSynchronization.STATUS_COMMITTED) {
+                    rollbackAction.run();
+                }
+            }
+        });
+    }
+
+    private void runAfterCommit(Runnable action) {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
+            }
+        });
     }
 
     private TokenInfo rotateRefreshToken(User user, String expectedRefreshJti, HttpServletResponse response) {
         TokenInfo tokenInfo = jwtProvider.generateToken(user.getId(), user.getRole());
         Claims newRefreshClaims = jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken());
-        boolean rotated = redisRepository.replaceRefreshJti(
-                user.getId(),
-                expectedRefreshJti,
-                newRefreshClaims.getId()
+        boolean rotated = required(
+                "rotate refresh session",
+                () -> redisRepository.replaceRefreshJti(
+                        user.getId(),
+                        expectedRefreshJti,
+                        newRefreshClaims.getId()
+                )
         );
 
         if (!rotated) {
             throw new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN);
         }
 
-        addRefreshTokenCookie(response, tokenInfo.refreshToken());
+        registerRollbackAction(() -> bestEffort(
+                "restore rotated refresh session after database rollback",
+                () -> redisRepository.saveRefreshJti(user.getId(), expectedRefreshJti)
+        ));
+
+        runAfterCommit(() -> addRefreshTokenCookie(response, tokenInfo.refreshToken()));
         return tokenInfo;
     }
 
@@ -302,10 +481,17 @@ public class AuthService {
             String state
     ) {
         OAuthClient oAuthClient = findEnabledOAuthClient(provider);
-        Long guestUserId = oAuthStateService.consume(state, provider);
-        SocialUserProfile profile = oAuthClient.requestUserProfile(authorizationCode, redirectUri);
+        OAuthStateService.ConsumedOAuthState consumedState = oAuthStateService.consumeForAuthentication(
+                state,
+                provider
+        );
+        SocialUserProfile profile = oAuthClient.requestUserProfile(
+                authorizationCode,
+                redirectUri,
+                consumedState.codeVerifier()
+        );
         validateSocialUserProfile(provider, profile);
-        return new SocialAuthentication(guestUserId, profile);
+        return new SocialAuthentication(consumedState.guestUserId(), profile);
     }
 
     private SocialUserProfile withRequestedNickname(SocialUserProfile profile, String requestedNickname) {
@@ -351,6 +537,11 @@ public class AuthService {
         }
     }
 
+    private boolean isAuthInfrastructureUnavailable(RestApiException exception) {
+        return AUTH_INFRASTRUCTURE_UNAVAILABLE.getCode().getCode()
+                .equals(exception.getErrorCode().getCode());
+    }
+
     private void addRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
         response.addHeader(
                 HttpHeaders.SET_COOKIE,
@@ -380,5 +571,11 @@ public class AuthService {
     }
 
     private record SocialAuthentication(Long guestUserId, SocialUserProfile profile) {
+    }
+
+    private record CompletedSocialLogin(SocialLoginUser user, TokenInfo tokenInfo) {
+    }
+
+    private record CompletedLocalLogin(LocalAccountService.LocalAuthUser user, TokenInfo tokenInfo) {
     }
 }

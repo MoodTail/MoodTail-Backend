@@ -26,6 +26,7 @@ public record AuthProperties(
             long stateExpirationMillis,
             long connectTimeoutMillis,
             long readTimeoutMillis,
+            RateLimit stateRateLimit,
             Provider kakao,
             Provider google
     ) {
@@ -33,7 +34,7 @@ public record AuthProperties(
             requirePositive(stateExpirationMillis, "auth.oauth.state-expiration-millis");
             requirePositiveIntRange(connectTimeoutMillis, "auth.oauth.connect-timeout-millis");
             requirePositiveIntRange(readTimeoutMillis, "auth.oauth.read-timeout-millis");
-            if (kakao == null || google == null) {
+            if (stateRateLimit == null || kakao == null || google == null) {
                 throw new IllegalArgumentException("OAuth provider configuration is required");
             }
         }

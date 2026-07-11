@@ -21,6 +21,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.Locale;
 
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
+
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	// 오직 인증 정보를 설정하는 역할만 수행
@@ -46,7 +48,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			if (!isUserOutRequest(uri)) {
 				PrincipalDetails principalDetails = (PrincipalDetails) authentication.getPrincipal();
 				Long userId = principalDetails.getUserId();
-				redisRepository.extendUserTimer(userId);
+				bestEffort("extend user activity timer", () -> redisRepository.extendUserTimer(userId));
 			}
 		}
 		chain.doFilter(request, response); // 다음 필터로 넘김

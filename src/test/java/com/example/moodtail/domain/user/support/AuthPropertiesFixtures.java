@@ -13,6 +13,7 @@ public final class AuthPropertiesFixtures {
                         300_000L,
                         3_000L,
                         5_000L,
+                        new AuthProperties.RateLimit(10, 60_000L),
                         kakaoProvider(),
                         googleProvider()
                 ),

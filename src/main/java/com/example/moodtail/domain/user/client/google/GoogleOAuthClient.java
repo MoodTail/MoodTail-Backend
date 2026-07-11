@@ -62,9 +62,13 @@ public class GoogleOAuthClient implements OAuthClient {
     }
 
     @Override
-    public SocialUserProfile requestUserProfile(String authorizationCode, String requestRedirectUri) {
+    public SocialUserProfile requestUserProfile(
+            String authorizationCode,
+            String requestRedirectUri,
+            String codeVerifier
+    ) {
         String resolvedRedirectUri = resolveRedirectUri(requestRedirectUri);
-        GoogleTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri);
+        GoogleTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri, codeVerifier);
         GoogleUserInfoResponse userInfo = requestUserInfo(token.accessToken());
 
         if (!StringUtils.hasText(userInfo.providerUserId())) {
@@ -79,7 +83,7 @@ public class GoogleOAuthClient implements OAuthClient {
         );
     }
 
-    private GoogleTokenResponse requestToken(String authorizationCode, String redirectUri) {
+    private GoogleTokenResponse requestToken(String authorizationCode, String redirectUri, String codeVerifier) {
         validateTokenRequest(authorizationCode, redirectUri);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
@@ -88,6 +92,9 @@ public class GoogleOAuthClient implements OAuthClient {
         form.add("client_secret", clientSecret);
         form.add("redirect_uri", redirectUri);
         form.add("code", authorizationCode);
+        if (StringUtils.hasText(codeVerifier)) {
+            form.add("code_verifier", codeVerifier);
+        }
 
         try {
             GoogleTokenResponse response = restClient.post()
@@ -99,13 +106,13 @@ public class GoogleOAuthClient implements OAuthClient {
                     .body(GoogleTokenResponse.class);
 
             if (response == null || !StringUtils.hasText(response.accessToken())) {
-                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
             }
             return response;
         } catch (RestClientResponseException e) {
             throw socialLoginException(e);
         } catch (RestClientException e) {
-            throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+            throw new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
         }
     }
 
@@ -123,13 +130,13 @@ public class GoogleOAuthClient implements OAuthClient {
                     .body(GoogleUserInfoResponse.class);
 
             if (response == null || !StringUtils.hasText(response.providerUserId())) {
-                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+                throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
             }
             return response;
         } catch (RestClientResponseException e) {
             throw socialLoginException(e);
         } catch (RestClientException e) {
-            throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+            throw new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
         }
     }
 
@@ -159,11 +166,11 @@ public class GoogleOAuthClient implements OAuthClient {
 
     private RestApiException socialLoginException(RestClientResponseException e) {
         if (e.getStatusCode().value() == 429) {
-            return new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+            return new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
         }
         if (e.getStatusCode().is4xxClientError()) {
             return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        return new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+        return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
     }
 }

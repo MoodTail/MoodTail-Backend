@@ -1,6 +1,7 @@
 package com.example.moodtail.global.config.security.jwt;
 
 import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
@@ -8,7 +9,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,6 +45,7 @@ class JwtProviderTest {
 
         when(redisRepository.isJtiBlocked(accessClaims.getId())).thenReturn(false);
         when(redisRepository.isJtiBlocked(refreshClaims.getId())).thenReturn(false);
+        when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of(refreshClaims.getId()));
 
         assertThat(jwtProvider.validateAccessToken(tokenInfo.accessToken())).isTrue();
         assertThat(jwtProvider.validateRefreshToken(tokenInfo.accessToken())).isFalse();
@@ -56,6 +61,38 @@ class JwtProviderTest {
         when(redisRepository.isJtiBlocked(claims.getId())).thenReturn(true);
 
         assertThat(jwtProvider.validateAccessToken(accessToken)).isFalse();
+    }
+
+    @Test
+    void redisFailureDuringBlacklistCheckFailsClosedWithServiceUnavailable() {
+        String accessToken = jwtProvider.generateToken(1L, UserRole.USER, TokenType.ACCESS);
+        Claims claims = jwtProvider.getAccessTokenClaims(accessToken);
+        when(redisRepository.isJtiBlocked(claims.getId()))
+                .thenThrow(new RedisConnectionFailureException("redis unavailable"));
+
+        assertThatThrownBy(() -> jwtProvider.validateAccessToken(accessToken))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
+                );
+    }
+
+    @Test
+    void newLoginInvalidatesPreviousDeviceAccessToken() {
+        TokenInfo firstSession = jwtProvider.generateToken(1L, UserRole.USER);
+        Claims firstAccessClaims = jwtProvider.getAccessTokenClaims(firstSession.accessToken());
+        Claims firstRefreshClaims = jwtProvider.getRefreshTokenClaims(firstSession.refreshToken());
+        TokenInfo secondSession = jwtProvider.generateToken(1L, UserRole.USER);
+        Claims secondAccessClaims = jwtProvider.getAccessTokenClaims(secondSession.accessToken());
+        Claims secondRefreshClaims = jwtProvider.getRefreshTokenClaims(secondSession.refreshToken());
+
+        when(redisRepository.isJtiBlocked(firstAccessClaims.getId())).thenReturn(false);
+        when(redisRepository.isJtiBlocked(secondAccessClaims.getId())).thenReturn(false);
+        when(redisRepository.findRefreshJtiByUserId(1L))
+                .thenReturn(Optional.of(secondRefreshClaims.getId()));
+
+        assertThat(jwtProvider.validateAccessToken(firstSession.accessToken())).isFalse();
+        assertThat(jwtProvider.validateAccessToken(secondSession.accessToken())).isTrue();
+        assertThat(firstRefreshClaims.getId()).isNotEqualTo(secondRefreshClaims.getId());
     }
 
     @Test

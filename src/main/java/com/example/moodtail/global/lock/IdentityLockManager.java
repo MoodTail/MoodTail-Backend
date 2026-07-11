@@ -21,6 +21,9 @@ import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
 
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
+
 @Component
 @RequiredArgsConstructor
 public class IdentityLockManager {
@@ -62,6 +65,22 @@ public class IdentityLockManager {
         );
     }
 
+    public <T> T executeForLocalEmail(String normalizedEmail, Supplier<T> action) {
+        return executeWithLock(
+                "local-email:" + normalizedEmail,
+                action,
+                AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE
+        );
+    }
+
+    public <T> T executeForPasswordResetToken(String resetToken, Supplier<T> action) {
+        return executeWithLock(
+                "password-reset-token:" + resetToken,
+                action,
+                AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN
+        );
+    }
+
     private <T> T executeWithLock(String identifier, Supplier<T> action, BaseCodeInterface failureStatus) {
         String key = authProperties.redis().keyPrefix() + LOCK_KEY_PREFIX + hash(identifier);
         String owner = UUID.randomUUID().toString();
@@ -70,7 +89,7 @@ public class IdentityLockManager {
         try {
             return action.get();
         } finally {
-            release(key, owner);
+            bestEffort("release identity lock", () -> release(key, owner));
         }
     }
 
@@ -79,10 +98,13 @@ public class IdentityLockManager {
         long deadline = System.nanoTime() + Duration.ofMillis(concurrency.acquireTimeoutMillis()).toNanos();
 
         while (System.nanoTime() < deadline) {
-            Boolean acquired = redisTemplate.opsForValue().setIfAbsent(
-                    key,
-                    owner,
-                    Duration.ofMillis(concurrency.lockTtlMillis())
+            Boolean acquired = required(
+                    "acquire identity lock",
+                    () -> redisTemplate.opsForValue().setIfAbsent(
+                            key,
+                            owner,
+                            Duration.ofMillis(concurrency.lockTtlMillis())
+                    )
             );
             if (Boolean.TRUE.equals(acquired)) {
                 return;

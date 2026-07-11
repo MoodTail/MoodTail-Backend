@@ -51,6 +51,7 @@ class KakaoOAuthClientTest {
                         "redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fauth%2Fkakao%2Fcallback"
                 )))
                 .andExpect(content().string(containsString("code=kakao-code")))
+                .andExpect(content().string(containsString("code_verifier=pkce-verifier")))
                 .andRespond(withSuccess(
                         """
                                 {
@@ -80,7 +81,11 @@ class KakaoOAuthClientTest {
                         MediaType.APPLICATION_JSON
                 ));
 
-        SocialUserProfile result = kakaoOAuthClient.requestUserProfile("kakao-code", null);
+        SocialUserProfile result = kakaoOAuthClient.requestUserProfile(
+                "kakao-code",
+                null,
+                "pkce-verifier"
+        );
 
         assertThat(kakaoOAuthClient.provider()).isEqualTo(SocialProvider.KAKAO);
         assertThat(result.provider()).isEqualTo(SocialProvider.KAKAO);
@@ -197,7 +202,7 @@ class KakaoOAuthClientTest {
 
         assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH008")
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
                 );
         server.verify();
     }

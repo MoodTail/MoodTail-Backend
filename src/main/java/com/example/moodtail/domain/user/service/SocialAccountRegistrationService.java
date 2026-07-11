@@ -3,13 +3,10 @@ package com.example.moodtail.domain.user.service;
 import com.example.moodtail.domain.user.client.SocialUserProfile;
 import com.example.moodtail.domain.user.config.AuthProperties;
 import com.example.moodtail.domain.term.entity.Term;
-import com.example.moodtail.domain.term.repository.TermRepository;
 import com.example.moodtail.domain.user.entity.SocialAccount;
 import com.example.moodtail.domain.user.entity.User;
-import com.example.moodtail.domain.user.entity.UserTermAgreement;
 import com.example.moodtail.domain.user.repository.SocialAccountRepository;
 import com.example.moodtail.domain.user.repository.UserRepository;
-import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.lock.IdentityLockManager;
@@ -22,11 +19,9 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,48 +30,114 @@ public class SocialAccountRegistrationService {
     private final PlatformTransactionManager transactionManager;
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
-    private final TermRepository termRepository;
-    private final UserTermAgreementRepository userTermAgreementRepository;
     private final IdentityLockManager identityLockManager;
+    private final GuestDataMergeService guestDataMergeService;
+    private final TermAgreementService termAgreementService;
     private final AuthProperties authProperties;
 
-    public SocialLoginUser login(SocialUserProfile profile) {
-        return identityLockManager.executeForSocialLogin(
-                profile.provider(),
-                profile.providerUserId(),
-                () -> requiresNewTransactionTemplate().execute(status -> loginInTransaction(profile))
-        );
-    }
-
-    public SocialLoginUser register(
+    public <T> T authenticateAndComplete(
             SocialUserProfile profile,
             Long guestUserId,
-            List<TermAgreementConsent> consents
+            List<TermAgreementService.Consent> consents,
+            Function<SocialLoginUser, T> completion
     ) {
         return identityLockManager.executeForSocialLogin(
                 profile.provider(),
                 profile.providerUserId(),
                 () -> identityLockManager.executeForGuestUserId(
                         guestUserId,
-                        () -> registerWithRetry(profile, guestUserId, consents)
+                        () -> authenticateWithRetry(profile, guestUserId, consents, completion)
                 )
         );
     }
 
-    private SocialLoginUser registerWithRetry(
+    private <T> T authenticateWithRetry(
             SocialUserProfile profile,
             Long guestUserId,
-            List<TermAgreementConsent> consents
+            List<TermAgreementService.Consent> consents,
+            Function<SocialLoginUser, T> completion
+    ) {
+        TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
+        for (int attempt = 0; attempt < authProperties.concurrency().socialRegistrationMaxAttempts(); attempt++) {
+            try {
+                T result = transactionTemplate.execute(status -> {
+                    Optional<SocialLoginUser> existing = loginInTransaction(profile, guestUserId);
+                    SocialLoginUser user = existing.orElseGet(
+                            () -> registerInTransaction(profile, guestUserId, consents)
+                    );
+                    return completion.apply(user);
+                });
+                if (result != null) {
+                    return result;
+                }
+            } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
+                // The next attempt re-reads the unique social identity after the competing transaction.
+            }
+        }
+        throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+    }
+
+    public SocialLoginUser login(SocialUserProfile profile, Long guestUserId) {
+        return loginAndComplete(profile, guestUserId, Function.identity())
+                .orElseThrow(() -> new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_NOT_FOUND));
+    }
+
+    public <T> Optional<T> loginAndComplete(
+            SocialUserProfile profile,
+            Long guestUserId,
+            Function<SocialLoginUser, T> completion
+    ) {
+        return identityLockManager.executeForSocialLogin(
+                profile.provider(),
+                profile.providerUserId(),
+                () -> identityLockManager.executeForGuestUserId(
+                        guestUserId,
+                        () -> requiresNewTransactionTemplate().execute(
+                                status -> loginInTransaction(profile, guestUserId).map(completion)
+                        )
+                )
+        );
+    }
+
+    public SocialLoginUser register(
+            SocialUserProfile profile,
+            Long guestUserId,
+            List<TermAgreementService.Consent> consents
+    ) {
+        return registerAndComplete(profile, guestUserId, consents, Function.identity());
+    }
+
+    public <T> T registerAndComplete(
+            SocialUserProfile profile,
+            Long guestUserId,
+            List<TermAgreementService.Consent> consents,
+            Function<SocialLoginUser, T> completion
+    ) {
+        return identityLockManager.executeForSocialLogin(
+                profile.provider(),
+                profile.providerUserId(),
+                () -> identityLockManager.executeForGuestUserId(
+                        guestUserId,
+                        () -> registerWithRetry(profile, guestUserId, consents, completion)
+                )
+        );
+    }
+
+    private <T> T registerWithRetry(
+            SocialUserProfile profile,
+            Long guestUserId,
+            List<TermAgreementService.Consent> consents,
+            Function<SocialLoginUser, T> completion
     ) {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
 
         for (int attempt = 0; attempt < authProperties.concurrency().socialRegistrationMaxAttempts(); attempt++) {
             try {
-                SocialLoginUser socialLoginUser = transactionTemplate.execute(
-                        status -> registerInTransaction(profile, guestUserId, consents)
+                T result = transactionTemplate.execute(
+                        status -> completion.apply(registerInTransaction(profile, guestUserId, consents))
                 );
-                if (socialLoginUser != null) {
-                    return socialLoginUser;
+                if (result != null) {
+                    return result;
                 }
             } catch (CannotAcquireLockException | DataIntegrityViolationException e) {
                 Boolean alreadyRegistered = transactionTemplate.execute(
@@ -93,25 +154,39 @@ public class SocialAccountRegistrationService {
         throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
     }
 
-    private SocialLoginUser loginInTransaction(SocialUserProfile profile) {
-        SocialAccount socialAccount = socialAccountRepository
-                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
-                .orElseThrow(() -> new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_NOT_FOUND));
+    private Optional<SocialLoginUser> loginInTransaction(SocialUserProfile profile, Long guestUserId) {
+        Optional<SocialAccount> socialAccountOptional = socialAccountRepository
+                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
+        if (socialAccountOptional.isEmpty()) {
+            return Optional.empty();
+        }
+        SocialAccount socialAccount = socialAccountOptional.get();
         User user = socialAccount.getUser();
         validateActive(user);
+        guestDataMergeService.mergeIntoExistingUser(guestUserId, user.getId());
         user.updateLastAccessedAt(LocalDateTime.now());
-        return createSocialLoginUser(user, socialAccount, false);
+        return Optional.of(createSocialLoginUser(user, socialAccount, false));
     }
 
     private SocialLoginUser registerInTransaction(
             SocialUserProfile profile,
             Long guestUserId,
-            List<TermAgreementConsent> consents
+            List<TermAgreementService.Consent> consents
     ) {
-        if (socialAccountRepository
-                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
-                .isPresent()) {
-            throw new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_ALREADY_EXISTS);
+        Optional<SocialAccount> existingAccount = socialAccountRepository
+                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
+        if (existingAccount.isPresent()) {
+            SocialAccount account = existingAccount.get();
+            if (!account.getUser().getId().equals(guestUserId)) {
+                throw new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_ALREADY_EXISTS);
+            }
+            User existingUser = userRepository.findByIdForUpdate(guestUserId)
+                    .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
+            validateActive(existingUser);
+            if (existingUser.isGuest()) {
+                throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+            }
+            return createSocialLoginUser(existingUser, account, false);
         }
 
         User guestUser = userRepository.findByIdForUpdate(guestUserId)
@@ -120,7 +195,7 @@ public class SocialAccountRegistrationService {
             throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
 
-        List<Term> agreedTerms = validateAgreements(consents);
+        List<Term> agreedTerms = termAgreementService.validateAgreements(consents);
         LocalDateTime now = LocalDateTime.now();
         guestUser.upgradeToUser(profile.nickname(), now);
         SocialAccount socialAccount = socialAccountRepository.saveAndFlush(SocialAccount.create(
@@ -129,44 +204,9 @@ public class SocialAccountRegistrationService {
                 profile.providerUserId(),
                 profile.email()
         ));
-        userTermAgreementRepository.saveAll(agreedTerms.stream()
-                .map(term -> UserTermAgreement.create(guestUser, term, now))
-                .toList());
+        termAgreementService.recordValidatedAgreements(guestUser, agreedTerms, now);
 
         return createSocialLoginUser(guestUser, socialAccount, true);
-    }
-
-    private List<Term> validateAgreements(List<TermAgreementConsent> consents) {
-        if (consents == null) {
-            throw new RestApiException(AuthErrorStatus.INVALID_TERM_AGREEMENT);
-        }
-        List<Term> activeTerms = termRepository.findByActiveTrueOrderByIdAsc();
-        List<Term> requiredTerms = activeTerms.stream().filter(Term::isRequired).toList();
-        long activeTermTypeCount = activeTerms.stream().map(Term::getTermType).distinct().count();
-        if (requiredTerms.isEmpty() || activeTermTypeCount != activeTerms.size()) {
-            throw new RestApiException(AuthErrorStatus.TERMS_CONFIGURATION_ERROR);
-        }
-
-        Map<Long, Term> activeTermsById = activeTerms.stream()
-                .collect(Collectors.toMap(Term::getId, Function.identity()));
-        Map<Long, Boolean> agreementByTermId = new HashMap<>();
-        for (TermAgreementConsent consent : consents) {
-            if (consent == null || consent.termId() == null
-                    || agreementByTermId.putIfAbsent(consent.termId(), consent.agreed()) != null
-                    || !activeTermsById.containsKey(consent.termId())) {
-                throw new RestApiException(AuthErrorStatus.INVALID_TERM_AGREEMENT);
-            }
-        }
-
-        boolean missingRequiredAgreement = requiredTerms.stream()
-                .anyMatch(term -> !Boolean.TRUE.equals(agreementByTermId.get(term.getId())));
-        if (missingRequiredAgreement) {
-            throw new RestApiException(AuthErrorStatus.REQUIRED_TERMS_NOT_AGREED);
-        }
-
-        return activeTerms.stream()
-                .filter(term -> Boolean.TRUE.equals(agreementByTermId.get(term.getId())))
-                .toList();
     }
 
     private void validateActive(User user) {
@@ -196,6 +236,4 @@ public class SocialAccountRegistrationService {
         );
     }
 
-    public record TermAgreementConsent(Long termId, boolean agreed) {
-    }
 }

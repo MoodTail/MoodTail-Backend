@@ -3,6 +3,9 @@ package com.example.moodtail.domain.user.dto.request;
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import jakarta.validation.Valid;
+
+import java.util.List;
 
 public record SocialLoginRequest(
         @JsonAlias("code")
@@ -15,6 +18,16 @@ public record SocialLoginRequest(
 
         @NotBlank(message = "OAuth state는 필수입니다.")
         @Size(max = 128, message = "OAuth state가 너무 깁니다.")
-        String state
+        String state,
+
+        @Size(max = 50, message = "닉네임은 50자 이하여야 합니다.")
+        String nickname,
+
+        @Size(max = 20, message = "약관 동의 항목이 너무 많습니다.")
+        List<@Valid TermAgreementRequest> agreements
 ) {
+
+    public SocialLoginRequest(String authorizationCode, String redirectUri, String state) {
+        this(authorizationCode, redirectUri, state, null, null);
+    }
 }

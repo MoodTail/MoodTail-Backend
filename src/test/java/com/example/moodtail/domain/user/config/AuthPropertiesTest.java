@@ -23,6 +23,7 @@ class AuthPropertiesTest {
                 300_000L,
                 0L,
                 5_000L,
+                new AuthProperties.RateLimit(10, 60_000L),
                 provider(),
                 provider()
         )).isInstanceOf(IllegalArgumentException.class);

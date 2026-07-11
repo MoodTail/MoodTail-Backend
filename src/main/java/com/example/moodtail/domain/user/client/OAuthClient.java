@@ -8,5 +8,9 @@ public interface OAuthClient {
 
     boolean isEnabled();
 
-    SocialUserProfile requestUserProfile(String authorizationCode, String redirectUri);
+    default SocialUserProfile requestUserProfile(String authorizationCode, String redirectUri) {
+        return requestUserProfile(authorizationCode, redirectUri, null);
+    }
+
+    SocialUserProfile requestUserProfile(String authorizationCode, String redirectUri, String codeVerifier);
 }

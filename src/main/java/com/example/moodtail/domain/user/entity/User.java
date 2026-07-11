@@ -77,6 +77,15 @@ public class User extends BaseEntity {
                 .build();
     }
 
+    public static User createMember(String nickname, LocalDateTime accessedAt) {
+        return User.builder()
+                .nickname(truncateNickname(nickname))
+                .role(com.example.moodtail.domain.user.enums.UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .lastAccessedAt(accessedAt)
+                .build();
+    }
+
     public void upgradeToUser(String socialNickname, LocalDateTime accessedAt) {
         if (role != com.example.moodtail.domain.user.enums.UserRole.GUEST || guestUuid == null) {
             throw new IllegalStateException("게스트 사용자만 소셜 계정으로 전환할 수 있습니다.");
