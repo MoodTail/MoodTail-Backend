@@ -8,7 +8,7 @@ import com.example.moodtail.domain.moodtest.entity.MoodQuestionOption;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionType;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
-import com.example.moodtail.domain.moodtest.repository.CocktailRepository;
+import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodQuestionOptionRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
