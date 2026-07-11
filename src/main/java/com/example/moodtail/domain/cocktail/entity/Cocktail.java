@@ -1,6 +1,7 @@
-package com.example.moodtail.domain.moodtest.entity;
+package com.example.moodtail.domain.cocktail.entity;
 
 import com.example.moodtail.domain.image.entity.Image;
+import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import jakarta.persistence.*;
 import lombok.AccessLevel;

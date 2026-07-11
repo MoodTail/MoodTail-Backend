@@ -1,6 +1,6 @@
 package com.example.moodtail.domain.recommendation.entity;
 
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
+import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;

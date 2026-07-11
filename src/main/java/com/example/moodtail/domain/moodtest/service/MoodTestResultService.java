@@ -2,13 +2,13 @@ package com.example.moodtail.domain.moodtest.service;
 
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultRequest;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultResponse;
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
+import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionOption;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionType;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
-import com.example.moodtail.domain.moodtest.repository.CocktailRepository;
+import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodQuestionOptionRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;

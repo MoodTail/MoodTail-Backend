@@ -1,6 +1,6 @@
 package com.example.moodtail.domain.moodtest.dto.response;
 
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
+import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import lombok.Builder;

@@ -1,7 +1,7 @@
 package com.example.moodtail.domain.cocktail.dto.response;
 
 import com.example.moodtail.domain.image.entity.Image;
-import com.example.moodtail.domain.moodtest.entity.Cocktail;
+import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 
