@@ -1,6 +1,8 @@
 package com.example.moodtail.domain.cocktail.service;
 
+import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
+import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.moodtest.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
@@ -11,19 +13,53 @@ import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepo
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus;
+import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 public class CocktailService {
+    private static final BigDecimal MIN_ALCOHOL_DEGREE = BigDecimal.ZERO;
+
     private final MoodTypeRepository moodTypeRepository;
     private final MoodTypeCompatibilityRepository compatibilityRepository;
     private final CocktailRepository cocktailRepository;
+    private final CocktailFavoriteRepository cocktailFavoriteRepository;
+
+    @Transactional(readOnly = true)
+    public CocktailListResponse getCocktails(
+            BigDecimal minAlcoholDegree,
+            BigDecimal maxAlcoholDegree,
+            String keyword,
+            PrincipalDetails principalDetails
+    ) {
+        validateAlcoholDegreeRange(minAlcoholDegree, maxAlcoholDegree);
+
+        List<Cocktail> cocktails = cocktailRepository.searchCocktails(
+                minAlcoholDegree,
+                maxAlcoholDegree,
+                normalizeKeyword(keyword)
+        );
+        Set<Long> favoriteCocktailIds = getFavoriteCocktailIds(cocktails, principalDetails);
+
+        List<CocktailListResponse.CocktailSummaryDto> cocktailSummaries = cocktails.stream()
+                .map(cocktail -> CocktailListResponse.CocktailSummaryDto.from(
+                        cocktail,
+                        getIsFavorite(cocktail.getId(), favoriteCocktailIds)
+                ))
+                .toList();
+
+        return CocktailListResponse.builder()
+                .cocktails(cocktailSummaries)
+                .build();
+    }
 
     @Transactional(readOnly = true)
     public MoodTypeResponse getMoodType(Long typeId) {
@@ -48,7 +84,7 @@ public class CocktailService {
                         .typeCode(moodType.getCode())
                         .name(moodType.getName())
                         .description(moodType.getDescription())
-                        .imageUrl(characterImageUrl) // todo S3 연결 전 하드코딩
+                        .imageUrl(characterImageUrl)
                         .typePercent(68)      // todo 기능 구현 전 임시 하드코딩
                         .build())
                 .typeFigures(MoodTypeResponse.TypeFiguresDto.builder()
@@ -79,5 +115,45 @@ public class CocktailService {
 
     private String getImageUrl(Image image) {
         return image == null ? null : image.getImageUrl();
+    }
+
+    private void validateAlcoholDegreeRange(BigDecimal minAlcoholDegree, BigDecimal maxAlcoholDegree) {
+        boolean hasNegativeDegree = (minAlcoholDegree != null && minAlcoholDegree.compareTo(MIN_ALCOHOL_DEGREE) < 0)
+                || (maxAlcoholDegree != null && maxAlcoholDegree.compareTo(MIN_ALCOHOL_DEGREE) < 0);
+        boolean isReversedRange = minAlcoholDegree != null
+                && maxAlcoholDegree != null
+                && minAlcoholDegree.compareTo(maxAlcoholDegree) > 0;
+
+        if (hasNegativeDegree || isReversedRange) {
+            throw new RestApiException(CocktailErrorStatus.INVALID_ALCOHOL_DEGREE_RANGE);
+        }
+    }
+
+    private String normalizeKeyword(String keyword) {
+        return keyword == null || keyword.isBlank() ? null : keyword.trim();
+    }
+
+    private Set<Long> getFavoriteCocktailIds(
+            List<Cocktail> cocktails,
+            PrincipalDetails principalDetails
+    ) {
+        if (principalDetails == null) {
+            return Set.of();
+        }
+        if (cocktails.isEmpty()) {
+            return Set.of();
+        }
+
+        List<Long> cocktailIds = cocktails.stream()
+                .map(Cocktail::getId)
+                .toList();
+        return new HashSet<>(cocktailFavoriteRepository.findFavoriteCocktailIds(
+                principalDetails.getUserId(),
+                cocktailIds
+        ));
+    }
+
+    private boolean getIsFavorite(Long cocktailId, Set<Long> favoriteCocktailIds) {
+        return favoriteCocktailIds.contains(cocktailId);
     }
 }
