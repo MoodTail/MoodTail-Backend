@@ -1,7 +1,7 @@
 services:
   moodtail-app:
     container_name: MoodTail-server
-    image: ${DOCKERHUB_USERNAME}/moodtail-be:latest
+    image: ${DOCKERHUB_USERNAME}/moodtail-be:${IMAGE_TAG:-latest}
     restart: always
     ports:
       - "8080:8080"
@@ -9,6 +9,8 @@ services:
       - TZ=Asia/Seoul
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_SHOW_SQL=false
+      - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=false
 
       - SPRING_DATA_REDIS_HOST=${SPRING_DATA_REDIS_HOST}
       - SPRING_DATA_REDIS_PORT=${SPRING_DATA_REDIS_PORT}
@@ -81,6 +83,9 @@ services:
       - MAIL_FROM=${MAIL_FROM:-}
       - MAIL_SMTP_AUTH=${MAIL_SMTP_AUTH:-true}
       - MAIL_STARTTLS_ENABLED=${MAIL_STARTTLS_ENABLED:-true}
+      - MAIL_STARTTLS_REQUIRED=${MAIL_STARTTLS_REQUIRED:-true}
+      - PASSWORD_RESET_MAIL_SUBJECT=${PASSWORD_RESET_MAIL_SUBJECT:-MoodTail password reset code}
+      - PASSWORD_RESET_MAIL_BODY=${PASSWORD_RESET_MAIL_BODY:-Your MoodTail password reset code is %s.}
       - MAIL_CONNECTION_TIMEOUT=${MAIL_CONNECTION_TIMEOUT:-3000}
       - MAIL_READ_TIMEOUT=${MAIL_READ_TIMEOUT:-5000}
       - MAIL_WRITE_TIMEOUT=${MAIL_WRITE_TIMEOUT:-5000}

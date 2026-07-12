@@ -50,14 +50,17 @@ public class GuestDataMergeService {
         guestUser.delete();
 
         log.info(
-                "Merged guest user {} into existing user {}: drinkingRecords={}, moodTestResults={}, "
-                        + "moodTypes={}, cocktails={}, representativeMoodTypeInherited={}",
+                "Merged guest user {} into existing user {}: moodTestResults={}, recommendationSessions={}, "
+                        + "drinkingRecords={}, inquiries={}, cocktailFavorites={}, moodTypes={}, "
+                        + "representativeMoodTypeInherited={}",
                 guestUserId,
                 targetUserId,
+                result.transferredMoodTestResults(),
+                result.transferredRecommendationSessions(),
                 result.transferredDrinkingRecords(),
-                result.copiedMoodTestResults(),
+                result.transferredInquiries(),
+                result.mergedCocktailFavorites(),
                 result.mergedMoodTypes(),
-                result.mergedCocktails(),
                 inheritedRepresentativeMoodType
         );
     }

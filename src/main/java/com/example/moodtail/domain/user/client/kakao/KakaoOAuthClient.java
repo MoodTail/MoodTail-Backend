@@ -2,6 +2,7 @@ package com.example.moodtail.domain.user.client.kakao;
 
 import com.example.moodtail.domain.user.client.OAuthClient;
 import com.example.moodtail.domain.user.client.OAuthRestClientFactory;
+import com.example.moodtail.domain.user.client.OAuthClientExceptionMapper;
 import com.example.moodtail.domain.user.client.SocialUserProfile;
 import com.example.moodtail.domain.user.config.AuthProperties;
 import com.example.moodtail.domain.user.enums.SocialProvider;
@@ -17,6 +18,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.ResourceAccessException;
 
 @Component
 public class KakaoOAuthClient implements OAuthClient {
@@ -109,9 +111,11 @@ public class KakaoOAuthClient implements OAuthClient {
             }
             return response;
         } catch (RestClientResponseException e) {
-            throw socialLoginException(e);
-        } catch (RestClientException e) {
+            throw OAuthClientExceptionMapper.fromResponse(e);
+        } catch (ResourceAccessException e) {
             throw new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
+        } catch (RestClientException e) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
         }
     }
 
@@ -133,9 +137,11 @@ public class KakaoOAuthClient implements OAuthClient {
             }
             return response;
         } catch (RestClientResponseException e) {
-            throw socialLoginException(e);
-        } catch (RestClientException e) {
+            throw OAuthClientExceptionMapper.fromResponse(e);
+        } catch (ResourceAccessException e) {
             throw new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
+        } catch (RestClientException e) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
         }
     }
 
@@ -162,13 +168,4 @@ public class KakaoOAuthClient implements OAuthClient {
         return redirectUri;
     }
 
-    private RestApiException socialLoginException(RestClientResponseException e) {
-        if (e.getStatusCode().value() == 429) {
-            return new RestApiException(AuthErrorStatus.SOCIAL_PROVIDER_UNAVAILABLE);
-        }
-        if (e.getStatusCode().is4xxClientError()) {
-            return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
-        }
-        return new RestApiException(AuthErrorStatus.INVALID_SOCIAL_PROVIDER_RESPONSE);
-    }
 }

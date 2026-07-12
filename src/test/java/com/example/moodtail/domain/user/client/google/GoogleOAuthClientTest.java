@@ -128,13 +128,13 @@ class GoogleOAuthClientTest {
     }
 
     @Test
-    void googleServerFailureReturnsSocialLoginFailure() {
+    void googleServerFailureIsTreatedAsTemporaryProviderFailure() {
         server.expect(requestTo("https://oauth2.googleapis.com/token"))
                 .andRespond(withServerError());
 
         assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("google-code", null))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH030")
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
                 );
         server.verify();
     }

@@ -46,6 +46,8 @@ public interface RedisRepository {
 
 	boolean acquirePasswordResetCooldown(String emailFingerprint, Duration ttl);
 
+	void deletePasswordResetCooldown(String emailFingerprint);
+
 	void savePasswordResetCode(
 			String emailFingerprint,
 			Long localAccountId,

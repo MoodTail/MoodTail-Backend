@@ -20,7 +20,7 @@ jobs:
           cache: gradle
 
       - name: Build with Gradle
-        run: chmod +x ./gradlew && ./gradlew build -x test
+        run: chmod +x ./gradlew && ./gradlew clean build
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -33,7 +33,9 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/moodtail-be:latest
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/moodtail-be:${{ github.sha }}
+            ${{ secrets.DOCKERHUB_USERNAME }}/moodtail-be:latest
 
   cd:
     needs: ci
@@ -43,7 +45,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Prepare Server
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
             host: ${{ secrets.SERVER_HOST }}
             username: ${{ secrets.SERVER_USER }}
@@ -78,17 +80,149 @@ jobs:
               sudo docker --version
               sudo docker compose version
 
-      - name: Copy docker-compose.yml to Server
-        uses: appleboy/scp-action@master
+      - name: Create deployment environment file
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          SPRING_DATA_REDIS_HOST: ${{ secrets.SPRING_DATA_REDIS_HOST }}
+          SPRING_DATA_REDIS_PORT: ${{ secrets.SPRING_DATA_REDIS_PORT || '6379' }}
+          SPRING_DATA_REDIS_CONNECT_TIMEOUT: ${{ vars.SPRING_DATA_REDIS_CONNECT_TIMEOUT || '2s' }}
+          SPRING_DATA_REDIS_TIMEOUT: ${{ vars.SPRING_DATA_REDIS_TIMEOUT || '2s' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          JWT_ACCESS_EXPIRATION: ${{ secrets.JWT_ACCESS_EXPIRATION || '900000' }}
+          JWT_REFRESH_EXPIRATION: ${{ secrets.JWT_REFRESH_EXPIRATION || '1209600000' }}
+          JWT_REFRESH_COOKIE_NAME: ${{ secrets.JWT_REFRESH_COOKIE_NAME || 'refreshToken' }}
+          JWT_REFRESH_COOKIE_PATH: ${{ secrets.JWT_REFRESH_COOKIE_PATH || '/' }}
+          JWT_REFRESH_COOKIE_DOMAIN: ${{ secrets.JWT_REFRESH_COOKIE_DOMAIN }}
+          JWT_COOKIE_SECURE: ${{ secrets.JWT_COOKIE_SECURE || 'true' }}
+          JWT_COOKIE_SAME_SITE: ${{ secrets.JWT_COOKIE_SAME_SITE || 'Lax' }}
+          SECURITY_LOG_LEVEL: ${{ secrets.SECURITY_LOG_LEVEL || 'INFO' }}
+          KAKAO_OAUTH_ENABLED: ${{ secrets.KAKAO_OAUTH_ENABLED || 'false' }}
+          KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
+          KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
+          KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
+          GOOGLE_OAUTH_ENABLED: ${{ secrets.GOOGLE_OAUTH_ENABLED || 'false' }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          OAUTH_STATE_EXPIRATION: ${{ secrets.OAUTH_STATE_EXPIRATION || '300000' }}
+          OAUTH_CONNECT_TIMEOUT: ${{ secrets.OAUTH_CONNECT_TIMEOUT || '3000' }}
+          OAUTH_READ_TIMEOUT: ${{ secrets.OAUTH_READ_TIMEOUT || '5000' }}
+          OAUTH_STATE_RATE_MAX_ATTEMPTS: ${{ vars.OAUTH_STATE_RATE_MAX_ATTEMPTS || '10' }}
+          OAUTH_STATE_RATE_WINDOW: ${{ vars.OAUTH_STATE_RATE_WINDOW || '60000' }}
+          GUEST_LOGIN_CLIENT_IP_HEADER: ${{ secrets.GUEST_LOGIN_CLIENT_IP_HEADER }}
+          GUEST_DEFAULT_NICKNAME: ${{ secrets.GUEST_DEFAULT_NICKNAME || '게스트' }}
+          GUEST_LOGIN_RATE_MAX_ATTEMPTS: ${{ secrets.GUEST_LOGIN_RATE_MAX_ATTEMPTS || '10' }}
+          GUEST_LOGIN_RATE_WINDOW: ${{ secrets.GUEST_LOGIN_RATE_WINDOW || '60000' }}
+          GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS: ${{ secrets.GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS || '60' }}
+          GUEST_LOGIN_CLIENT_RATE_WINDOW: ${{ secrets.GUEST_LOGIN_CLIENT_RATE_WINDOW || '60000' }}
+          AUTH_LOCK_TTL: ${{ secrets.AUTH_LOCK_TTL || '10000' }}
+          AUTH_LOCK_RETRY_INTERVAL: ${{ secrets.AUTH_LOCK_RETRY_INTERVAL || '25' }}
+          AUTH_LOCK_ACQUIRE_TIMEOUT: ${{ secrets.AUTH_LOCK_ACQUIRE_TIMEOUT || '3000' }}
+          LOCAL_PASSWORD_MIN_LENGTH: ${{ vars.LOCAL_PASSWORD_MIN_LENGTH || '8' }}
+          LOCAL_PASSWORD_MAX_BYTES: ${{ vars.LOCAL_PASSWORD_MAX_BYTES || '72' }}
+          LOCAL_LOGIN_MAX_FAILED_ATTEMPTS: ${{ vars.LOCAL_LOGIN_MAX_FAILED_ATTEMPTS || '5' }}
+          LOCAL_LOGIN_LOCK_DURATION: ${{ vars.LOCAL_LOGIN_LOCK_DURATION || '900000' }}
+          PASSWORD_RESET_ENABLED: ${{ vars.PASSWORD_RESET_ENABLED || 'false' }}
+          PASSWORD_RESET_PEPPER: ${{ secrets.PASSWORD_RESET_PEPPER }}
+          PASSWORD_RESET_CODE_EXPIRATION: ${{ vars.PASSWORD_RESET_CODE_EXPIRATION || '300000' }}
+          PASSWORD_RESET_TOKEN_EXPIRATION: ${{ vars.PASSWORD_RESET_TOKEN_EXPIRATION || '600000' }}
+          PASSWORD_RESET_RESEND_COOLDOWN: ${{ vars.PASSWORD_RESET_RESEND_COOLDOWN || '60000' }}
+          PASSWORD_RESET_MAX_VERIFY_ATTEMPTS: ${{ vars.PASSWORD_RESET_MAX_VERIFY_ATTEMPTS || '5' }}
+          PASSWORD_RESET_CLIENT_IP_HEADER: ${{ vars.PASSWORD_RESET_CLIENT_IP_HEADER || '' }}
+          PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS: ${{ vars.PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS || '10' }}
+          PASSWORD_RESET_CLIENT_RATE_WINDOW: ${{ vars.PASSWORD_RESET_CLIENT_RATE_WINDOW || '600000' }}
+          MAIL_HOST: ${{ secrets.MAIL_HOST }}
+          MAIL_PORT: ${{ vars.MAIL_PORT || '587' }}
+          MAIL_USERNAME: ${{ secrets.MAIL_USERNAME }}
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          MAIL_SMTP_AUTH: ${{ vars.MAIL_SMTP_AUTH || 'true' }}
+          MAIL_STARTTLS_ENABLED: ${{ vars.MAIL_STARTTLS_ENABLED || 'true' }}
+          MAIL_STARTTLS_REQUIRED: ${{ vars.MAIL_STARTTLS_REQUIRED || 'true' }}
+          PASSWORD_RESET_MAIL_SUBJECT: ${{ vars.PASSWORD_RESET_MAIL_SUBJECT || 'MoodTail password reset code' }}
+          PASSWORD_RESET_MAIL_BODY: ${{ vars.PASSWORD_RESET_MAIL_BODY || 'Your MoodTail password reset code is %s.' }}
+          MAIL_CONNECTION_TIMEOUT: ${{ vars.MAIL_CONNECTION_TIMEOUT || '3000' }}
+          MAIL_READ_TIMEOUT: ${{ vars.MAIL_READ_TIMEOUT || '5000' }}
+          MAIL_WRITE_TIMEOUT: ${{ vars.MAIL_WRITE_TIMEOUT || '5000' }}
+          SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS: ${{ secrets.SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS || '3' }}
+          AUTH_REDIS_KEY_PREFIX: ${{ secrets.AUTH_REDIS_KEY_PREFIX || 'moodtail:prod:auth:' }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          CORS_MAX_AGE: ${{ secrets.CORS_MAX_AGE || '3600' }}
+          USAGE_TIMEOUT: ${{ secrets.USAGE_TIMEOUT || '30' }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          keys = tuple(key for key in os.environ if key not in {
+              "CI", "HOME", "PATH", "PWD", "RUNNER_OS", "SHLVL"
+          } and key in {
+              "IMAGE_TAG", "DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD",
+              "DOCKERHUB_USERNAME", "SPRING_DATA_REDIS_HOST", "SPRING_DATA_REDIS_PORT",
+              "SPRING_DATA_REDIS_CONNECT_TIMEOUT", "SPRING_DATA_REDIS_TIMEOUT", "JWT_SECRET",
+              "JWT_ACCESS_EXPIRATION", "JWT_REFRESH_EXPIRATION", "JWT_REFRESH_COOKIE_NAME",
+              "JWT_REFRESH_COOKIE_PATH", "JWT_REFRESH_COOKIE_DOMAIN", "JWT_COOKIE_SECURE",
+              "JWT_COOKIE_SAME_SITE", "SECURITY_LOG_LEVEL", "KAKAO_OAUTH_ENABLED", "KAKAO_CLIENT_ID",
+              "KAKAO_CLIENT_SECRET", "KAKAO_REDIRECT_URI", "GOOGLE_OAUTH_ENABLED", "GOOGLE_CLIENT_ID",
+              "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI", "OAUTH_STATE_EXPIRATION",
+              "OAUTH_CONNECT_TIMEOUT", "OAUTH_READ_TIMEOUT", "OAUTH_STATE_RATE_MAX_ATTEMPTS",
+              "OAUTH_STATE_RATE_WINDOW", "GUEST_LOGIN_CLIENT_IP_HEADER", "GUEST_DEFAULT_NICKNAME",
+              "GUEST_LOGIN_RATE_MAX_ATTEMPTS", "GUEST_LOGIN_RATE_WINDOW",
+              "GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS", "GUEST_LOGIN_CLIENT_RATE_WINDOW", "AUTH_LOCK_TTL",
+              "AUTH_LOCK_RETRY_INTERVAL", "AUTH_LOCK_ACQUIRE_TIMEOUT", "LOCAL_PASSWORD_MIN_LENGTH",
+              "LOCAL_PASSWORD_MAX_BYTES", "LOCAL_LOGIN_MAX_FAILED_ATTEMPTS", "LOCAL_LOGIN_LOCK_DURATION",
+              "PASSWORD_RESET_ENABLED", "PASSWORD_RESET_PEPPER", "PASSWORD_RESET_CODE_EXPIRATION",
+              "PASSWORD_RESET_TOKEN_EXPIRATION", "PASSWORD_RESET_RESEND_COOLDOWN",
+              "PASSWORD_RESET_MAX_VERIFY_ATTEMPTS", "PASSWORD_RESET_CLIENT_IP_HEADER",
+              "PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS", "PASSWORD_RESET_CLIENT_RATE_WINDOW", "MAIL_HOST",
+              "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM", "MAIL_SMTP_AUTH",
+              "MAIL_STARTTLS_ENABLED", "MAIL_STARTTLS_REQUIRED", "PASSWORD_RESET_MAIL_SUBJECT",
+              "PASSWORD_RESET_MAIL_BODY", "MAIL_CONNECTION_TIMEOUT", "MAIL_READ_TIMEOUT",
+              "MAIL_WRITE_TIMEOUT", "SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS", "AUTH_REDIS_KEY_PREFIX",
+              "CORS_ALLOWED_ORIGINS", "CORS_MAX_AGE", "USAGE_TIMEOUT"
+          })
+          required = {
+              "IMAGE_TAG", "DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD",
+              "DOCKERHUB_USERNAME", "SPRING_DATA_REDIS_HOST", "JWT_SECRET", "CORS_ALLOWED_ORIGINS"
+          }
+          if os.environ.get("GOOGLE_OAUTH_ENABLED", "").lower() == "true":
+              required.update({"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"})
+          if os.environ.get("KAKAO_OAUTH_ENABLED", "").lower() == "true":
+              required.update({"KAKAO_CLIENT_ID", "KAKAO_REDIRECT_URI"})
+          if os.environ.get("PASSWORD_RESET_ENABLED", "").lower() == "true":
+              required.update({"PASSWORD_RESET_PEPPER", "MAIL_HOST", "MAIL_FROM"})
+              if os.environ.get("MAIL_SMTP_AUTH", "").lower() == "true":
+                  required.update({"MAIL_USERNAME", "MAIL_PASSWORD"})
+          missing = sorted(key for key in required if not os.environ.get(key))
+          if missing:
+              raise SystemExit("Missing required deployment values: " + ", ".join(missing))
+
+          def dotenv_quote(value: str) -> str:
+              if any(character in value for character in ("\n", "\r", "\0")):
+                  raise SystemExit("Deployment values must not contain newline or NUL characters")
+              return "'" + value.replace("'", "\\'") + "'"
+
+          content = "\n".join(f"{key}={dotenv_quote(os.environ.get(key, ''))}" for key in sorted(keys)) + "\n"
+          Path("deploy.env").write_text(content, encoding="utf-8")
+          PY
+          chmod 600 deploy.env
+
+      - name: Copy deployment files to Server
+        uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "docker-compose.yml"
+          source: "docker-compose.yml,deploy.env"
           target: "~/app"
 
       - name: Deploy to Server
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
@@ -97,89 +231,25 @@ jobs:
             set -e
 
             cd ~/app
-
-            cat > .env <<'EOF'
-            DATABASE_HOST=${{ secrets.DATABASE_HOST }}
-            DATABASE_NAME=${{ secrets.DATABASE_NAME }}
-            DATABASE_USERNAME=${{ secrets.DATABASE_USERNAME }}
-            DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}
-
-            DOCKERHUB_USERNAME=${{ secrets.DOCKERHUB_USERNAME }}
-
-            SPRING_DATA_REDIS_HOST=${{ secrets.SPRING_DATA_REDIS_HOST }}
-            SPRING_DATA_REDIS_PORT=${{ secrets.SPRING_DATA_REDIS_PORT }}
-            SPRING_DATA_REDIS_CONNECT_TIMEOUT=${{ vars.SPRING_DATA_REDIS_CONNECT_TIMEOUT || '2s' }}
-            SPRING_DATA_REDIS_TIMEOUT=${{ vars.SPRING_DATA_REDIS_TIMEOUT || '2s' }}
-
-            JWT_SECRET=${{ secrets.JWT_SECRET }}
-            JWT_ACCESS_EXPIRATION=${{ secrets.JWT_ACCESS_EXPIRATION }}
-            JWT_REFRESH_EXPIRATION=${{ secrets.JWT_REFRESH_EXPIRATION }}
-            JWT_REFRESH_COOKIE_NAME=${{ secrets.JWT_REFRESH_COOKIE_NAME }}
-            JWT_REFRESH_COOKIE_PATH=${{ secrets.JWT_REFRESH_COOKIE_PATH }}
-            JWT_REFRESH_COOKIE_DOMAIN=${{ secrets.JWT_REFRESH_COOKIE_DOMAIN }}
-            JWT_COOKIE_SECURE=${{ secrets.JWT_COOKIE_SECURE }}
-            JWT_COOKIE_SAME_SITE=${{ secrets.JWT_COOKIE_SAME_SITE }}
-            SECURITY_LOG_LEVEL=${{ secrets.SECURITY_LOG_LEVEL }}
-
-            KAKAO_OAUTH_ENABLED=${{ secrets.KAKAO_OAUTH_ENABLED }}
-            KAKAO_CLIENT_ID=${{ secrets.KAKAO_CLIENT_ID }}
-            KAKAO_CLIENT_SECRET=${{ secrets.KAKAO_CLIENT_SECRET }}
-            KAKAO_REDIRECT_URI=${{ secrets.KAKAO_REDIRECT_URI }}
-
-            GOOGLE_OAUTH_ENABLED=${{ secrets.GOOGLE_OAUTH_ENABLED }}
-            GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
-            GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
-            GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}
-
-            OAUTH_STATE_EXPIRATION=${{ secrets.OAUTH_STATE_EXPIRATION }}
-            OAUTH_CONNECT_TIMEOUT=${{ secrets.OAUTH_CONNECT_TIMEOUT }}
-            OAUTH_READ_TIMEOUT=${{ secrets.OAUTH_READ_TIMEOUT }}
-            OAUTH_STATE_RATE_MAX_ATTEMPTS=${{ vars.OAUTH_STATE_RATE_MAX_ATTEMPTS || '10' }}
-            OAUTH_STATE_RATE_WINDOW=${{ vars.OAUTH_STATE_RATE_WINDOW || '60000' }}
-            GUEST_LOGIN_CLIENT_IP_HEADER=${{ secrets.GUEST_LOGIN_CLIENT_IP_HEADER }}
-            GUEST_DEFAULT_NICKNAME=${{ secrets.GUEST_DEFAULT_NICKNAME }}
-            GUEST_LOGIN_RATE_MAX_ATTEMPTS=${{ secrets.GUEST_LOGIN_RATE_MAX_ATTEMPTS }}
-            GUEST_LOGIN_RATE_WINDOW=${{ secrets.GUEST_LOGIN_RATE_WINDOW }}
-            GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS=${{ secrets.GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS }}
-            GUEST_LOGIN_CLIENT_RATE_WINDOW=${{ secrets.GUEST_LOGIN_CLIENT_RATE_WINDOW }}
-            AUTH_LOCK_TTL=${{ secrets.AUTH_LOCK_TTL }}
-            AUTH_LOCK_RETRY_INTERVAL=${{ secrets.AUTH_LOCK_RETRY_INTERVAL }}
-            AUTH_LOCK_ACQUIRE_TIMEOUT=${{ secrets.AUTH_LOCK_ACQUIRE_TIMEOUT }}
-            LOCAL_PASSWORD_MIN_LENGTH=${{ vars.LOCAL_PASSWORD_MIN_LENGTH || '8' }}
-            LOCAL_PASSWORD_MAX_BYTES=${{ vars.LOCAL_PASSWORD_MAX_BYTES || '72' }}
-            LOCAL_LOGIN_MAX_FAILED_ATTEMPTS=${{ vars.LOCAL_LOGIN_MAX_FAILED_ATTEMPTS || '5' }}
-            LOCAL_LOGIN_LOCK_DURATION=${{ vars.LOCAL_LOGIN_LOCK_DURATION || '900000' }}
-            PASSWORD_RESET_ENABLED=${{ vars.PASSWORD_RESET_ENABLED || 'false' }}
-            PASSWORD_RESET_PEPPER=${{ secrets.PASSWORD_RESET_PEPPER }}
-            PASSWORD_RESET_CODE_EXPIRATION=${{ vars.PASSWORD_RESET_CODE_EXPIRATION || '300000' }}
-            PASSWORD_RESET_TOKEN_EXPIRATION=${{ vars.PASSWORD_RESET_TOKEN_EXPIRATION || '600000' }}
-            PASSWORD_RESET_RESEND_COOLDOWN=${{ vars.PASSWORD_RESET_RESEND_COOLDOWN || '60000' }}
-            PASSWORD_RESET_MAX_VERIFY_ATTEMPTS=${{ vars.PASSWORD_RESET_MAX_VERIFY_ATTEMPTS || '5' }}
-            PASSWORD_RESET_CLIENT_IP_HEADER=${{ vars.PASSWORD_RESET_CLIENT_IP_HEADER || '' }}
-            PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS=${{ vars.PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS || '10' }}
-            PASSWORD_RESET_CLIENT_RATE_WINDOW=${{ vars.PASSWORD_RESET_CLIENT_RATE_WINDOW || '600000' }}
-            MAIL_HOST=${{ secrets.MAIL_HOST }}
-            MAIL_PORT=${{ vars.MAIL_PORT || '587' }}
-            MAIL_USERNAME=${{ secrets.MAIL_USERNAME }}
-            MAIL_PASSWORD=${{ secrets.MAIL_PASSWORD }}
-            MAIL_FROM=${{ secrets.MAIL_FROM }}
-            MAIL_SMTP_AUTH=${{ vars.MAIL_SMTP_AUTH || 'true' }}
-            MAIL_STARTTLS_ENABLED=${{ vars.MAIL_STARTTLS_ENABLED || 'true' }}
-            MAIL_CONNECTION_TIMEOUT=${{ vars.MAIL_CONNECTION_TIMEOUT || '3000' }}
-            MAIL_READ_TIMEOUT=${{ vars.MAIL_READ_TIMEOUT || '5000' }}
-            MAIL_WRITE_TIMEOUT=${{ vars.MAIL_WRITE_TIMEOUT || '5000' }}
-            SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS=${{ secrets.SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS }}
-            AUTH_REDIS_KEY_PREFIX=${{ secrets.AUTH_REDIS_KEY_PREFIX }}
-
-            CORS_ALLOWED_ORIGINS=${{ secrets.CORS_ALLOWED_ORIGINS }}
-            CORS_MAX_AGE=${{ secrets.CORS_MAX_AGE }}
-            USAGE_TIMEOUT=${{ secrets.USAGE_TIMEOUT }}
-            EOF
-
+            mv deploy.env .env
             chmod 600 .env
 
             sudo docker compose --env-file .env pull
-            sudo docker compose --env-file .env up -d
+            sudo docker compose --env-file .env up -d --remove-orphans
+
+            healthy=false
+            for attempt in $(seq 1 30); do
+              if curl --fail --silent http://localhost:8080/actuator/health >/dev/null; then
+                healthy=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$healthy" != "true" ]; then
+              sudo docker compose --env-file .env logs --tail=200 moodtail-app
+              exit 1
+            fi
+
             sudo docker image prune -f
 
             sudo docker ps

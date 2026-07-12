@@ -13,6 +13,7 @@ import com.example.moodtail.global.lock.IdentityLockManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -57,25 +58,32 @@ public class LocalAccountService {
         validatePassword(password, passwordConfirm);
         String passwordHash = passwordEncoder.encode(password);
 
-        return identityLockManager.executeForLocalEmail(
-                normalizedEmail,
-                () -> executeWithOptionalGuestLock(
-                        guestUserId,
-                        () -> requiresNewTransaction().execute(status -> {
-                            if (localAccountRepository.existsByEmail(normalizedEmail)) {
-                                throw new RestApiException(AuthErrorStatus.LOCAL_ACCOUNT_ALREADY_EXISTS);
-                            }
-                            List<Term> agreedTerms = termAgreementService.validateAgreements(consents);
-                            LocalDateTime now = LocalDateTime.now();
-                            User user = createOrUpgradeUser(guestUserId, normalizedNickname, now);
-                            LocalAccount account = localAccountRepository.saveAndFlush(
-                                    LocalAccount.create(user, normalizedEmail, passwordHash, now)
-                            );
-                            termAgreementService.recordValidatedAgreements(user, agreedTerms, now);
-                            return completion.apply(LocalAuthUser.from(account, true));
-                        })
-                )
-        );
+        try {
+            return identityLockManager.executeForLocalEmail(
+                    normalizedEmail,
+                    () -> executeWithOptionalGuestLock(
+                            guestUserId,
+                            () -> requiresNewTransaction().execute(status -> {
+                                if (localAccountRepository.existsByEmail(normalizedEmail)) {
+                                    throw new RestApiException(AuthErrorStatus.LOCAL_ACCOUNT_ALREADY_EXISTS);
+                                }
+                                List<Term> agreedTerms = termAgreementService.validateAgreements(consents);
+                                LocalDateTime now = LocalDateTime.now();
+                                User user = createOrUpgradeUser(guestUserId, normalizedNickname, now);
+                                LocalAccount account = localAccountRepository.saveAndFlush(
+                                        LocalAccount.create(user, normalizedEmail, passwordHash, now)
+                                );
+                                termAgreementService.recordValidatedAgreements(user, agreedTerms, now);
+                                return completion.apply(LocalAuthUser.from(account, true));
+                            })
+                    )
+            );
+        } catch (DataIntegrityViolationException exception) {
+            if (localAccountRepository.existsByEmail(normalizedEmail)) {
+                throw new RestApiException(AuthErrorStatus.LOCAL_ACCOUNT_ALREADY_EXISTS);
+            }
+            throw exception;
+        }
     }
 
     public <T> T loginAndComplete(
@@ -85,6 +93,7 @@ public class LocalAccountService {
             Function<LocalAuthUser, T> completion
     ) {
         String normalizedEmail = normalizeEmail(email);
+        validateLoginPasswordInput(password);
         return identityLockManager.executeForLocalEmail(
                 normalizedEmail,
                 () -> executeWithOptionalGuestLock(
@@ -207,7 +216,11 @@ public class LocalAccountService {
         if (email == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_CREDENTIALS);
         }
-        return Normalizer.normalize(email.trim(), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        String normalized = Normalizer.normalize(email.trim(), Normalizer.Form.NFKC).toLowerCase(Locale.ROOT);
+        if (normalized.isBlank() || normalized.length() > 320) {
+            throw new RestApiException(AuthErrorStatus.INVALID_CREDENTIALS);
+        }
+        return normalized;
     }
 
     private String normalizeNickname(String nickname) {
@@ -226,6 +239,13 @@ public class LocalAccountService {
         if (codePointLength < properties.password().minLength()
                 || byteLength > properties.password().maxBytes()) {
             throw new RestApiException(AuthErrorStatus.INVALID_PASSWORD_POLICY);
+        }
+    }
+
+    private void validateLoginPasswordInput(String password) {
+        if (password == null || password.getBytes(StandardCharsets.UTF_8).length > properties.password().maxBytes()) {
+            passwordEncoder.matches("invalid-password", DUMMY_PASSWORD_HASH);
+            throw new RestApiException(AuthErrorStatus.INVALID_CREDENTIALS);
         }
     }
 

@@ -3,6 +3,9 @@ package com.example.moodtail.domain.user.config;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.util.IllegalFormatException;
+
 @ConfigurationProperties(prefix = "auth.local")
 public record LocalAuthProperties(
         Password password,
@@ -18,7 +21,7 @@ public record LocalAuthProperties(
 
     public record Password(int minLength, int maxBytes) {
         public Password {
-            if (minLength < 8 || maxBytes < minLength || maxBytes > 1024) {
+            if (minLength < 8 || maxBytes < minLength || maxBytes > 72) {
                 throw new IllegalArgumentException("Invalid local password length policy");
             }
         }
@@ -55,8 +58,16 @@ public record LocalAuthProperties(
                 requireText(subject, "Password-reset subject");
                 requireText(bodyTemplate, "Password-reset body template");
                 requireText(pepper, "Password-reset pepper");
+                if (pepper.getBytes(StandardCharsets.UTF_8).length < 32) {
+                    throw new IllegalArgumentException("Password-reset pepper must be at least 32 bytes");
+                }
                 if (!bodyTemplate.contains("%s")) {
                     throw new IllegalArgumentException("Password-reset body template must contain %s");
+                }
+                try {
+                    bodyTemplate.formatted("000000");
+                } catch (IllegalFormatException exception) {
+                    throw new IllegalArgumentException("Password-reset body template has an invalid format", exception);
                 }
             }
         }

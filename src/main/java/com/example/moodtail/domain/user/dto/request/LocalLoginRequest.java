@@ -11,7 +11,7 @@ public record LocalLoginRequest(
         String email,
 
         @NotBlank(message = "비밀번호는 필수입니다.")
-        @Size(max = 1024, message = "비밀번호가 너무 깁니다.")
+        @Size(max = 72, message = "비밀번호가 너무 깁니다.")
         String password
 ) {
 }

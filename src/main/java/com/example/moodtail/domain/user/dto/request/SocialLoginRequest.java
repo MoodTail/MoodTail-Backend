@@ -2,6 +2,7 @@ package com.example.moodtail.domain.user.dto.request;
 
 import com.fasterxml.jackson.annotation.JsonAlias;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.Valid;
 
@@ -24,7 +25,7 @@ public record SocialLoginRequest(
         String nickname,
 
         @Size(max = 20, message = "약관 동의 항목이 너무 많습니다.")
-        List<@Valid TermAgreementRequest> agreements
+        List<@NotNull(message = "약관 동의 항목은 null일 수 없습니다.") @Valid TermAgreementRequest> agreements
 ) {
 
     public SocialLoginRequest(String authorizationCode, String redirectUri, String state) {

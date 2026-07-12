@@ -47,24 +47,28 @@ public class PasswordResetService {
 
         localAccountService.findPasswordResetAccount(normalizedEmail).ifPresent(account -> {
             String code = generateCode();
-            required(
-                    "save password-reset code",
-                    () -> redisRepository.savePasswordResetCode(
-                            emailFingerprint,
-                            account.localAccountId(),
-                            account.passwordVersion(),
-                            codeDigest(normalizedEmail, code, reset.pepper()),
-                            Duration.ofMillis(reset.codeExpirationMillis())
-                    )
-            );
             try {
+                required(
+                        "save password-reset code",
+                        () -> redisRepository.savePasswordResetCode(
+                                emailFingerprint,
+                                account.localAccountId(),
+                                account.passwordVersion(),
+                                codeDigest(normalizedEmail, code, reset.pepper()),
+                                Duration.ofMillis(reset.codeExpirationMillis())
+                        )
+                );
                 mailSender.sendCode(account.email(), code);
-            } catch (RestApiException e) {
+            } catch (RuntimeException exception) {
                 bestEffort(
-                        "delete password-reset code after mail failure",
+                        "delete password-reset code after delivery setup failure",
                         () -> redisRepository.deletePasswordResetCode(emailFingerprint)
                 );
-                throw e;
+                bestEffort(
+                        "release password-reset cooldown after delivery failure",
+                        () -> redisRepository.deletePasswordResetCooldown(emailFingerprint)
+                );
+                throw exception;
             }
         });
 
@@ -87,7 +91,7 @@ public class PasswordResetService {
         Duration tokenTtl = Duration.ofMillis(reset.tokenExpirationMillis());
         required(
                 "save password-reset token",
-                () -> redisRepository.savePasswordResetToken(resetToken, session, tokenTtl)
+                () -> redisRepository.savePasswordResetToken(sha256(resetToken), session, tokenTtl)
         );
         return new PasswordResetVerificationResponse(resetToken, tokenTtl.toSeconds());
     }
@@ -98,7 +102,7 @@ public class PasswordResetService {
         identityLockManager.executeForPasswordResetToken(resetToken, () -> {
             RedisRepository.PasswordResetTokenSession session = required(
                     "consume password-reset token",
-                    () -> redisRepository.consumePasswordResetToken(resetToken)
+                    () -> redisRepository.consumePasswordResetToken(sha256(resetToken))
             ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
 
             localAccountService.changePassword(
@@ -129,6 +133,9 @@ public class PasswordResetService {
                         Duration.ofMillis(clientLimit.windowMillis())
                 )
         );
+        if (!clientAllowed) {
+            throw new RestApiException(AuthErrorStatus.TOO_MANY_PASSWORD_RESET_REQUESTS);
+        }
         boolean emailAllowed = required(
                 "acquire password-reset resend cooldown",
                 () -> redisRepository.acquirePasswordResetCooldown(
@@ -136,7 +143,7 @@ public class PasswordResetService {
                         Duration.ofMillis(reset.resendCooldownMillis())
                 )
         );
-        if (!clientAllowed || !emailAllowed) {
+        if (!emailAllowed) {
             throw new RestApiException(AuthErrorStatus.TOO_MANY_PASSWORD_RESET_REQUESTS);
         }
     }

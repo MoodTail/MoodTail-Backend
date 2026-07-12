@@ -40,6 +40,33 @@ class AuthRequestOriginValidatorTest {
     }
 
     @Test
+    void rejectsCookieRequestWhenBrowserOriginMetadataIsMissing() {
+        MockHttpServletRequest request = cookieRequest();
+
+        assertThatThrownBy(() -> validator.validateCookieAuthenticatedRequest(request))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH033")
+                );
+    }
+
+    @Test
+    void allowsSameOriginFetchMetadataWhenOriginHeaderIsMissing() {
+        MockHttpServletRequest request = cookieRequest();
+        request.addHeader("Sec-Fetch-Site", "same-origin");
+
+        assertThatCode(() -> validator.validateCookieAuthenticatedRequest(request)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void sameSiteMetadataAloneDoesNotBypassOriginValidation() {
+        MockHttpServletRequest request = cookieRequest();
+        request.addHeader("Sec-Fetch-Site", "same-site");
+
+        assertThatThrownBy(() -> validator.validateCookieAuthenticatedRequest(request))
+                .isInstanceOf(RestApiException.class);
+    }
+
+    @Test
     void ignoresOriginForBearerOnlyRequestWithoutRefreshCookie() {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Origin", "https://attacker.example");

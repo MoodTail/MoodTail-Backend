@@ -15,6 +15,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -59,7 +60,7 @@ class LocalAccountServiceTest {
                 passwordEncoder,
                 LocalAuthPropertiesFixtures.enabled()
         );
-        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         lenient().when(identityLockManager.executeForLocalEmail(anyString(), any()))
                 .thenAnswer(invocation -> get(invocation.getArgument(1)));
         lenient().when(identityLockManager.executeForGuestUserId(any(), any()))
@@ -121,6 +122,39 @@ class LocalAccountServiceTest {
                 "unknown@example.com", "wrong-password", null, java.util.function.Function.identity()
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
+        );
+    }
+
+    @Test
+    void loginRejectsPasswordOverBcryptByteLimitAsGenericCredentialError() {
+        String oversizedUtf8Password = "가".repeat(25);
+
+        assertThatThrownBy(() -> service.loginAndComplete(
+                "user@example.com", oversizedUtf8Password, null, java.util.function.Function.identity()
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
+        );
+    }
+
+    @Test
+    void signupUniqueConstraintRaceReturnsAccountAlreadyExists() {
+        User guest = guest(2L);
+        when(localAccountRepository.existsByEmail("user@example.com")).thenReturn(false, true);
+        when(termAgreementService.validateAgreements(any())).thenReturn(List.of());
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        when(localAccountRepository.saveAndFlush(any(LocalAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("duplicate email"));
+
+        assertThatThrownBy(() -> service.signupAndComplete(
+                "user@example.com",
+                "password123!",
+                "password123!",
+                "무드테일러",
+                List.of(new TermAgreementService.Consent(1L, true)),
+                2L,
+                java.util.function.Function.identity()
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH034")
         );
     }
 

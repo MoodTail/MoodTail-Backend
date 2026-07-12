@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
@@ -15,11 +16,11 @@ public record LocalSignupRequest(
         String email,
 
         @NotBlank(message = "비밀번호는 필수입니다.")
-        @Size(max = 1024, message = "비밀번호가 너무 깁니다.")
+        @Size(max = 72, message = "비밀번호가 너무 깁니다.")
         String password,
 
         @NotBlank(message = "비밀번호 확인은 필수입니다.")
-        @Size(max = 1024, message = "비밀번호 확인 값이 너무 깁니다.")
+        @Size(max = 72, message = "비밀번호 확인 값이 너무 깁니다.")
         String passwordConfirm,
 
         @NotBlank(message = "닉네임은 필수입니다.")
@@ -28,6 +29,6 @@ public record LocalSignupRequest(
 
         @NotEmpty(message = "약관 동의 목록은 필수입니다.")
         @Size(max = 20, message = "약관 동의 항목이 너무 많습니다.")
-        List<@Valid TermAgreementRequest> agreements
+        List<@NotNull(message = "약관 동의 항목은 null일 수 없습니다.") @Valid TermAgreementRequest> agreements
 ) {
 }

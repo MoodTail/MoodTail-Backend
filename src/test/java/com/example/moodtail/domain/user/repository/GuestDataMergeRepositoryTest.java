@@ -22,15 +22,17 @@ class GuestDataMergeRepositoryTest {
     @Test
     void executesEverySelectiveMergeStepAndReturnsAffectedCounts() {
         when(jdbcTemplate.update(anyString(), any(Object[].class)))
-                .thenReturn(2, 3, 4, 5, 6, 7);
+                .thenReturn(2, 3, 4, 5, 6, 7, 8);
         GuestDataMergeRepository repository = new GuestDataMergeRepository(jdbcTemplate);
 
         GuestDataMergeRepository.MergeResult result = repository.merge(7L, 11L);
 
-        assertThat(result.transferredDrinkingRecords()).isEqualTo(2);
-        assertThat(result.copiedMoodTestResults()).isEqualTo(3);
-        assertThat(result.mergedMoodTypes()).isEqualTo(9);
-        assertThat(result.mergedCocktails()).isEqualTo(13);
-        verify(jdbcTemplate, times(6)).update(anyString(), any(Object[].class));
+        assertThat(result.transferredMoodTestResults()).isEqualTo(2);
+        assertThat(result.transferredRecommendationSessions()).isEqualTo(3);
+        assertThat(result.transferredDrinkingRecords()).isEqualTo(4);
+        assertThat(result.transferredInquiries()).isEqualTo(5);
+        assertThat(result.mergedCocktailFavorites()).isEqualTo(6);
+        assertThat(result.mergedMoodTypes()).isEqualTo(8);
+        verify(jdbcTemplate, times(8)).update(anyString(), any(Object[].class));
     }
 }

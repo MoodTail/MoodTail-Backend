@@ -299,6 +299,11 @@ public class RedisRepositoryImpl implements RedisRepository {
 	}
 
 	@Override
+	public void deletePasswordResetCooldown(String emailFingerprint) {
+		redisTemplate.delete(createAuthKey(PASSWORD_RESET_COOLDOWN_KEY_PREFIX + emailFingerprint));
+	}
+
+	@Override
 	public void savePasswordResetCode(
 			String emailFingerprint,
 			Long localAccountId,

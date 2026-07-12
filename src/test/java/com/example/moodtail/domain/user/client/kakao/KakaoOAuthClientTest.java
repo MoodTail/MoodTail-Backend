@@ -22,6 +22,7 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 class KakaoOAuthClientTest {
@@ -199,6 +200,18 @@ class KakaoOAuthClientTest {
     void kakaoRateLimitIsTreatedAsTemporaryProviderFailure() {
         server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
+
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
+                );
+        server.verify();
+    }
+
+    @Test
+    void kakaoServerFailureIsTreatedAsTemporaryProviderFailure() {
+        server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
+                .andRespond(withServerError());
 
         assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->

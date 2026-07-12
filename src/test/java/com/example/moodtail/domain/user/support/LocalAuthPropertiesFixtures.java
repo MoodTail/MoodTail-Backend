@@ -17,7 +17,7 @@ public final class LocalAuthPropertiesFixtures {
                         "no-reply@example.com",
                         "Password reset",
                         "Code: %s",
-                        "test-password-reset-pepper",
+                        "test-password-reset-pepper-at-least-32-bytes",
                         300_000L,
                         600_000L,
                         60_000L,

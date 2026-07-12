@@ -9,11 +9,11 @@ public record PasswordChangeRequest(
         String resetToken,
 
         @NotBlank(message = "새 비밀번호는 필수입니다.")
-        @Size(max = 1024, message = "새 비밀번호가 너무 깁니다.")
+        @Size(max = 72, message = "새 비밀번호가 너무 깁니다.")
         String newPassword,
 
         @NotBlank(message = "새 비밀번호 확인은 필수입니다.")
-        @Size(max = 1024, message = "새 비밀번호 확인 값이 너무 깁니다.")
+        @Size(max = 72, message = "새 비밀번호 확인 값이 너무 깁니다.")
         String newPasswordConfirm
 ) {
 }

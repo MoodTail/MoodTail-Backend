@@ -3,10 +3,12 @@ package com.example.moodtail.domain.user.integration;
 import com.example.moodtail.domain.user.client.OAuthClient;
 import com.example.moodtail.domain.user.client.SocialUserProfile;
 import com.example.moodtail.domain.user.enums.SocialProvider;
+import com.example.moodtail.domain.user.service.PasswordResetMailSender;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -51,7 +53,10 @@ import static org.mockito.Mockito.doThrow;
                 "auth.oauth.google.client-secret=integration-google-secret",
                 "auth.oauth.google.redirect-uri=http://localhost:5173/auth/google/callback",
                 "auth.oauth.kakao.enabled=false",
-                "auth.redis.key-prefix=moodtail:integration:auth:"
+                "auth.redis.key-prefix=moodtail:integration:auth:",
+                "auth.local.password-reset.enabled=true",
+                "auth.local.password-reset.sender=no-reply@example.com",
+                "auth.local.password-reset.pepper=integration-password-reset-pepper-at-least-32-bytes"
         }
 )
 @EnabledIfEnvironmentVariable(named = "RUN_AUTH_INTEGRATION_TESTS", matches = "true")
@@ -70,12 +75,17 @@ class AuthFlowIntegrationTest {
             SocialProvider.KAKAO,
             new SocialUserProfile(SocialProvider.KAKAO, "integration-kakao-user", null, "카카오")
     );
+    private static final StubPasswordResetMailSender PASSWORD_RESET_MAIL_STUB =
+            new StubPasswordResetMailSender();
 
     @TestBean(name = "googleOAuthClient", methodName = "googleOAuthClient")
     OAuthClient googleOAuthClient;
 
     @TestBean(name = "kakaoOAuthClient", methodName = "kakaoOAuthClient")
     OAuthClient kakaoOAuthClient;
+
+    @TestBean(name = "smtpPasswordResetMailSender", methodName = "passwordResetMailSender")
+    PasswordResetMailSender passwordResetMailSender;
 
     @LocalServerPort
     private int port;
@@ -105,6 +115,10 @@ class AuthFlowIntegrationTest {
         return KAKAO_STUB;
     }
 
+    static PasswordResetMailSender passwordResetMailSender() {
+        return PASSWORD_RESET_MAIL_STUB;
+    }
+
     @DynamicPropertySource
     static void infrastructureProperties(DynamicPropertyRegistry registry) {
         String databaseHost = requiredEnvironment("AUTH_TEST_DATABASE_HOST");
@@ -120,6 +134,10 @@ class AuthFlowIntegrationTest {
         registry.add(
                 "spring.data.redis.port",
                 () -> Integer.parseInt(requiredEnvironment("AUTH_TEST_REDIS_PORT"))
+        );
+        registry.add(
+                "spring.data.redis.database",
+                () -> Integer.parseInt(System.getenv().getOrDefault("AUTH_TEST_REDIS_DATABASE", "15"))
         );
     }
 
@@ -142,6 +160,19 @@ class AuthFlowIntegrationTest {
                 Long.class
         );
         GOOGLE_STUB.reset();
+        PASSWORD_RESET_MAIL_STUB.reset();
+    }
+
+    @AfterEach
+    void cleanInfrastructure() {
+        try (RedisConnection connection = redisConnectionFactory.getConnection()) {
+            connection.serverCommands().flushDb();
+        }
+        jdbcTemplate.update("delete from user_term_agreements");
+        jdbcTemplate.update("delete from social_accounts");
+        jdbcTemplate.update("delete from local_accounts");
+        jdbcTemplate.update("delete from users");
+        jdbcTemplate.update("delete from terms");
     }
 
     @Test
@@ -197,8 +228,8 @@ class AuthFlowIntegrationTest {
         String secondUserAccessToken = existingLogin.path("accessToken").asText();
 
         assertThat(existingLogin.path("isNewUser").asBoolean()).isFalse();
-        assertThat(getTerms(firstUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(getTerms(secondUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getCurrentUser(firstUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(getCurrentUser(secondUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'USER' and deleted_at is null",
                 Integer.class
@@ -252,6 +283,7 @@ class AuthFlowIntegrationTest {
                 signupGuestToken
         ).path("result");
         assertThat(signup.path("isNewUser").asBoolean()).isTrue();
+        String signupAccessToken = signup.path("accessToken").asText();
 
         String loginGuestToken = guestLogin(UUID.randomUUID());
         JsonNode login = postJson(
@@ -265,6 +297,8 @@ class AuthFlowIntegrationTest {
 
         assertThat(login.path("userId").asLong()).isEqualTo(signup.path("userId").asLong());
         assertThat(login.path("isNewUser").asBoolean()).isFalse();
+        assertThat(getCurrentUser(signupAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(getCurrentUser(login.path("accessToken").asText()).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'USER' and deleted_at is null",
                 Integer.class
@@ -273,6 +307,121 @@ class AuthFlowIntegrationTest {
                 "select count(*) from users where role = 'GUEST' and deleted_at is not null",
                 Integer.class
         )).isEqualTo(1);
+    }
+
+    @Test
+    void refreshRotationAndLogoutInvalidateThePresentedSession() throws Exception {
+        ResponseEntity<String> signupResponse = exchangeJson(
+                HttpMethod.POST,
+                "/api/v1/auth/signup/local",
+                Map.of(
+                        "email", "session-integration@example.com",
+                        "password", "integration-password",
+                        "passwordConfirm", "integration-password",
+                        "nickname", "세션통합사용자",
+                        "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
+                ),
+                null
+        );
+        assertThat(signupResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String originalAccessToken = objectMapper.readTree(signupResponse.getBody())
+                .path("result").path("accessToken").asText();
+        String originalRefreshCookie = cookiePair(signupResponse);
+
+        ResponseEntity<String> reissueResponse = exchangeCookieAuthenticated(
+                HttpMethod.POST,
+                "/api/v1/auth/reissue",
+                null,
+                null,
+                originalRefreshCookie
+        );
+        assertThat(reissueResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        String rotatedAccessToken = objectMapper.readTree(reissueResponse.getBody())
+                .path("result").path("accessToken").asText();
+        String rotatedRefreshCookie = cookiePair(reissueResponse);
+        assertThat(getCurrentUser(originalAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(getCurrentUser(rotatedAccessToken).getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ResponseEntity<String> logoutResponse = exchangeCookieAuthenticated(
+                HttpMethod.POST,
+                "/api/v1/auth/logout",
+                null,
+                rotatedAccessToken,
+                rotatedRefreshCookie
+        );
+        assertThat(logoutResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(logoutResponse.getHeaders().getFirst(HttpHeaders.SET_COOKIE))
+                .contains("Max-Age=0", "HttpOnly");
+        assertThat(getCurrentUser(rotatedAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void passwordResetChangesCredentialAndRevokesExistingSession() throws Exception {
+        JsonNode signup = postJson(
+                "/api/v1/auth/signup/local",
+                Map.of(
+                        "email", "password-reset-integration@example.com",
+                        "password", "old-integration-password",
+                        "passwordConfirm", "old-integration-password",
+                        "nickname", "비밀번호통합사용자",
+                        "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
+                ),
+                null
+        ).path("result");
+        String oldAccessToken = signup.path("accessToken").asText();
+
+        postJson(
+                "/api/v1/auth/password-reset/codes",
+                Map.of("email", "password-reset-integration@example.com"),
+                null
+        );
+        String verificationCode = PASSWORD_RESET_MAIL_STUB.lastCode.get();
+        assertThat(verificationCode).matches("[0-9]{6}");
+
+        String resetToken = postJson(
+                "/api/v1/auth/password-reset/codes/verify",
+                Map.of(
+                        "email", "password-reset-integration@example.com",
+                        "code", verificationCode
+                ),
+                null
+        ).path("result").path("resetToken").asText();
+        assertThat(resetToken).isNotBlank();
+
+        ResponseEntity<String> changeResponse = exchangeJson(
+                HttpMethod.PATCH,
+                "/api/v1/auth/password",
+                Map.of(
+                        "resetToken", resetToken,
+                        "newPassword", "new-integration-password",
+                        "newPasswordConfirm", "new-integration-password"
+                ),
+                null
+        );
+        assertThat(changeResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(getCurrentUser(oldAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        ResponseEntity<String> oldPasswordLogin = exchangeJson(
+                HttpMethod.POST,
+                "/api/v1/auth/login/local",
+                Map.of(
+                        "email", "password-reset-integration@example.com",
+                        "password", "old-integration-password"
+                ),
+                null
+        );
+        assertThat(oldPasswordLogin.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+
+        ResponseEntity<String> newPasswordLogin = exchangeJson(
+                HttpMethod.POST,
+                "/api/v1/auth/login/local",
+                Map.of(
+                        "email", "password-reset-integration@example.com",
+                        "password", "new-integration-password"
+                ),
+                null
+        );
+        assertThat(newPasswordLogin.getStatusCode()).isEqualTo(HttpStatus.OK);
     }
 
     private String guestLogin(UUID guestUuid) throws Exception {
@@ -292,8 +441,36 @@ class AuthFlowIntegrationTest {
         ).path("result");
     }
 
-    private ResponseEntity<String> getTerms(String accessToken) {
-        return exchangeJson(HttpMethod.GET, "/api/v1/terms", null, accessToken);
+    private ResponseEntity<String> getCurrentUser(String accessToken) {
+        return exchangeJson(HttpMethod.GET, "/api/v1/users/me", null, accessToken);
+    }
+
+    private ResponseEntity<String> exchangeCookieAuthenticated(
+            HttpMethod method,
+            String path,
+            Object body,
+            String accessToken,
+            String cookie
+    ) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.set(HttpHeaders.ORIGIN, "http://localhost:" + port);
+        headers.set(HttpHeaders.COOKIE, cookie);
+        if (accessToken != null) {
+            headers.setBearerAuth(accessToken);
+        }
+        return restTemplate.exchange(
+                "http://localhost:" + port + path,
+                method,
+                new HttpEntity<>(body, headers),
+                String.class
+        );
+    }
+
+    private String cookiePair(ResponseEntity<String> response) {
+        String setCookie = response.getHeaders().getFirst(HttpHeaders.SET_COOKIE);
+        assertThat(setCookie).isNotBlank();
+        return setCookie.substring(0, setCookie.indexOf(';'));
     }
 
     private JsonNode postJson(String path, Object body, String accessToken) throws Exception {
@@ -368,6 +545,23 @@ class AuthFlowIntegrationTest {
 
         private void reset() {
             lastCodeVerifier.set(null);
+        }
+    }
+
+    private static final class StubPasswordResetMailSender implements PasswordResetMailSender {
+
+        private final AtomicReference<String> lastRecipient = new AtomicReference<>();
+        private final AtomicReference<String> lastCode = new AtomicReference<>();
+
+        @Override
+        public void sendCode(String recipient, String code) {
+            lastRecipient.set(recipient);
+            lastCode.set(code);
+        }
+
+        private void reset() {
+            lastRecipient.set(null);
+            lastCode.set(null);
         }
     }
 }

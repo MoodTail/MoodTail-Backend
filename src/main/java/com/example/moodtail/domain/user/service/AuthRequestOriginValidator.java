@@ -43,9 +43,11 @@ public class AuthRequestOriginValidator {
         }
 
         String fetchSite = request.getHeader("Sec-Fetch-Site");
-        if (StringUtils.hasText(fetchSite) && "cross-site".equals(fetchSite.toLowerCase(Locale.ROOT))) {
-            throw new RestApiException(AuthErrorStatus.UNTRUSTED_AUTH_ORIGIN);
+        if (StringUtils.hasText(fetchSite)
+                && "same-origin".equals(fetchSite.trim().toLowerCase(Locale.ROOT))) {
+            return;
         }
+        throw new RestApiException(AuthErrorStatus.UNTRUSTED_AUTH_ORIGIN);
     }
 
     private boolean hasRefreshCookie(HttpServletRequest request) {

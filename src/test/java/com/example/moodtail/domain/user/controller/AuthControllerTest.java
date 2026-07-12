@@ -3,6 +3,9 @@ package com.example.moodtail.domain.user.controller;
 import com.example.moodtail.domain.user.dto.request.GuestLoginRequest;
 import com.example.moodtail.domain.user.dto.request.LocalLoginRequest;
 import com.example.moodtail.domain.user.dto.request.LocalSignupRequest;
+import com.example.moodtail.domain.user.dto.request.PasswordChangeRequest;
+import com.example.moodtail.domain.user.dto.request.PasswordResetCodeRequest;
+import com.example.moodtail.domain.user.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.user.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.user.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.user.dto.response.PasswordResetCodeResponse;
@@ -30,7 +33,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -187,6 +192,22 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.result.userId").value(2L))
                 .andExpect(jsonPath("$.result.email").value("user@example.com"))
                 .andExpect(jsonPath("$.result.isNewUser").value(true));
+
+        ArgumentCaptor<LocalSignupRequest> requestCaptor = ArgumentCaptor.forClass(LocalSignupRequest.class);
+        verify(authService, times(1)).localSignup(
+                requestCaptor.capture(),
+                isNull(),
+                any(HttpServletResponse.class)
+        );
+        LocalSignupRequest captured = requestCaptor.getValue();
+        assertThat(captured.email()).isEqualTo("user@example.com");
+        assertThat(captured.password()).isEqualTo("password123!");
+        assertThat(captured.passwordConfirm()).isEqualTo("password123!");
+        assertThat(captured.nickname()).isEqualTo("무드테일러");
+        assertThat(captured.agreements()).singleElement().satisfies(agreement -> {
+            assertThat(agreement.termId()).isEqualTo(1L);
+            assertThat(agreement.agreed()).isTrue();
+        });
     }
 
     @Test
@@ -200,6 +221,23 @@ class AuthControllerTest {
                                   "passwordConfirm": "password123!",
                                   "nickname": "무드테일러",
                                   "agreements": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"));
+    }
+
+    @Test
+    void localSignupRejectsNullAgreementElement() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup/local")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "user@example.com",
+                                  "password": "password123!",
+                                  "passwordConfirm": "password123!",
+                                  "nickname": "무드테일러",
+                                  "agreements": [null]
                                 }
                                 """))
                 .andExpect(status().isBadRequest())
@@ -230,6 +268,15 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.isNewUser").value(false))
                 .andExpect(jsonPath("$.result.accessToken").value("login-access-token"));
+
+        ArgumentCaptor<LocalLoginRequest> requestCaptor = ArgumentCaptor.forClass(LocalLoginRequest.class);
+        verify(authService, times(1)).localLogin(
+                requestCaptor.capture(),
+                isNull(),
+                any(HttpServletResponse.class)
+        );
+        assertThat(requestCaptor.getValue().email()).isEqualTo("user@example.com");
+        assertThat(requestCaptor.getValue().password()).isEqualTo("password123!");
     }
 
     @Test
@@ -261,6 +308,27 @@ class AuthControllerTest {
                                 }
                                 """))
                 .andExpect(status().isOk());
+
+        ArgumentCaptor<PasswordResetCodeRequest> codeRequestCaptor =
+                ArgumentCaptor.forClass(PasswordResetCodeRequest.class);
+        verify(authService, times(1)).requestPasswordResetCode(
+                codeRequestCaptor.capture(),
+                any(HttpServletRequest.class)
+        );
+        assertThat(codeRequestCaptor.getValue().email()).isEqualTo("user@example.com");
+
+        ArgumentCaptor<PasswordResetCodeVerifyRequest> verifyRequestCaptor =
+                ArgumentCaptor.forClass(PasswordResetCodeVerifyRequest.class);
+        verify(authService, times(1)).verifyPasswordResetCode(verifyRequestCaptor.capture());
+        assertThat(verifyRequestCaptor.getValue().email()).isEqualTo("user@example.com");
+        assertThat(verifyRequestCaptor.getValue().code()).isEqualTo("123456");
+
+        ArgumentCaptor<PasswordChangeRequest> changeRequestCaptor =
+                ArgumentCaptor.forClass(PasswordChangeRequest.class);
+        verify(authService, times(1)).changePassword(changeRequestCaptor.capture());
+        assertThat(changeRequestCaptor.getValue().resetToken()).isEqualTo("reset-token");
+        assertThat(changeRequestCaptor.getValue().newPassword()).isEqualTo("new-password123!");
+        assertThat(changeRequestCaptor.getValue().newPasswordConfirm()).isEqualTo("new-password123!");
     }
 
     @Test
@@ -293,6 +361,21 @@ class AuthControllerTest {
                                 {
                                   "code": "",
                                   "state": "oauth-state"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"));
+    }
+
+    @Test
+    void socialLoginRejectsNullAgreementElement() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/login/google")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "code": "google-code",
+                                  "state": "oauth-state",
+                                  "agreements": [null]
                                 }
                                 """))
                 .andExpect(status().isBadRequest())

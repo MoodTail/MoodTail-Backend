@@ -26,6 +26,7 @@ spring:
           auth: ${MAIL_SMTP_AUTH:true}
           starttls:
             enable: ${MAIL_STARTTLS_ENABLED:true}
+            required: ${MAIL_STARTTLS_REQUIRED:true}
           connectiontimeout: ${MAIL_CONNECTION_TIMEOUT:3000}
           timeout: ${MAIL_READ_TIMEOUT:5000}
           writetimeout: ${MAIL_WRITE_TIMEOUT:5000}

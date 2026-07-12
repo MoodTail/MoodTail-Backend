@@ -41,7 +41,7 @@ class GuestDataMergeServiceTest {
         when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(target));
         when(userRepository.findByIdForUpdate(8L)).thenReturn(Optional.of(guest));
         when(mergeRepository.merge(8L, 3L)).thenReturn(
-                new GuestDataMergeRepository.MergeResult(2, 1, 3, 4)
+                new GuestDataMergeRepository.MergeResult(2, 1, 3, 4, 5, 6)
         );
         GuestDataMergeService service = new GuestDataMergeService(userRepository, mergeRepository);
 
