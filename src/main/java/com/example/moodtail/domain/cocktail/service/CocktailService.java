@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
@@ -151,6 +152,34 @@ public class CocktailService {
         cocktailFavoriteRepository.save(CocktailFavorite.create(user, cocktail));
 
         return CocktailFavoriteResponse.from(cocktail);
+    }
+
+    @Transactional
+    public CocktailFavoriteResponse removeFavorite(Long cocktailId, PrincipalDetails principalDetails) {
+        Long userId = principalDetails.getUserId();
+
+        Cocktail cocktail = cocktailRepository.findById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+
+        CocktailFavorite favorite = cocktailFavoriteRepository.findByUserIdAndCocktailId(userId, cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_FAVORITE_NOT_FOUND));
+
+        cocktailFavoriteRepository.delete(favorite);
+
+        return CocktailFavoriteResponse.from(cocktail);
+    }
+
+    @Transactional(readOnly = true)
+    public CocktailFavoriteListResponse getFavoriteCocktails(PrincipalDetails principalDetails) {
+        List<Cocktail> cocktails = cocktailFavoriteRepository.findFavoriteCocktailsByUserId(principalDetails.getUserId());
+
+        List<CocktailFavoriteListResponse.CocktailFavoriteSummaryDto> cocktailSummaries = cocktails.stream()
+                .map(CocktailFavoriteListResponse.CocktailFavoriteSummaryDto::from)
+                .toList();
+
+        return CocktailFavoriteListResponse.builder()
+                .cocktails(cocktailSummaries)
+                .build();
     }
 
     private String getImageUrl(Image image) {
