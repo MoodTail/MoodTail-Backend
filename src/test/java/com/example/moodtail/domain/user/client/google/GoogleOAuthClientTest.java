@@ -28,6 +28,8 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class GoogleOAuthClientTest {
 
+    private static final String PKCE_VERIFIER = "0123456789012345678901234567890123456789012";
+
     private MockRestServiceServer server;
     private GoogleOAuthClient googleOAuthClient;
 
@@ -53,7 +55,7 @@ class GoogleOAuthClientTest {
                         "redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fauth%2Fgoogle%2Fcallback"
                 )))
                 .andExpect(content().string(containsString("code=google-code")))
-                .andExpect(content().string(containsString("code_verifier=pkce-verifier")))
+                .andExpect(content().string(containsString("code_verifier=" + PKCE_VERIFIER)))
                 .andRespond(withSuccess(
                         """
                                 {
@@ -81,7 +83,7 @@ class GoogleOAuthClientTest {
         SocialUserProfile result = googleOAuthClient.requestUserProfile(
                 "google-code",
                 null,
-                "pkce-verifier"
+                PKCE_VERIFIER
         );
 
         assertThat(googleOAuthClient.provider()).isEqualTo(SocialProvider.GOOGLE);
@@ -109,7 +111,8 @@ class GoogleOAuthClientTest {
     void redirectUriMustExactlyMatchConfiguredValue() {
         assertThatThrownBy(() -> googleOAuthClient.requestUserProfile(
                 "google-code",
-                "https://attacker.example.com/callback"
+                "https://attacker.example.com/callback",
+                PKCE_VERIFIER
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
         );
@@ -120,7 +123,7 @@ class GoogleOAuthClientTest {
         server.expect(requestTo("https://oauth2.googleapis.com/token"))
                 .andRespond(withBadRequest());
 
-        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("invalid-code", null))
+        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("invalid-code", null, PKCE_VERIFIER))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
                 );
@@ -132,7 +135,7 @@ class GoogleOAuthClientTest {
         server.expect(requestTo("https://oauth2.googleapis.com/token"))
                 .andRespond(withServerError());
 
-        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("google-code", null))
+        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("google-code", null, PKCE_VERIFIER))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
                 );
@@ -144,10 +147,33 @@ class GoogleOAuthClientTest {
         server.expect(requestTo("https://oauth2.googleapis.com/token"))
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
-        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("google-code", null))
+        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("google-code", null, PKCE_VERIFIER))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
                 );
+        server.verify();
+    }
+
+    @Test
+    void missingPkceVerifierIsRejectedBeforeCallingGoogle() {
+        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile("google-code", null, null))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
+                );
+        server.verify();
+    }
+
+    @Test
+    void malformedPkceVerifierIsRejectedBeforeCallingGoogle() {
+        String verifierWithInvalidCharacter = "012345678901234567890123456789012345678901+";
+
+        assertThatThrownBy(() -> googleOAuthClient.requestUserProfile(
+                "google-code",
+                null,
+                verifierWithInvalidCharacter
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
+        );
         server.verify();
     }
 

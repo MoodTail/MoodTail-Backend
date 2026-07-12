@@ -3,6 +3,7 @@ package com.example.moodtail.domain.user.client.kakao;
 import com.example.moodtail.domain.user.client.OAuthClient;
 import com.example.moodtail.domain.user.client.OAuthRestClientFactory;
 import com.example.moodtail.domain.user.client.OAuthClientExceptionMapper;
+import com.example.moodtail.domain.user.client.PkceCodeVerifierValidator;
 import com.example.moodtail.domain.user.client.SocialUserProfile;
 import com.example.moodtail.domain.user.config.AuthProperties;
 import com.example.moodtail.domain.user.enums.SocialProvider;
@@ -83,7 +84,7 @@ public class KakaoOAuthClient implements OAuthClient {
     }
 
     private KakaoTokenResponse requestToken(String authorizationCode, String redirectUri, String codeVerifier) {
-        validateTokenRequest(authorizationCode, redirectUri);
+        validateTokenRequest(authorizationCode, redirectUri, codeVerifier);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", AUTHORIZATION_CODE_GRANT_TYPE);
@@ -93,9 +94,7 @@ public class KakaoOAuthClient implements OAuthClient {
         if (StringUtils.hasText(clientSecret)) {
             form.add("client_secret", clientSecret);
         }
-        if (StringUtils.hasText(codeVerifier)) {
-            form.add("code_verifier", codeVerifier);
-        }
+        form.add("code_verifier", codeVerifier);
 
         try {
             KakaoTokenResponse response = restClient.post()
@@ -145,7 +144,7 @@ public class KakaoOAuthClient implements OAuthClient {
         }
     }
 
-    private void validateTokenRequest(String authorizationCode, String redirectUri) {
+    private void validateTokenRequest(String authorizationCode, String redirectUri, String codeVerifier) {
         if (!enabled
                 || !StringUtils.hasText(clientId)
                 || !StringUtils.hasText(redirectUri)
@@ -153,7 +152,7 @@ public class KakaoOAuthClient implements OAuthClient {
                 || !StringUtils.hasText(userInfoUri)) {
             throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
         }
-        if (!StringUtils.hasText(authorizationCode)) {
+        if (!StringUtils.hasText(authorizationCode) || !PkceCodeVerifierValidator.isValid(codeVerifier)) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
     }

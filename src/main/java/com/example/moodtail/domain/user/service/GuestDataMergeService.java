@@ -24,7 +24,14 @@ public class GuestDataMergeService {
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void mergeIntoExistingUser(Long guestUserId, Long targetUserId) {
+        if (guestUserId == null || targetUserId == null) {
+            throw new RestApiException(INVALID_GUEST_SESSION);
+        }
         if (guestUserId.equals(targetUserId)) {
+            User targetUser = lockUser(targetUserId);
+            if (targetUser.isGuest() || !targetUser.isActive() || targetUser.isDeleted()) {
+                throw new RestApiException(INACTIVE_USER);
+            }
             return;
         }
 
@@ -36,7 +43,7 @@ public class GuestDataMergeService {
         if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
             throw new RestApiException(INVALID_GUEST_SESSION);
         }
-        if (!targetUser.isActive() || targetUser.isDeleted()) {
+        if (targetUser.isGuest() || !targetUser.isActive() || targetUser.isDeleted()) {
             throw new RestApiException(INACTIVE_USER);
         }
 

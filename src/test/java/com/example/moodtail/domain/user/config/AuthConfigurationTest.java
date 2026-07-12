@@ -72,12 +72,25 @@ class AuthConfigurationTest {
             assertThat(properties.oauth().google().clientId()).isEqualTo("google-client-id");
             assertThat(properties.oauth().google().enabled()).isTrue();
             assertThat(properties.oauth().connectTimeoutMillis()).isEqualTo(3_000L);
+            assertThat(properties.oauth().stateRateLimit().maxAttempts()).isEqualTo(10);
+            assertThat(properties.oauth().stateRateLimit().windowMillis()).isEqualTo(60_000L);
             assertThat(properties.refreshCookie().domain()).isEqualTo(".example.com");
             assertThat(properties.refreshCookie().sameSite()).isEqualTo("None");
             assertThat(properties.guestLogin().clientIpHeader()).isEqualTo("X-Forwarded-For");
             assertThat(properties.guestLogin().defaultNickname()).isEqualTo("방문자");
             assertThat(properties.concurrency().socialRegistrationMaxAttempts()).isEqualTo(3);
             assertThat(properties.redis().keyPrefix()).isEqualTo("moodtail:auth:test:");
+
+            LocalAuthProperties localProperties = context.getBean(LocalAuthProperties.class);
+            assertThat(localProperties.password().minLength()).isEqualTo(8);
+            assertThat(localProperties.password().maxBytes()).isEqualTo(72);
+            assertThat(localProperties.login().maxFailedAttempts()).isEqualTo(5);
+            assertThat(localProperties.login().lockDurationMillis()).isEqualTo(900_000L);
+            assertThat(localProperties.passwordReset().enabled()).isFalse();
+            assertThat(localProperties.passwordReset().codeExpirationMillis()).isEqualTo(300_000L);
+            assertThat(localProperties.passwordReset().tokenExpirationMillis()).isEqualTo(600_000L);
+            assertThat(localProperties.passwordReset().clientRateLimit().maxAttempts()).isEqualTo(10);
+            assertThat(localProperties.passwordReset().clientRateLimit().windowMillis()).isEqualTo(600_000L);
         });
     }
 }

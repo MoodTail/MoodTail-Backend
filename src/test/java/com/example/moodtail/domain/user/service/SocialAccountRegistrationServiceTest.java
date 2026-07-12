@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -224,17 +225,23 @@ class SocialAccountRegistrationServiceTest {
 
     @Test
     void registerRetryReturnsAlreadyCommittedAccountForSameSignupGuest() {
-        User upgradedGuest = guestWithId(2L);
-        upgradedGuest.upgradeToUser("가입완료", LocalDateTime.now());
+        User initialGuest = guestWithId(2L);
+        User committedGuest = guestWithId(2L);
+        committedGuest.upgradeToUser("가입완료", LocalDateTime.now());
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
         SocialAccount account = SocialAccount.create(
-                upgradedGuest,
+                committedGuest,
                 SocialProvider.KAKAO,
                 "12345",
                 null
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.of(account));
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(upgradedGuest));
+                .thenReturn(Optional.empty(), Optional.of(account));
+        when(userRepository.findByIdForUpdate(2L))
+                .thenReturn(Optional.of(initialGuest), Optional.of(committedGuest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
 
         SocialLoginUser result = service.register(
                 kakaoProfile(),
@@ -244,7 +251,69 @@ class SocialAccountRegistrationServiceTest {
 
         assertThat(result.userId()).isEqualTo(2L);
         assertThat(result.isNewUser()).isFalse();
-        verify(termRepository, never()).findByActiveTrueOrderByIdAsc();
+        verify(termRepository).findByActiveTrueOrderByIdAsc();
+        verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void unifiedAuthenticationRecoversCommittedAccountImmediatelyAfterConcurrentSignup() {
+        User initialGuest = guestWithId(2L);
+        User committedUser = guestWithId(2L);
+        committedUser.upgradeToUser("가입완료", LocalDateTime.now());
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        SocialAccount committedAccount = SocialAccount.create(
+                committedUser,
+                SocialProvider.KAKAO,
+                "12345",
+                null
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty(), Optional.empty(), Optional.of(committedAccount));
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
+
+        SocialLoginUser result = service.authenticateAndComplete(
+                kakaoProfile(),
+                2L,
+                List.of(new TermAgreementService.Consent(1L, true)),
+                java.util.function.Function.identity()
+        );
+
+        assertThat(result.userId()).isEqualTo(2L);
+        assertThat(result.isNewUser()).isFalse();
+        verify(guestDataMergeService).mergeIntoExistingUser(2L, 2L);
+        verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void registerRetryRejectsConcurrentlyCommittedAccountOwnedByDifferentUser() {
+        User initialGuest = guestWithId(2L);
+        User differentUser = guestWithId(99L);
+        differentUser.upgradeToUser("다른회원", LocalDateTime.now());
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        SocialAccount committedAccount = SocialAccount.create(
+                differentUser,
+                SocialProvider.KAKAO,
+                "12345",
+                null
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty(), Optional.of(committedAccount));
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
+
+        assertThatThrownBy(() -> service.register(
+                kakaoProfile(),
+                2L,
+                List.of(new TermAgreementService.Consent(1L, true))
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH022")
+        );
+
         verify(userTermAgreementRepository, never()).saveAll(any());
     }
 

@@ -16,6 +16,9 @@ import org.springframework.data.redis.RedisConnectionFailureException;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.util.Base64;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -60,15 +63,17 @@ class OAuthStateServiceTest {
         assertThat(state.value()).hasSizeGreaterThanOrEqualTo(40);
         assertThat(state.expiresInSeconds()).isEqualTo(300L);
         ArgumentCaptor<String> stateCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> verifierCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisRepository).saveOAuthState(
                 stateCaptor.capture(),
                 org.mockito.ArgumentMatchers.eq(2L),
                 org.mockito.ArgumentMatchers.eq("KAKAO"),
-                org.mockito.ArgumentMatchers.argThat(verifier -> verifier != null && verifier.length() >= 43),
+                verifierCaptor.capture(),
                 org.mockito.ArgumentMatchers.eq(Duration.ofMinutes(5))
         );
         assertThat(stateCaptor.getValue()).isEqualTo(state.value());
-        assertThat(state.codeChallenge()).hasSize(43);
+        assertThat(verifierCaptor.getValue()).matches("[A-Za-z0-9\\-._~]{43,128}");
+        assertThat(state.codeChallenge()).isEqualTo(createChallenge(verifierCaptor.getValue()));
         assertThat(state.codeChallengeMethod()).isEqualTo("S256");
     }
 
@@ -84,20 +89,58 @@ class OAuthStateServiceTest {
     }
 
     @Test
+    void consumeRejectsStateWithoutGuestOwner() {
+        when(redisRepository.consumeOAuthStateSession("ownerless-state", "GOOGLE"))
+                .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(
+                        null,
+                        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_"
+                )));
+
+        assertThatThrownBy(() -> service.consumeForAuthentication("ownerless-state", SocialProvider.GOOGLE))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH018")
+                );
+    }
+
+    @Test
+    void consumeRejectsMalformedPersistedPkceVerifier() {
+        User guest = User.createGuest(
+                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
+                "게스트",
+                LocalDateTime.now()
+        );
+        when(redisRepository.consumeOAuthStateSession("malformed-state", "GOOGLE"))
+                .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(
+                        2L,
+                        "012345678901234567890123456789012345678901+"
+                )));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(guest));
+
+        assertThatThrownBy(() -> service.consumeForAuthentication("malformed-state", SocialProvider.GOOGLE))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH018")
+                );
+    }
+
+    @Test
     void consumeReturnsStateOwnerOnlyWhileGuestSessionIsStillValid() {
         User guest = User.createGuest(
                 "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
                 "게스트",
                 LocalDateTime.now()
         );
+        String verifier = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_";
         when(redisRepository.consumeOAuthStateSession("valid-state", "GOOGLE"))
                 .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(
                         2L,
-                        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_"
+                        verifier
                 )));
         when(userRepository.findById(2L)).thenReturn(Optional.of(guest));
 
-        assertThat(service.consume("valid-state", SocialProvider.GOOGLE)).isEqualTo(2L);
+        OAuthStateService.ConsumedOAuthState consumed =
+                service.consumeForAuthentication("valid-state", SocialProvider.GOOGLE);
+        assertThat(consumed.guestUserId()).isEqualTo(2L);
+        assertThat(consumed.codeVerifier()).isEqualTo(verifier);
     }
 
     @Test
@@ -175,5 +218,15 @@ class OAuthStateServiceTest {
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH031")
                 );
+    }
+
+    private String createChallenge(String verifier) {
+        try {
+            byte[] digest = MessageDigest.getInstance("SHA-256")
+                    .digest(verifier.getBytes(StandardCharsets.US_ASCII));
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+        } catch (java.security.NoSuchAlgorithmException exception) {
+            throw new IllegalStateException(exception);
+        }
     }
 }

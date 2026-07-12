@@ -71,10 +71,34 @@ public class SocialAccountRegistrationService {
                     return result;
                 }
             } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
-                // The next attempt re-reads the unique social identity after the competing transaction.
+                Optional<T> committedAuthentication = recoverCommittedAuthentication(
+                        transactionTemplate,
+                        profile,
+                        guestUserId,
+                        completion
+                );
+                if (committedAuthentication.isPresent()) {
+                    return committedAuthentication.get();
+                }
             }
         }
         throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+    }
+
+    private <T> Optional<T> recoverCommittedAuthentication(
+            TransactionTemplate transactionTemplate,
+            SocialUserProfile profile,
+            Long guestUserId,
+            Function<SocialLoginUser, T> completion
+    ) {
+        try {
+            Optional<T> result = transactionTemplate.execute(
+                    status -> loginInTransaction(profile, guestUserId).map(completion)
+            );
+            return result == null ? Optional.empty() : result;
+        } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
+            return Optional.empty();
+        }
     }
 
     public SocialLoginUser login(SocialUserProfile profile, Long guestUserId) {
@@ -140,18 +164,39 @@ public class SocialAccountRegistrationService {
                     return result;
                 }
             } catch (CannotAcquireLockException | DataIntegrityViolationException e) {
-                Boolean alreadyRegistered = transactionTemplate.execute(
-                        status -> socialAccountRepository
-                                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
-                                .isPresent()
+                Optional<T> committedRegistration = recoverCommittedRegistration(
+                        transactionTemplate,
+                        profile,
+                        guestUserId,
+                        completion
                 );
-                if (Boolean.TRUE.equals(alreadyRegistered)) {
-                    throw new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_ALREADY_EXISTS);
+                if (committedRegistration.isPresent()) {
+                    return committedRegistration.get();
                 }
             }
         }
 
         throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+    }
+
+    private <T> Optional<T> recoverCommittedRegistration(
+            TransactionTemplate transactionTemplate,
+            SocialUserProfile profile,
+            Long guestUserId,
+            Function<SocialLoginUser, T> completion
+    ) {
+        try {
+            Optional<T> result = transactionTemplate.execute(
+                    status -> socialAccountRepository
+                            .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId())
+                            .map(account -> completion.apply(
+                                    completeExistingRegistration(account, guestUserId)
+                            ))
+            );
+            return result == null ? Optional.empty() : result;
+        } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
+            return Optional.empty();
+        }
     }
 
     private Optional<SocialLoginUser> loginInTransaction(SocialUserProfile profile, Long guestUserId) {
@@ -176,17 +221,7 @@ public class SocialAccountRegistrationService {
         Optional<SocialAccount> existingAccount = socialAccountRepository
                 .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
         if (existingAccount.isPresent()) {
-            SocialAccount account = existingAccount.get();
-            if (!account.getUser().getId().equals(guestUserId)) {
-                throw new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_ALREADY_EXISTS);
-            }
-            User existingUser = userRepository.findByIdForUpdate(guestUserId)
-                    .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-            validateActive(existingUser);
-            if (existingUser.isGuest()) {
-                throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-            }
-            return createSocialLoginUser(existingUser, account, false);
+            return completeExistingRegistration(existingAccount.get(), guestUserId);
         }
 
         User guestUser = userRepository.findByIdForUpdate(guestUserId)
@@ -207,6 +242,19 @@ public class SocialAccountRegistrationService {
         termAgreementService.recordValidatedAgreements(guestUser, agreedTerms, now);
 
         return createSocialLoginUser(guestUser, socialAccount, true);
+    }
+
+    private SocialLoginUser completeExistingRegistration(SocialAccount account, Long guestUserId) {
+        if (!account.getUser().getId().equals(guestUserId)) {
+            throw new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_ALREADY_EXISTS);
+        }
+        User existingUser = userRepository.findByIdForUpdate(guestUserId)
+                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
+        validateActive(existingUser);
+        if (existingUser.isGuest()) {
+            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+        }
+        return createSocialLoginUser(existingUser, account, false);
     }
 
     private void validateActive(User user) {

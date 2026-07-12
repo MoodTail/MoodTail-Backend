@@ -492,6 +492,7 @@ class AuthServiceTest {
 
         authService.logout(request, response);
 
+        verify(redisRepository).blockAccessToken("access-token", accessClaims);
         verify(redisRepository).deleteRefreshJti(1L);
         verify(redisRepository).deleteRefreshJti(2L);
         assertClearedRefreshCookie(response);

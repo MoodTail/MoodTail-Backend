@@ -13,6 +13,8 @@ public record LocalAuthProperties(
         PasswordReset passwordReset
 ) {
 
+    private static final String MAIL_TEMPLATE_CODE_SENTINEL = "MOODTAIL_RESET_CODE_849201";
+
     public LocalAuthProperties {
         if (password == null || login == null || passwordReset == null) {
             throw new IllegalArgumentException("All local-auth configuration groups are required");
@@ -61,13 +63,14 @@ public record LocalAuthProperties(
                 if (pepper.getBytes(StandardCharsets.UTF_8).length < 32) {
                     throw new IllegalArgumentException("Password-reset pepper must be at least 32 bytes");
                 }
-                if (!bodyTemplate.contains("%s")) {
-                    throw new IllegalArgumentException("Password-reset body template must contain %s");
-                }
+                String renderedBody;
                 try {
-                    bodyTemplate.formatted("000000");
+                    renderedBody = bodyTemplate.formatted(MAIL_TEMPLATE_CODE_SENTINEL);
                 } catch (IllegalFormatException exception) {
                     throw new IllegalArgumentException("Password-reset body template has an invalid format", exception);
+                }
+                if (!renderedBody.contains(MAIL_TEMPLATE_CODE_SENTINEL)) {
+                    throw new IllegalArgumentException("Password-reset body template must render the verification code");
                 }
             }
         }

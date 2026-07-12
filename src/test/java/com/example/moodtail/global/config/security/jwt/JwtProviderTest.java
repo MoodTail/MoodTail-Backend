@@ -77,7 +77,7 @@ class JwtProviderTest {
     }
 
     @Test
-    void newLoginInvalidatesPreviousDeviceAccessToken() {
+    void accessTokenIsRejectedWhenStoredSessionChanges() {
         TokenInfo firstSession = jwtProvider.generateToken(1L, UserRole.USER);
         Claims firstAccessClaims = jwtProvider.getAccessTokenClaims(firstSession.accessToken());
         Claims firstRefreshClaims = jwtProvider.getRefreshTokenClaims(firstSession.refreshToken());

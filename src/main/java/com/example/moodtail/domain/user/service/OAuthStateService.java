@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.user.service;
 
 import com.example.moodtail.domain.user.config.AuthProperties;
+import com.example.moodtail.domain.user.client.PkceCodeVerifierValidator;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.enums.SocialProvider;
 import com.example.moodtail.domain.user.repository.UserRepository;
@@ -82,12 +83,15 @@ public class OAuthStateService {
         )
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE));
         Long guestUserId = session.guestUserId();
+        if (guestUserId == null) {
+            throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
+        }
         User guestUser = userRepository.findById(guestUserId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
         if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
             throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
-        if (session.codeVerifier() == null || session.codeVerifier().length() < 43) {
+        if (!PkceCodeVerifierValidator.isValid(session.codeVerifier())) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
         return new ConsumedOAuthState(guestUserId, session.codeVerifier());

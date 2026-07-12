@@ -13,10 +13,28 @@ class LocalAuthPropertiesTest {
     }
 
     @Test
-    void enabledPasswordResetRequiresPepperAndSender() {
+    void enabledPasswordResetRequiresSender() {
         assertThatThrownBy(() -> new LocalAuthProperties.PasswordReset(
                 true,
                 "",
+                "Password reset",
+                "Code: %s",
+                "password-reset-pepper-with-at-least-32-bytes",
+                300_000L,
+                600_000L,
+                60_000L,
+                5,
+                "",
+                new AuthProperties.RateLimit(10, 600_000L)
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sender");
+    }
+
+    @Test
+    void enabledPasswordResetRequiresPepper() {
+        assertThatThrownBy(() -> new LocalAuthProperties.PasswordReset(
+                true,
+                "no-reply@example.com",
                 "Password reset",
                 "Code: %s",
                 "",
@@ -26,7 +44,8 @@ class LocalAuthPropertiesTest {
                 5,
                 "",
                 new AuthProperties.RateLimit(10, 600_000L)
-        )).isInstanceOf(IllegalArgumentException.class);
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("pepper");
     }
 
     @Test
@@ -80,5 +99,23 @@ class LocalAuthPropertiesTest {
                 new AuthProperties.RateLimit(10, 600_000L)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("invalid format");
+    }
+
+    @Test
+    void enabledPasswordResetRejectsEscapedPlaceholderThatDoesNotRenderCode() {
+        assertThatThrownBy(() -> new LocalAuthProperties.PasswordReset(
+                true,
+                "no-reply@example.com",
+                "Password reset",
+                "Code: %%s",
+                "password-reset-pepper-with-at-least-32-bytes",
+                300_000L,
+                600_000L,
+                60_000L,
+                5,
+                "",
+                new AuthProperties.RateLimit(10, 600_000L)
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("render the verification code");
     }
 }

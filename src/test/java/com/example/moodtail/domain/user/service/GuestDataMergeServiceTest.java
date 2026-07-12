@@ -73,6 +73,47 @@ class GuestDataMergeServiceTest {
         verify(mergeRepository, never()).merge(2L, 9L);
     }
 
+    @Test
+    void rejectsGuestAsMergeTargetWithoutMovingData() {
+        User sourceGuest = guestUser(2L);
+        User targetGuest = guestUser(9L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(sourceGuest));
+        when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(targetGuest));
+        GuestDataMergeService service = new GuestDataMergeService(userRepository, mergeRepository);
+
+        assertThatThrownBy(() -> service.mergeIntoExistingUser(2L, 9L))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
+                );
+
+        verify(mergeRepository, never()).merge(2L, 9L);
+    }
+
+    @Test
+    void sameGuestIdCannotBeTreatedAsAnAlreadyMergedMember() {
+        User guest = guestUser(2L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        GuestDataMergeService service = new GuestDataMergeService(userRepository, mergeRepository);
+
+        assertThatThrownBy(() -> service.mergeIntoExistingUser(2L, 2L))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
+                );
+
+        verify(mergeRepository, never()).merge(2L, 2L);
+    }
+
+    @Test
+    void sameActiveMemberIdIsAnIdempotentCompletedMerge() {
+        User member = socialUser(2L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(member));
+        GuestDataMergeService service = new GuestDataMergeService(userRepository, mergeRepository);
+
+        service.mergeIntoExistingUser(2L, 2L);
+
+        verify(mergeRepository, never()).merge(2L, 2L);
+    }
+
     private User guestUser(Long id) {
         User user = User.createGuest(
                 "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",

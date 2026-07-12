@@ -18,6 +18,8 @@ import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -33,6 +35,8 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Base64;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,7 +57,6 @@ import static org.mockito.Mockito.doThrow;
                 "auth.oauth.google.client-secret=integration-google-secret",
                 "auth.oauth.google.redirect-uri=http://localhost:5173/auth/google/callback",
                 "auth.oauth.kakao.enabled=false",
-                "auth.redis.key-prefix=moodtail:integration:auth:",
                 "auth.local.password-reset.enabled=true",
                 "auth.local.password-reset.sender=no-reply@example.com",
                 "auth.local.password-reset.pepper=integration-password-reset-pepper-at-least-32-bytes"
@@ -61,6 +64,9 @@ import static org.mockito.Mockito.doThrow;
 )
 @EnabledIfEnvironmentVariable(named = "RUN_AUTH_INTEGRATION_TESTS", matches = "true")
 class AuthFlowIntegrationTest {
+
+    private static final String REDIS_KEY_PREFIX =
+            "moodtail:integration:" + UUID.randomUUID() + ":auth:";
 
     private static final StubOAuthClient GOOGLE_STUB = new StubOAuthClient(
             SocialProvider.GOOGLE,
@@ -123,6 +129,18 @@ class AuthFlowIntegrationTest {
     static void infrastructureProperties(DynamicPropertyRegistry registry) {
         String databaseHost = requiredEnvironment("AUTH_TEST_DATABASE_HOST");
         String databaseName = requiredEnvironment("AUTH_TEST_DATABASE_NAME");
+        if (!"DELETE_AUTH_TEST_DATA".equals(requiredEnvironment("AUTH_TEST_DATABASE_RESET_CONFIRMATION"))) {
+            throw new IllegalStateException(
+                    "AUTH_TEST_DATABASE_RESET_CONFIRMATION must be DELETE_AUTH_TEST_DATA"
+            );
+        }
+        if (!databaseName.toLowerCase(java.util.Locale.ROOT).contains("test")) {
+            throw new IllegalStateException("AUTH_TEST_DATABASE_NAME must identify a dedicated test database");
+        }
+        int redisDatabase = Integer.parseInt(requiredEnvironment("AUTH_TEST_REDIS_DATABASE"));
+        if (redisDatabase <= 0) {
+            throw new IllegalStateException("AUTH_TEST_REDIS_DATABASE must select a non-default dedicated Redis DB");
+        }
         registry.add(
                 "spring.datasource.url",
                 () -> "jdbc:mysql://" + databaseHost + ":3306/" + databaseName
@@ -137,15 +155,14 @@ class AuthFlowIntegrationTest {
         );
         registry.add(
                 "spring.data.redis.database",
-                () -> Integer.parseInt(System.getenv().getOrDefault("AUTH_TEST_REDIS_DATABASE", "15"))
+                () -> redisDatabase
         );
+        registry.add("auth.redis.key-prefix", () -> REDIS_KEY_PREFIX);
     }
 
     @BeforeEach
     void resetInfrastructure() {
-        try (RedisConnection connection = redisConnectionFactory.getConnection()) {
-            connection.serverCommands().flushDb();
-        }
+        clearIntegrationRedisKeys();
         jdbcTemplate.update("delete from user_term_agreements");
         jdbcTemplate.update("delete from social_accounts");
         jdbcTemplate.update("delete from local_accounts");
@@ -165,14 +182,29 @@ class AuthFlowIntegrationTest {
 
     @AfterEach
     void cleanInfrastructure() {
-        try (RedisConnection connection = redisConnectionFactory.getConnection()) {
-            connection.serverCommands().flushDb();
-        }
+        clearIntegrationRedisKeys();
         jdbcTemplate.update("delete from user_term_agreements");
         jdbcTemplate.update("delete from social_accounts");
         jdbcTemplate.update("delete from local_accounts");
         jdbcTemplate.update("delete from users");
         jdbcTemplate.update("delete from terms");
+    }
+
+    private void clearIntegrationRedisKeys() {
+        List<byte[]> keys = new ArrayList<>();
+        try (RedisConnection connection = redisConnectionFactory.getConnection();
+             Cursor<byte[]> cursor = connection.keyCommands().scan(
+                     ScanOptions.scanOptions().match(REDIS_KEY_PREFIX + "*").count(1_000).build()
+             )) {
+            cursor.forEachRemaining(keys::add);
+            jdbcTemplate.queryForList("select id from users", Long.class).forEach(userId -> {
+                keys.add(("usage:in:" + userId).getBytes(StandardCharsets.UTF_8));
+                keys.add(("usage:trigger:" + userId).getBytes(StandardCharsets.UTF_8));
+            });
+            if (!keys.isEmpty()) {
+                connection.keyCommands().del(keys.toArray(byte[][]::new));
+            }
+        }
     }
 
     @Test

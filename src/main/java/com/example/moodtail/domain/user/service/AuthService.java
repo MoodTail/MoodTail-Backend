@@ -135,7 +135,8 @@ public class AuthService {
                 toConsents(request.agreements()),
                 socialLoginUser -> {
                     TokenInfo tokenInfo = issueTokenSession(socialLoginUser.userId(), socialLoginUser.role());
-                    if (!authentication.guestUserId().equals(socialLoginUser.userId())) {
+                    if (authentication.guestUserId() != null
+                            && !authentication.guestUserId().equals(socialLoginUser.userId())) {
                         deleteRefreshSessionWithRollback(authentication.guestUserId());
                     }
                     return new CompletedSocialLogin(socialLoginUser, tokenInfo);

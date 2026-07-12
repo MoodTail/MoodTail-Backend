@@ -16,6 +16,7 @@ import com.example.moodtail.domain.user.dto.response.PasswordResetVerificationRe
 import com.example.moodtail.domain.user.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.user.dto.response.TokenResponse;
 import com.example.moodtail.domain.user.service.AuthService;
+import com.example.moodtail.domain.user.enums.UserRole;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -159,7 +160,7 @@ public class AuthController implements AuthControllerDocs {
         if (principal == null) {
             return null;
         }
-        if ("GUEST".equals(principal.getRole())) {
+        if (UserRole.GUEST.name().equals(principal.getRole())) {
             return principal.getUserId();
         }
         throw new RestApiException(AuthErrorStatus.INVALID_ROLE);
