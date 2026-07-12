@@ -1,13 +1,12 @@
 package com.example.moodtail.domain.cocktail.controller;
 
+import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
-import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -39,10 +38,16 @@ public class CocktailController {
         ));
     }
 
-    @GetMapping("/{typeId}")
-    @Operation(summary = "타입 정보 조회")
-    public BaseResponse<MoodTypeResponse> getMoodType(@PathVariable Long typeId) {
-        return BaseResponse.onSuccess(cocktailService.getMoodType(typeId));
+    @GetMapping("/{cocktailId}")
+    @Operation(
+            summary = "칵테일 정보/레시피 상세조회",
+            description = "칵테일 정보, 레시피, 재료, 즐겨찾기 여부를 반환합니다. 인증이 필요하지 않습니다."
+    )
+    public BaseResponse<CocktailDetailResponse> getCocktailDetail(
+            @PathVariable Long cocktailId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails
+    ) {
+        return BaseResponse.onSuccess(cocktailService.getCocktailDetail(cocktailId, principalDetails));
     }
 
 }

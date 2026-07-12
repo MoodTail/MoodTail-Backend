@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.cocktail.service;
 
+import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
@@ -84,7 +85,7 @@ public class CocktailService {
                         .typeCode(moodType.getCode())
                         .name(moodType.getName())
                         .description(moodType.getDescription())
-                        .imageUrl(characterImageUrl)
+                        .imageUrl(characterImageUrl) // todo S3 연결 전 하드코딩
                         .typePercent(68)      // todo 기능 구현 전 임시 하드코딩
                         .build())
                 .typeFigures(MoodTypeResponse.TypeFiguresDto.builder()
@@ -112,6 +113,21 @@ public class CocktailService {
                         .toList())
                 .build();
     }
+
+    @Transactional(readOnly = true)
+    public CocktailDetailResponse getCocktailDetail(Long cocktailId, PrincipalDetails principalDetails) {
+        Cocktail cocktail = cocktailRepository.findDetailWithIngredientsById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+        // 같은 트랜잭션 내 동일 ID 조회이므로 영속성 컨텍스트가 위 cocktail 인스턴스에 recipeSteps만 채워서 반환한다.
+        cocktail = cocktailRepository.findDetailWithRecipeStepsById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+
+        boolean isFavorite = principalDetails != null
+                && cocktailFavoriteRepository.existsByUserIdAndCocktailId(principalDetails.getUserId(), cocktailId);
+
+        return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
+    }
+
 
     private String getImageUrl(Image image) {
         return image == null ? null : image.getImageUrl();

@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.cocktail.entity;
 
+import com.example.moodtail.domain.cocktail.enums.BaseSpirit;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
@@ -9,6 +10,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "cocktails")
@@ -33,6 +36,10 @@ public class Cocktail {
 
     @Column(name = "short_description")
     private String shortDescription;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name="base_spirit")
+    private BaseSpirit baseSpirit;
 
     @Column(name = "alcohol_degree", precision = 4, scale = 1)
     private BigDecimal alcoholDegree;
@@ -61,6 +68,14 @@ public class Cocktail {
 
     @Column(columnDefinition = "TEXT")
     private String description;
+
+    @OneToMany(mappedBy = "cocktail", fetch = FetchType.LAZY)
+    @OrderBy("sortOrder ASC")
+    private List<CocktailIngredient> ingredients = new ArrayList<>();
+
+    @OneToMany(mappedBy = "cocktail", fetch = FetchType.LAZY)
+    @OrderBy("stepOrder ASC")
+    private List<CocktailRecipeStep> recipeSteps = new ArrayList<>();
 
     public TasteProfile toTasteProfile() {
         return TasteProfile.of(alcoholIntensity, sweetness, sourness, refreshing, bitterness);
