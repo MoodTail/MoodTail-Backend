@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.cocktail.controller;
 
 import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
 import com.example.moodtail.global.common.base.BaseResponse;
@@ -48,6 +49,18 @@ public class CocktailController {
             @AuthenticationPrincipal PrincipalDetails principalDetails
     ) {
         return BaseResponse.onSuccess(cocktailService.getCocktailDetail(cocktailId, principalDetails));
+    }
+
+    @PostMapping("/{cocktailId}/favorites")
+    @Operation(
+            summary = "칵테일 즐겨찾기 추가",
+            description = "인증된 사용자가 칵테일을 즐겨찾기에 추가합니다."
+    )
+    public BaseResponse<CocktailFavoriteResponse> addFavorite(
+            @PathVariable Long cocktailId,
+            @AuthenticationPrincipal PrincipalDetails principalDetails
+    ) {
+        return BaseResponse.onSuccess(cocktailService.addFavorite(cocktailId, principalDetails));
     }
 
 }

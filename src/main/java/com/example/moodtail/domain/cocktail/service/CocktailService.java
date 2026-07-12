@@ -1,8 +1,10 @@
 package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
+import com.example.moodtail.domain.cocktail.entity.CocktailFavorite;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
@@ -12,7 +14,10 @@ import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
+import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +38,7 @@ public class CocktailService {
     private final MoodTypeCompatibilityRepository compatibilityRepository;
     private final CocktailRepository cocktailRepository;
     private final CocktailFavoriteRepository cocktailFavoriteRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public CocktailListResponse getCocktails(
@@ -128,6 +134,24 @@ public class CocktailService {
         return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
     }
 
+    @Transactional
+    public CocktailFavoriteResponse addFavorite(Long cocktailId, PrincipalDetails principalDetails) {
+        Long userId = principalDetails.getUserId();
+
+        Cocktail cocktail = cocktailRepository.findById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+
+        if (cocktailFavoriteRepository.existsByUserIdAndCocktailId(userId, cocktailId)) {
+            throw new RestApiException(CocktailErrorStatus.COCKTAIL_FAVORITE_ALREADY_EXISTS);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
+
+        cocktailFavoriteRepository.save(CocktailFavorite.create(user, cocktail));
+
+        return CocktailFavoriteResponse.from(cocktail);
+    }
 
     private String getImageUrl(Image image) {
         return image == null ? null : image.getImageUrl();
