@@ -55,24 +55,27 @@ public class SecurityConfig {
 				.cors(Customizer.withDefaults())
 				.sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 				.formLogin(AbstractHttpConfigurer::disable)
-					.httpBasic(AbstractHttpConfigurer::disable)
-					.authorizeHttpRequests(auth -> auth
-							.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
-							.requestMatchers("/error").permitAll()
-							.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-							.requestMatchers("/api/v1/auth/oauth-states/**").hasRole("GUEST")
-							.requestMatchers(
-									"/api/v1/auth/guest",
-									"/api/v1/auth/signup",
-									"/api/v1/auth/login/**",
-									"/api/v1/auth/reissue",
-									"/api/v1/auth/logout"
-							).permitAll()
-							.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
-							.requestMatchers("/api/v1/tests/questions").permitAll()
-							.requestMatchers("/api/v1/tests/results").permitAll()
-							.requestMatchers("/api/v1/cocktails/*", "/api/v1/cocktails").permitAll()
-							.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+				.httpBasic(AbstractHttpConfigurer::disable)
+				.authorizeHttpRequests(auth -> auth
+						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+						.requestMatchers("/error").permitAll()
+						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+						.requestMatchers("/api/v1/auth/oauth-states/**").hasRole("GUEST")
+						.requestMatchers(
+								"/api/v1/auth/guest",
+								"/api/v1/auth/signup/**",
+								"/api/v1/auth/login/**",
+								"/api/v1/auth/password-reset/**",
+								"/api/v1/auth/password",
+								"/api/v1/auth/reissue",
+								"/api/v1/auth/logout"
+						).permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/terms").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
+						.requestMatchers("/api/v1/tests/questions").permitAll()
+						.requestMatchers("/api/v1/tests/results").permitAll()
+						.requestMatchers("/api/v1/cocktails/*", "/api/v1/cocktails").permitAll()
+						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().authenticated()
 				)
 				.exceptionHandling(exceptionHandling -> exceptionHandling
@@ -80,9 +83,9 @@ public class SecurityConfig {
 						.authenticationEntryPoint(customAuthenticationEntryPoint)
 				)
 				.addFilterBefore(new JwtExceptionFilter(), LogoutFilter.class)
-					.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository),
-							UsernamePasswordAuthenticationFilter.class)
-					.build();
+				.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository),
+						UsernamePasswordAuthenticationFilter.class)
+				.build();
 	}
 
 	@Bean

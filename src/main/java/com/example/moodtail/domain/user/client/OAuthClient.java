@@ -8,5 +8,5 @@ public interface OAuthClient {
 
     boolean isEnabled();
 
-    SocialUserProfile requestUserProfile(String authorizationCode, String redirectUri);
+    SocialUserProfile requestUserProfile(String authorizationCode, String redirectUri, String codeVerifier);
 }

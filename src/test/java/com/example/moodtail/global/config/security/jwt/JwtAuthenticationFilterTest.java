@@ -14,6 +14,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.Authentication;
@@ -104,6 +105,26 @@ class JwtAuthenticationFilterTest {
 
         verify(filterChain).doFilter(request, response);
         verifyNoInteractions(jwtProvider, redisRepository, userRepository);
+    }
+
+    @Test
+    void activityTimerRedisFailureDoesNotBlockAuthenticatedRequest() throws Exception {
+        User guest = guestWithId(7L);
+        Claims claims = accessClaims("7", UserRole.GUEST);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/history");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        when(jwtProvider.resolveToken(request)).thenReturn("guest-access-token");
+        when(jwtProvider.validateAccessToken("guest-access-token")).thenReturn(true);
+        when(jwtProvider.getAccessTokenClaims("guest-access-token")).thenReturn(claims);
+        when(userRepository.findById(7L)).thenReturn(Optional.of(guest));
+        org.mockito.Mockito.doThrow(new RedisConnectionFailureException("redis unavailable"))
+                .when(redisRepository).extendUserTimer(7L);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
     }
 
     private User guestWithId(Long id) {

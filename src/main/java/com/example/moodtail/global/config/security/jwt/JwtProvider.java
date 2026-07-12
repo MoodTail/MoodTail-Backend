@@ -19,6 +19,7 @@ import java.util.Date;
 import java.util.UUID;
 
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.*;
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
 @Component
 @RequiredArgsConstructor
@@ -26,6 +27,7 @@ public class JwtProvider {
 
 	private static final String ROLE_CLAIM = "role";
 	private static final String TOKEN_TYPE_CLAIM = "tokenType";
+	private static final String SESSION_ID_CLAIM = "sessionId";
 
 	@Value("${jwt.secret}")
 	private String jwtSecretKey;
@@ -57,6 +59,10 @@ public class JwtProvider {
 	}
 
 	public String generateToken(Long userId, UserRole role, TokenType tokenType) {
+		return generateToken(userId, role, tokenType, UUID.randomUUID().toString());
+	}
+
+	private String generateToken(Long userId, UserRole role, TokenType tokenType, String sessionId) {
 		Date now = new Date();
 		Date expiration;
 		if (TokenType.ACCESS.equals(tokenType)) {
@@ -65,11 +71,12 @@ public class JwtProvider {
 			expiration = calculateExpirationDate(now, jwtRefreshExpiration);
 		}
 
-		String jti = UUID.randomUUID().toString();
+		String jti = TokenType.REFRESH.equals(tokenType) ? sessionId : UUID.randomUUID().toString();
 
 		Claims claims = Jwts.claims().setSubject(String.valueOf(userId));
 		claims.put(ROLE_CLAIM, role.name());
 		claims.put(TOKEN_TYPE_CLAIM, tokenType.name());
+		claims.put(SESSION_ID_CLAIM, sessionId);
 
 		return Jwts.builder()
 		           .setClaims(claims)
@@ -81,8 +88,9 @@ public class JwtProvider {
 	}
 
 	public TokenInfo generateToken(Long userId, UserRole role) {
-		String accessToken = generateToken(userId, role, TokenType.ACCESS);
-		String refreshToken = generateToken(userId, role, TokenType.REFRESH);
+		String sessionId = UUID.randomUUID().toString();
+		String accessToken = generateToken(userId, role, TokenType.ACCESS, sessionId);
+		String refreshToken = generateToken(userId, role, TokenType.REFRESH, sessionId);
 
 		return new TokenInfo(accessToken, refreshToken);
 	}
@@ -109,15 +117,43 @@ public class JwtProvider {
 		try {
 			Claims claims = parseClaims(token);
 			String jti = claims.getId();
-			if (!StringUtils.hasText(jti) || Boolean.TRUE.equals(redisRepository.isJtiBlocked(jti))) {
+			if (!StringUtils.hasText(jti) || Boolean.TRUE.equals(required(
+					"check access-token blacklist",
+					() -> redisRepository.isJtiBlocked(jti)
+			))) {
 				return false;
 			}
 
-			return expectedTokenType == null || expectedTokenType.equals(resolveTokenType(claims));
+			TokenType actualTokenType = resolveTokenType(claims);
+			if (actualTokenType == null
+					|| (expectedTokenType != null && !expectedTokenType.equals(actualTokenType))) {
+				return false;
+			}
+			if (TokenType.ACCESS.equals(actualTokenType)) {
+				return isCurrentSession(claims);
+			}
+			return true;
 
 		} catch (JwtException | IllegalArgumentException e) {
 			return false;
 		}
+	}
+
+	private boolean isCurrentSession(Claims claims) {
+		String sessionId = claims.get(SESSION_ID_CLAIM, String.class);
+		if (!StringUtils.hasText(sessionId)) {
+			return false;
+		}
+		Long userId;
+		try {
+			userId = Long.valueOf(claims.getSubject());
+		} catch (NumberFormatException e) {
+			return false;
+		}
+		return required(
+				"validate current access-token session",
+				() -> redisRepository.findRefreshJtiByUserId(userId)
+		).filter(sessionId::equals).isPresent();
 	}
 
 	public Claims getAccessTokenClaims(String token) {

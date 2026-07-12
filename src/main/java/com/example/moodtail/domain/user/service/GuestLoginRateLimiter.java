@@ -16,6 +16,8 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.UUID;
 
+import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
+
 @Component
 @RequiredArgsConstructor
 public class GuestLoginRateLimiter {
@@ -48,10 +50,13 @@ public class GuestLoginRateLimiter {
         if (!StringUtils.hasText(identifier)) {
             return;
         }
-        boolean acquired = redisRepository.acquireGuestLoginSlot(
-                hash(scope + ":" + identifier),
-                rateLimit.maxAttempts(),
-                Duration.ofMillis(rateLimit.windowMillis())
+        boolean acquired = required(
+                "acquire guest login rate-limit slot",
+                () -> redisRepository.acquireGuestLoginSlot(
+                        hash(scope + ":" + identifier),
+                        rateLimit.maxAttempts(),
+                        Duration.ofMillis(rateLimit.windowMillis())
+                )
         );
         if (!acquired) {
             throw new RestApiException(AuthErrorStatus.TOO_MANY_GUEST_LOGIN_REQUESTS);

@@ -35,7 +35,67 @@ public enum AuthErrorStatus implements BaseCodeInterface {
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST, "AUTH024", "필수 약관에 모두 동의해야 합니다."),
     TERMS_CONFIGURATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH025", "활성 필수 약관 설정이 올바르지 않습니다."),
     INVALID_TERM_AGREEMENT(HttpStatus.BAD_REQUEST, "AUTH026", "약관 동의 정보가 유효하지 않습니다."),
-    LOGIN_USER_REQUIRED(HttpStatus.FORBIDDEN, "AUTH027", "로그인 사용자만 이용할 수 있습니다.");
+    LOGIN_USER_REQUIRED(HttpStatus.FORBIDDEN, "AUTH027", "로그인 사용자만 이용할 수 있습니다."),
+    AUTH_INFRASTRUCTURE_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "AUTH028",
+            "인증 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."
+    ),
+    SOCIAL_PROVIDER_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "AUTH029",
+            "소셜 로그인 제공자를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."
+    ),
+    INVALID_SOCIAL_PROVIDER_RESPONSE(
+            HttpStatus.BAD_GATEWAY,
+            "AUTH030",
+            "소셜 로그인 제공자의 응답을 처리할 수 없습니다."
+    ),
+    TOO_MANY_OAUTH_STATE_REQUESTS(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "AUTH031",
+            "OAuth 인증 시작 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+    ),
+    UNTRUSTED_AUTH_ORIGIN(
+            HttpStatus.FORBIDDEN,
+            "AUTH033",
+            "허용되지 않은 출처의 인증 요청입니다."
+    ),
+    LOCAL_ACCOUNT_ALREADY_EXISTS(
+            HttpStatus.CONFLICT,
+            "AUTH034",
+            "이미 가입된 이메일입니다."
+    ),
+    INVALID_PASSWORD_POLICY(
+            HttpStatus.BAD_REQUEST,
+            "AUTH035",
+            "비밀번호가 보안 정책을 충족하지 않습니다."
+    ),
+    PASSWORD_CONFIRMATION_MISMATCH(
+            HttpStatus.BAD_REQUEST,
+            "AUTH036",
+            "비밀번호 확인이 일치하지 않습니다."
+    ),
+    LOCAL_ACCOUNT_LOCKED(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "AUTH037",
+            "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해주세요."
+    ),
+    PASSWORD_RESET_DISABLED(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "AUTH038",
+            "비밀번호 재설정 서비스를 사용할 수 없습니다."
+    ),
+    TOO_MANY_PASSWORD_RESET_REQUESTS(
+            HttpStatus.TOO_MANY_REQUESTS,
+            "AUTH039",
+            "비밀번호 재설정 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+    ),
+    INVALID_PASSWORD_RESET_TOKEN(
+            HttpStatus.UNAUTHORIZED,
+            "AUTH040",
+            "비밀번호 재설정 정보가 만료되었거나 유효하지 않습니다."
+    );
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;

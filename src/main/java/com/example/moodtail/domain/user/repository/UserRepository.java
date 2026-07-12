@@ -25,7 +25,7 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdForUpdate(@Param("userId") Long userId);
 
     @Query(value = """
-            SELECT u.user_id AS userId,
+            SELECT u.id AS userId,
                    u.nickname AS nickname,
                    mt.id AS moodTypeId,
                    mt.code AS moodTypeCode,
@@ -33,19 +33,19 @@ public interface UserRepository extends JpaRepository<User, Long> {
                    img.image_url AS characterImageUrl,
                    (SELECT COUNT(*)
                       FROM mood_test_results mtr
-                     WHERE mtr.user_id = u.user_id) AS totalTestCount,
+                     WHERE mtr.user_id = u.id) AS totalTestCount,
                    (SELECT COUNT(*)
                       FROM drinking_records dr
-                     WHERE dr.user_id = u.user_id
+                     WHERE dr.user_id = u.id
                        AND dr.record_date >= :monthStart
                        AND dr.record_date < :nextMonthStart) AS monthlyRecordCount,
                    (SELECT COUNT(*)
                       FROM user_unlocked_mood_types umt
-                     WHERE umt.user_id = u.user_id) AS unlockedMoodTypeCount
+                     WHERE umt.user_id = u.id) AS unlockedMoodTypeCount
               FROM users u
               LEFT JOIN mood_types mt ON mt.id = u.representative_mood_type_id
               LEFT JOIN images img ON img.id = mt.character_image_id
-             WHERE u.user_id = :userId
+             WHERE u.id = :userId
             """, nativeQuery = true)
     Optional<MyPageProjection> findMyPageByUserId(
             @Param("userId") Long userId,

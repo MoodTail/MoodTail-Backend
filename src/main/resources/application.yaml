@@ -10,8 +10,26 @@ spring:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
+      connect-timeout: ${SPRING_DATA_REDIS_CONNECT_TIMEOUT:2s}
+      timeout: ${SPRING_DATA_REDIS_TIMEOUT:2s}
       repositories:
         enabled: false
+
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: ${MAIL_SMTP_AUTH:true}
+          starttls:
+            enable: ${MAIL_STARTTLS_ENABLED:true}
+            required: ${MAIL_STARTTLS_REQUIRED:true}
+          connectiontimeout: ${MAIL_CONNECTION_TIMEOUT:3000}
+          timeout: ${MAIL_READ_TIMEOUT:5000}
+          writetimeout: ${MAIL_WRITE_TIMEOUT:5000}
 
   datasource:
     url: jdbc:mysql://${DATABASE_HOST:localhost}:3306/${DATABASE_NAME:moodtail}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
@@ -58,15 +76,18 @@ auth:
     state-expiration-millis: ${OAUTH_STATE_EXPIRATION:300000}
     connect-timeout-millis: ${OAUTH_CONNECT_TIMEOUT:3000}
     read-timeout-millis: ${OAUTH_READ_TIMEOUT:5000}
+    state-rate-limit:
+      max-attempts: ${OAUTH_STATE_RATE_MAX_ATTEMPTS:10}
+      window-millis: ${OAUTH_STATE_RATE_WINDOW:60000}
     kakao:
-      enabled: ${KAKAO_OAUTH_ENABLED:true}
+      enabled: ${KAKAO_OAUTH_ENABLED:false}
       client-id: ${KAKAO_CLIENT_ID:}
       client-secret: ${KAKAO_CLIENT_SECRET:}
       redirect-uri: ${KAKAO_REDIRECT_URI:}
       token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
     google:
-      enabled: ${GOOGLE_OAUTH_ENABLED:true}
+      enabled: ${GOOGLE_OAUTH_ENABLED:false}
       client-id: ${GOOGLE_CLIENT_ID:}
       client-secret: ${GOOGLE_CLIENT_SECRET:}
       redirect-uri: ${GOOGLE_REDIRECT_URI:}
@@ -88,6 +109,27 @@ auth:
     social-registration-max-attempts: ${SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS:3}
   redis:
     key-prefix: ${AUTH_REDIS_KEY_PREFIX:moodtail:local:auth:}
+  local:
+    password:
+      min-length: ${LOCAL_PASSWORD_MIN_LENGTH:8}
+      max-bytes: ${LOCAL_PASSWORD_MAX_BYTES:72}
+    login:
+      max-failed-attempts: ${LOCAL_LOGIN_MAX_FAILED_ATTEMPTS:5}
+      lock-duration-millis: ${LOCAL_LOGIN_LOCK_DURATION:900000}
+    password-reset:
+      enabled: ${PASSWORD_RESET_ENABLED:false}
+      sender: ${MAIL_FROM:}
+      subject: ${PASSWORD_RESET_MAIL_SUBJECT:MoodTail password reset code}
+      body-template: ${PASSWORD_RESET_MAIL_BODY:Your MoodTail password reset code is %s.}
+      pepper: ${PASSWORD_RESET_PEPPER:}
+      code-expiration-millis: ${PASSWORD_RESET_CODE_EXPIRATION:300000}
+      token-expiration-millis: ${PASSWORD_RESET_TOKEN_EXPIRATION:600000}
+      resend-cooldown-millis: ${PASSWORD_RESET_RESEND_COOLDOWN:60000}
+      max-verification-attempts: ${PASSWORD_RESET_MAX_VERIFY_ATTEMPTS:5}
+      client-ip-header: ${PASSWORD_RESET_CLIENT_IP_HEADER:}
+      client-rate-limit:
+        max-attempts: ${PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS:10}
+        window-millis: ${PASSWORD_RESET_CLIENT_RATE_WINDOW:600000}
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}

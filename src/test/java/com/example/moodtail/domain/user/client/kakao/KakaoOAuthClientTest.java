@@ -22,9 +22,12 @@ import static org.springframework.test.web.client.match.MockRestRequestMatchers.
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withSuccess;
+import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
 
 class KakaoOAuthClientTest {
+
+    private static final String PKCE_VERIFIER = "0123456789012345678901234567890123456789012";
 
     private MockRestServiceServer server;
     private KakaoOAuthClient kakaoOAuthClient;
@@ -51,6 +54,7 @@ class KakaoOAuthClientTest {
                         "redirect_uri=http%3A%2F%2Flocalhost%3A5173%2Fauth%2Fkakao%2Fcallback"
                 )))
                 .andExpect(content().string(containsString("code=kakao-code")))
+                .andExpect(content().string(containsString("code_verifier=" + PKCE_VERIFIER)))
                 .andRespond(withSuccess(
                         """
                                 {
@@ -80,7 +84,11 @@ class KakaoOAuthClientTest {
                         MediaType.APPLICATION_JSON
                 ));
 
-        SocialUserProfile result = kakaoOAuthClient.requestUserProfile("kakao-code", null);
+        SocialUserProfile result = kakaoOAuthClient.requestUserProfile(
+                "kakao-code",
+                null,
+                PKCE_VERIFIER
+        );
 
         assertThat(kakaoOAuthClient.provider()).isEqualTo(SocialProvider.KAKAO);
         assertThat(result.provider()).isEqualTo(SocialProvider.KAKAO);
@@ -107,7 +115,7 @@ class KakaoOAuthClientTest {
                 .andExpect(method(HttpMethod.GET))
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null))
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
                 .isInstanceOf(RestApiException.class);
     }
 
@@ -115,7 +123,8 @@ class KakaoOAuthClientTest {
     void requestUserProfileRejectsRedirectUriDifferentFromConfiguredValue() {
         assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile(
                 "kakao-code",
-                "http://untrusted.example.com/callback"
+                "http://untrusted.example.com/callback",
+                PKCE_VERIFIER
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
         );
@@ -135,7 +144,7 @@ class KakaoOAuthClientTest {
                 )
         );
 
-        assertThatThrownBy(() -> unconfiguredClient.requestUserProfile("kakao-code", null))
+        assertThatThrownBy(() -> unconfiguredClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH017")
                 );
@@ -169,7 +178,7 @@ class KakaoOAuthClientTest {
                         MediaType.APPLICATION_JSON
                 ));
 
-        SocialUserProfile result = kakaoOAuthClient.requestUserProfile("kakao-code", null);
+        SocialUserProfile result = kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER);
 
         assertThat(result.providerUserId()).isEqualTo("12345");
         assertThat(result.email()).isNull();
@@ -195,10 +204,43 @@ class KakaoOAuthClientTest {
         server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
                 .andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS));
 
-        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null))
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH008")
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
                 );
+        server.verify();
+    }
+
+    @Test
+    void kakaoServerFailureIsTreatedAsTemporaryProviderFailure() {
+        server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
+                .andRespond(withServerError());
+
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH029")
+                );
+        server.verify();
+    }
+
+    @Test
+    void missingPkceVerifierIsRejectedBeforeCallingKakao() {
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile("kakao-code", null, null))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
+                );
+        server.verify();
+    }
+
+    @Test
+    void tooShortPkceVerifierIsRejectedBeforeCallingKakao() {
+        assertThatThrownBy(() -> kakaoOAuthClient.requestUserProfile(
+                "kakao-code",
+                null,
+                "short-verifier"
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
+        );
         server.verify();
     }
 }

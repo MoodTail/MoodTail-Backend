@@ -24,6 +24,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -61,6 +62,9 @@ class SocialAccountRegistrationServiceTest {
     @Mock
     private IdentityLockManager identityLockManager;
 
+    @Mock
+    private GuestDataMergeService guestDataMergeService;
+
     private SocialAccountRegistrationService service;
 
     @BeforeEach
@@ -69,9 +73,9 @@ class SocialAccountRegistrationServiceTest {
                 transactionManager,
                 userRepository,
                 socialAccountRepository,
-                termRepository,
-                userTermAgreementRepository,
                 identityLockManager,
+                guestDataMergeService,
+                new TermAgreementService(termRepository, userTermAgreementRepository),
                 AuthPropertiesFixtures.defaults()
         );
         when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
@@ -97,7 +101,7 @@ class SocialAccountRegistrationServiceTest {
         SocialLoginUser result = service.register(
                 profile,
                 2L,
-                List.of(new SocialAccountRegistrationService.TermAgreementConsent(1L, true))
+                List.of(new TermAgreementService.Consent(1L, true))
         );
 
         assertThat(result.userId()).isEqualTo(2L);
@@ -119,7 +123,7 @@ class SocialAccountRegistrationServiceTest {
     }
 
     @Test
-    void loginReturnsExistingSocialAccountWithoutTouchingGuest() {
+    void loginMergesGuestIntoExistingSocialAccount() {
         User existingUser = guestWithId(99L);
         existingUser.upgradeToUser("기존유저", LocalDateTime.now());
         SocialAccount account = SocialAccount.create(
@@ -137,11 +141,11 @@ class SocialAccountRegistrationServiceTest {
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.GOOGLE, "google-id"))
                 .thenReturn(Optional.of(account));
 
-        SocialLoginUser result = service.login(profile);
+        SocialLoginUser result = service.login(profile, 2L);
 
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();
-        verify(userRepository, never()).findByIdForUpdate(anyLong());
+        verify(guestDataMergeService).mergeIntoExistingUser(2L, 99L);
         verify(userTermAgreementRepository, never()).saveAll(any());
     }
 
@@ -150,7 +154,7 @@ class SocialAccountRegistrationServiceTest {
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.login(kakaoProfile()))
+        assertThatThrownBy(() -> service.login(kakaoProfile(), 2L))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH023")
                 );
@@ -170,7 +174,7 @@ class SocialAccountRegistrationServiceTest {
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> service.login(kakaoProfile()))
+        assertThatThrownBy(() -> service.login(kakaoProfile(), 2L))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
                 );
@@ -187,7 +191,7 @@ class SocialAccountRegistrationServiceTest {
         assertThatThrownBy(() -> service.register(
                 kakaoProfile(),
                 2L,
-                List.of(new SocialAccountRegistrationService.TermAgreementConsent(1L, true))
+                List.of(new TermAgreementService.Consent(1L, true))
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
         );
@@ -211,12 +215,106 @@ class SocialAccountRegistrationServiceTest {
         assertThatThrownBy(() -> service.register(
                 kakaoProfile(),
                 2L,
-                List.of(new SocialAccountRegistrationService.TermAgreementConsent(1L, true))
+                List.of(new TermAgreementService.Consent(1L, true))
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH022")
         );
 
-        verify(userRepository, never()).findByIdForUpdate(anyLong());
+        verify(userRepository, never()).findByIdForUpdate(2L);
+    }
+
+    @Test
+    void registerRetryReturnsAlreadyCommittedAccountForSameSignupGuest() {
+        User initialGuest = guestWithId(2L);
+        User committedGuest = guestWithId(2L);
+        committedGuest.upgradeToUser("가입완료", LocalDateTime.now());
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        SocialAccount account = SocialAccount.create(
+                committedGuest,
+                SocialProvider.KAKAO,
+                "12345",
+                null
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty(), Optional.of(account));
+        when(userRepository.findByIdForUpdate(2L))
+                .thenReturn(Optional.of(initialGuest), Optional.of(committedGuest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
+
+        SocialLoginUser result = service.register(
+                kakaoProfile(),
+                2L,
+                List.of(new TermAgreementService.Consent(1L, true))
+        );
+
+        assertThat(result.userId()).isEqualTo(2L);
+        assertThat(result.isNewUser()).isFalse();
+        verify(termRepository).findByActiveTrueOrderByIdAsc();
+        verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void unifiedAuthenticationRecoversCommittedAccountImmediatelyAfterConcurrentSignup() {
+        User initialGuest = guestWithId(2L);
+        User committedUser = guestWithId(2L);
+        committedUser.upgradeToUser("가입완료", LocalDateTime.now());
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        SocialAccount committedAccount = SocialAccount.create(
+                committedUser,
+                SocialProvider.KAKAO,
+                "12345",
+                null
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty(), Optional.empty(), Optional.of(committedAccount));
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
+
+        SocialLoginUser result = service.authenticateAndComplete(
+                kakaoProfile(),
+                2L,
+                List.of(new TermAgreementService.Consent(1L, true)),
+                java.util.function.Function.identity()
+        );
+
+        assertThat(result.userId()).isEqualTo(2L);
+        assertThat(result.isNewUser()).isFalse();
+        verify(guestDataMergeService).mergeIntoExistingUser(2L, 2L);
+        verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void registerRetryRejectsConcurrentlyCommittedAccountOwnedByDifferentUser() {
+        User initialGuest = guestWithId(2L);
+        User differentUser = guestWithId(99L);
+        differentUser.upgradeToUser("다른회원", LocalDateTime.now());
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        SocialAccount committedAccount = SocialAccount.create(
+                differentUser,
+                SocialProvider.KAKAO,
+                "12345",
+                null
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty(), Optional.of(committedAccount));
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
+
+        assertThatThrownBy(() -> service.register(
+                kakaoProfile(),
+                2L,
+                List.of(new TermAgreementService.Consent(1L, true))
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH022")
+        );
+
+        verify(userTermAgreementRepository, never()).saveAll(any());
     }
 
     @Test
@@ -231,7 +329,7 @@ class SocialAccountRegistrationServiceTest {
         assertThatThrownBy(() -> service.register(
                 kakaoProfile(),
                 2L,
-                List.of(new SocialAccountRegistrationService.TermAgreementConsent(1L, false))
+                List.of(new TermAgreementService.Consent(1L, false))
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH024")
         );
@@ -254,8 +352,8 @@ class SocialAccountRegistrationServiceTest {
                 kakaoProfile(),
                 2L,
                 List.of(
-                        new SocialAccountRegistrationService.TermAgreementConsent(1L, true),
-                        new SocialAccountRegistrationService.TermAgreementConsent(1L, true)
+                        new TermAgreementService.Consent(1L, true),
+                        new TermAgreementService.Consent(1L, true)
                 )
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH026")
