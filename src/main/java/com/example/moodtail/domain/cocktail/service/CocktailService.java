@@ -115,11 +115,15 @@ public class CocktailService {
     }
 
     @Transactional(readOnly = true)
-    public CocktailDetailResponse getCocktailDetail(Long cocktailId) {
-        Cocktail cocktail = cocktailRepository.findDetailById(cocktailId)
+    public CocktailDetailResponse getCocktailDetail(Long cocktailId, PrincipalDetails principalDetails) {
+        Cocktail cocktail = cocktailRepository.findDetailWithIngredientsById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+        // 같은 트랜잭션 내 동일 ID 조회이므로 영속성 컨텍스트가 위 cocktail 인스턴스에 recipeSteps만 채워서 반환한다.
+        cocktail = cocktailRepository.findDetailWithRecipeStepsById(cocktailId)
                 .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
 
-        boolean isFavorite = false; // TODO: 인증 붙으면 실제 즐겨찾기 여부로 교체
+        boolean isFavorite = principalDetails != null
+                && cocktailFavoriteRepository.existsByUserIdAndCocktailId(principalDetails.getUserId(), cocktailId);
 
         return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
     }

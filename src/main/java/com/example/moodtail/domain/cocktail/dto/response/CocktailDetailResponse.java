@@ -40,7 +40,7 @@ public record CocktailDetailResponse(
         @Schema(description = "즐겨찾기 여부", example = "false")
         boolean isFavorite,
 
-        List<RecipeStepDto> recipeStep,
+        List<RecipeStepDto> recipeSteps,
 
         List<IngredientDto> cocktailIngredients
 ) {

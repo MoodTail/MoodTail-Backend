@@ -39,5 +39,13 @@ public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
             LEFT JOIN FETCH cocktail.ingredients
             WHERE cocktail.id = :cocktailId
             """)
-    Optional<Cocktail> findDetailById(@Param("cocktailId") Long cocktailId);
+    Optional<Cocktail> findDetailWithIngredientsById(@Param("cocktailId") Long cocktailId);
+
+    @Query("""
+            SELECT cocktail
+            FROM Cocktail cocktail
+            LEFT JOIN FETCH cocktail.recipeSteps
+            WHERE cocktail.id = :cocktailId
+            """)
+    Optional<Cocktail> findDetailWithRecipeStepsById(@Param("cocktailId") Long cocktailId);
 }

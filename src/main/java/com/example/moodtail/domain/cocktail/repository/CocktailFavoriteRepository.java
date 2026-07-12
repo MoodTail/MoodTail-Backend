@@ -20,4 +20,15 @@ public interface CocktailFavoriteRepository extends JpaRepository<CocktailFavori
             @Param("userId") Long userId,
             @Param("cocktailIds") Collection<Long> cocktailIds
     );
+
+    @Query("""
+            SELECT CASE WHEN COUNT(favorite) > 0 THEN true ELSE false END
+            FROM CocktailFavorite favorite
+            WHERE favorite.user.id = :userId
+              AND favorite.cocktail.id = :cocktailId
+            """)
+    boolean existsByUserIdAndCocktailId(
+            @Param("userId") Long userId,
+            @Param("cocktailId") Long cocktailId
+    );
 }
