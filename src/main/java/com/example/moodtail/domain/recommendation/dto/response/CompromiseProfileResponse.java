@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.recommendation.dto.response;
 
+import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -19,5 +20,15 @@ public record CompromiseProfileResponse(
 
         @Schema(description = "쓴맛 지표. 1~5점 척도입니다.", example = "2.1", minimum = "1", maximum = "5")
         BigDecimal bitterness
-){}
+) {
+    public static CompromiseProfileResponse from(TasteProfile profile) {
+        return new CompromiseProfileResponse(
+                profile.alcoholIntensity(),
+                profile.sweetness(),
+                profile.sourness(),
+                profile.refreshing(),
+                profile.bitterness()
+        );
+    }
+}
 
