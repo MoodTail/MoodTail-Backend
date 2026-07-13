@@ -2,7 +2,7 @@ package com.example.moodtail.domain.collection.service;
 
 import com.example.moodtail.domain.collection.dto.response.UnlockedMoodTypesResponse;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
-import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.RestApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
