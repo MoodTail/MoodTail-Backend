@@ -1,8 +1,11 @@
 package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteListResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
+import com.example.moodtail.domain.cocktail.entity.CocktailFavorite;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
@@ -12,10 +15,14 @@ import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
+import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,6 +40,7 @@ public class CocktailService {
     private final MoodTypeCompatibilityRepository compatibilityRepository;
     private final CocktailRepository cocktailRepository;
     private final CocktailFavoriteRepository cocktailFavoriteRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public CocktailListResponse getCocktails(
@@ -128,6 +136,56 @@ public class CocktailService {
         return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
     }
 
+    @Transactional
+    public CocktailFavoriteResponse addFavorite(Long cocktailId, PrincipalDetails principalDetails) {
+        Long userId = principalDetails.getUserId();
+
+        Cocktail cocktail = cocktailRepository.findById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+
+        if (cocktailFavoriteRepository.existsByUserIdAndCocktailId(userId, cocktailId)) {
+            throw new RestApiException(CocktailErrorStatus.COCKTAIL_FAVORITE_ALREADY_EXISTS);
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
+
+        try {
+            cocktailFavoriteRepository.save(CocktailFavorite.create(user, cocktail));
+        } catch (DataIntegrityViolationException e) {
+            throw new RestApiException(CocktailErrorStatus.COCKTAIL_FAVORITE_ALREADY_EXISTS);
+        }
+
+        return CocktailFavoriteResponse.from(cocktail);
+    }
+
+    @Transactional
+    public CocktailFavoriteResponse removeFavorite(Long cocktailId, PrincipalDetails principalDetails) {
+        Long userId = principalDetails.getUserId();
+
+        Cocktail cocktail = cocktailRepository.findById(cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND));
+
+        CocktailFavorite favorite = cocktailFavoriteRepository.findByUserIdAndCocktailId(userId, cocktailId)
+                .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_FAVORITE_NOT_FOUND));
+
+        cocktailFavoriteRepository.delete(favorite);
+
+        return CocktailFavoriteResponse.from(cocktail);
+    }
+
+    @Transactional(readOnly = true)
+    public CocktailFavoriteListResponse getFavoriteCocktails(PrincipalDetails principalDetails) {
+        List<Cocktail> cocktails = cocktailFavoriteRepository.findFavoriteCocktailsByUserId(principalDetails.getUserId());
+
+        List<CocktailFavoriteListResponse.CocktailFavoriteSummaryDto> cocktailSummaries = cocktails.stream()
+                .map(CocktailFavoriteListResponse.CocktailFavoriteSummaryDto::from)
+                .toList();
+
+        return CocktailFavoriteListResponse.builder()
+                .cocktails(cocktailSummaries)
+                .build();
+    }
 
     private String getImageUrl(Image image) {
         return image == null ? null : image.getImageUrl();
