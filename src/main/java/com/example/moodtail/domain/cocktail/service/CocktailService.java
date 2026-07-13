@@ -22,6 +22,7 @@ import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -149,7 +150,11 @@ public class CocktailService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
 
-        cocktailFavoriteRepository.save(CocktailFavorite.create(user, cocktail));
+        try {
+            cocktailFavoriteRepository.save(CocktailFavorite.create(user, cocktail));
+        } catch (DataIntegrityViolationException e) {
+            throw new RestApiException(CocktailErrorStatus.COCKTAIL_FAVORITE_ALREADY_EXISTS);
+        }
 
         return CocktailFavoriteResponse.from(cocktail);
     }
