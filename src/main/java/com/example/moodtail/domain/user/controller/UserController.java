@@ -1,5 +1,7 @@
 package com.example.moodtail.domain.user.controller;
 
+import com.example.moodtail.domain.collection.dto.response.UnlockedMoodTypesResponse;
+import com.example.moodtail.domain.collection.service.UnlockedMoodTypeService;
 import com.example.moodtail.domain.user.dto.request.UserProfileUpdateRequest;
 import com.example.moodtail.domain.user.dto.response.MyPageResponse;
 import com.example.moodtail.domain.user.dto.response.UserProfileUpdateResponse;
@@ -20,12 +22,23 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
 
     private final MyPageService myPageService;
+    private final UnlockedMoodTypeService unlockedMoodTypeService;
 
     @GetMapping("/me")
     public BaseResponse<MyPageResponse> getMyPage(
             @AuthenticationPrincipal PrincipalDetails principalDetails
     ) {
         return BaseResponse.onSuccess(myPageService.getMyPage(
+                principalDetails.getUserId(),
+                principalDetails.getRole()
+        ));
+    }
+
+    @GetMapping("/me/unlocked-mood-types")
+    public BaseResponse<UnlockedMoodTypesResponse> getUnlockedMoodTypes(
+            @AuthenticationPrincipal PrincipalDetails principalDetails
+    ) {
+        return BaseResponse.onSuccess(unlockedMoodTypeService.getUnlockedMoodTypes(
                 principalDetails.getUserId(),
                 principalDetails.getRole()
         ));
