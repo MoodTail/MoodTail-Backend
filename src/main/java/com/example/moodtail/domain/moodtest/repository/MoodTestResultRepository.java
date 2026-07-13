@@ -9,4 +9,6 @@ import java.util.Optional;
 public interface MoodTestResultRepository extends JpaRepository<MoodTestResult, Long> {
 
     Optional<MoodTestResult> findByUserIdAndResultDate(Long userId, LocalDate resultDate);
+
+    Optional<MoodTestResult> findByShareToken(String shareToken);
 }
