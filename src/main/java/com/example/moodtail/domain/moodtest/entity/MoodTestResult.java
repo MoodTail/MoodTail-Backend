@@ -93,6 +93,10 @@ public class MoodTestResult {
         this.bitterness = tasteProfile.bitterness();
     }
 
+    public TasteProfile toTasteProfile() {
+        return TasteProfile.of(alcoholIntensity, sweetness, sourness, refreshing, bitterness);
+    }
+
     @PrePersist
     void prePersist() {
         this.createdAt = LocalDateTime.now();
