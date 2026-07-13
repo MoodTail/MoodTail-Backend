@@ -14,13 +14,19 @@ public interface UserUnlockedMoodTypeRepository extends JpaRepository<UserUnlock
     @EntityGraph(attributePaths = {"moodType", "moodType.characterImage"})
     Optional<UserUnlockedMoodType> findByUserIdAndMoodTypeId(Long userId, Long moodTypeId);
 
-    @EntityGraph(attributePaths = {"moodType", "moodType.characterImage"})
     @Query("""
-            select unlockedMoodType
-              from UserUnlockedMoodType unlockedMoodType
-             where unlockedMoodType.user.id = :userId
-             order by unlockedMoodType.moodType.sortOrder asc,
-                      unlockedMoodType.moodType.id asc
+            select moodType.id as moodTypeId,
+                   moodType.code as typeCode,
+                   moodType.name as name,
+                   moodType.shortDescription as shortDescription,
+                   characterImage.imageUrl as characterImageUrl,
+                   unlockedMoodType.unlockedAt as unlockedAt
+              from MoodType moodType
+              left join moodType.characterImage characterImage
+              left join UserUnlockedMoodType unlockedMoodType
+                on unlockedMoodType.moodType = moodType
+               and unlockedMoodType.user.id = :userId
+             order by moodType.sortOrder asc, moodType.id asc
             """)
-    List<UserUnlockedMoodType> findAllByUserId(@Param("userId") Long userId);
+    List<MoodTypeCollectionProjection> findAllMoodTypesByUserId(@Param("userId") Long userId);
 }
