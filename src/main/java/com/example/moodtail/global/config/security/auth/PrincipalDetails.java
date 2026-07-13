@@ -1,6 +1,6 @@
 package com.example.moodtail.global.config.security.auth;
 
-import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.domain.user.entity.UserRole;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;

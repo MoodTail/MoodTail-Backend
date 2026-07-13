@@ -1,6 +1,6 @@
 package com.example.moodtail.global.config.security.jwt;
 
-import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import io.jsonwebtoken.Claims;

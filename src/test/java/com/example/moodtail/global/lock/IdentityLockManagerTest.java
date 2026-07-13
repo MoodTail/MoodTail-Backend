@@ -1,7 +1,7 @@
 package com.example.moodtail.global.lock;
 
-import com.example.moodtail.domain.user.enums.SocialProvider;
-import com.example.moodtail.domain.user.support.AuthPropertiesFixtures;
+import com.example.moodtail.global.auth.model.SocialProvider;
+import com.example.moodtail.support.auth.AuthPropertiesFixtures;
 import com.example.moodtail.global.common.exception.RestApiException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
