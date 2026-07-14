@@ -30,12 +30,14 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doThrow;
@@ -175,6 +177,7 @@ class LocalAccountServiceTest {
 
     @Test
     void loginMergesCurrentGuestIntoExistingLocalUser() {
+        AtomicBoolean identityLockHeld = new AtomicBoolean();
         User user = member(9L);
         LocalAccount account = LocalAccount.create(
                 user,
@@ -184,8 +187,16 @@ class LocalAccountServiceTest {
         );
         when(localAccountRepository.findByEmailForUpdate("user@example.com"))
                 .thenReturn(Optional.of(account));
+        when(identityLockManager.executeForLocalEmail(eq("user@example.com"), any()))
+                .thenAnswer(invocation -> executeWhileLocked(
+                        identityLockHeld,
+                        invocation.getArgument(1)
+                ));
         when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
-                .thenReturn(new TokenInfo("access", "refresh"));
+                .thenAnswer(invocation -> {
+                    assertThat(identityLockHeld.get()).isFalse();
+                    return new TokenInfo("access", "refresh");
+                });
 
         LocalAuthUser result = service.login("user@example.com", "correct-password", 2L).user();
 
@@ -255,5 +266,14 @@ class LocalAccountServiceTest {
 
     private <T> T get(Supplier<T> supplier) {
         return supplier.get();
+    }
+
+    private <T> T executeWhileLocked(AtomicBoolean lockHeld, Supplier<T> supplier) {
+        lockHeld.set(true);
+        try {
+            return supplier.get();
+        } finally {
+            lockHeld.set(false);
+        }
     }
 }

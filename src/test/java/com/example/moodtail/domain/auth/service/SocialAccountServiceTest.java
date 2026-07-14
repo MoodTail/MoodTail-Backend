@@ -32,6 +32,7 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -138,6 +140,7 @@ class SocialAccountServiceTest {
 
     @Test
     void existingAuthenticationMergesGuestIntoExistingSocialAccount() {
+        AtomicBoolean identityLockHeld = new AtomicBoolean();
         User existingUser = guestWithId(99L);
         existingUser.upgradeToUser("기존유저", LocalDateTime.now());
         SocialAccount account = SocialAccount.create(
@@ -154,6 +157,16 @@ class SocialAccountServiceTest {
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.GOOGLE, "google-id"))
                 .thenReturn(Optional.of(account));
+        when(identityLockManager.executeForSocialLogin(eq(SocialProvider.GOOGLE), eq("google-id"), any()))
+                .thenAnswer(invocation -> executeWhileLocked(
+                        identityLockHeld,
+                        invocation.getArgument(2)
+                ));
+        when(tokenSessionService.issueSessionReplacingGuest(99L, UserRole.USER, 2L))
+                .thenAnswer(invocation -> {
+                    assertThat(identityLockHeld.get()).isFalse();
+                    return new TokenInfo("access", "refresh");
+                });
 
         SocialLoginUser result = service.authenticate(
                 profile,
@@ -401,7 +414,16 @@ class SocialAccountServiceTest {
         return user;
     }
 
-    private Object get(Object supplier) {
-        return ((Supplier<?>) supplier).get();
+    private <T> T get(Supplier<T> supplier) {
+        return supplier.get();
+    }
+
+    private <T> T executeWhileLocked(AtomicBoolean lockHeld, Supplier<T> supplier) {
+        lockHeld.set(true);
+        try {
+            return supplier.get();
+        } finally {
+            lockHeld.set(false);
+        }
     }
 }

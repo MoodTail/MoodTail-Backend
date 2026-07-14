@@ -50,7 +50,7 @@ public class SocialAccountService {
         if (profile == null || profile.provider() == null || !StringUtils.hasText(profile.providerUserId())) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        return identityLockManager.executeForSocialLogin(
+        SocialLoginUser authenticatedUser = identityLockManager.executeForSocialLogin(
                 profile.provider(),
                 profile.providerUserId(),
                 () -> identityLockManager.executeForGuestUserId(
@@ -58,9 +58,10 @@ public class SocialAccountService {
                         () -> authenticateWithRetry(profile, guestUserId, consents)
                 )
         );
+        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
-    private SocialAuthenticationResult authenticateWithRetry(
+    private SocialLoginUser authenticateWithRetry(
             SocialUserProfile profile,
             Long guestUserId,
             List<Consent> consents
@@ -75,7 +76,7 @@ public class SocialAccountService {
                     );
                 });
                 if (result != null) {
-                    return completeAuthentication(result, guestUserId);
+                    return result;
                 }
             } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
                 Optional<SocialLoginUser> committedAuthentication = recoverCommittedAuthentication(
@@ -84,7 +85,7 @@ public class SocialAccountService {
                         guestUserId
                 );
                 if (committedAuthentication.isPresent()) {
-                    return completeAuthentication(committedAuthentication.get(), guestUserId);
+                    return committedAuthentication.get();
                 }
             }
         }
@@ -192,7 +193,7 @@ public class SocialAccountService {
     }
 
     private SocialAuthenticationResult completeAuthentication(SocialLoginUser user, Long guestUserId) {
-        SocialAuthenticationResult result = new SocialAuthenticationResult(
+        return new SocialAuthenticationResult(
                 user,
                 tokenSessionService.issueSessionReplacingGuest(
                         user.userId(),
@@ -200,7 +201,6 @@ public class SocialAccountService {
                         guestUserId
                 )
         );
-        return result;
     }
 
 }

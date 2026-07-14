@@ -101,13 +101,14 @@ public class LocalAccountService {
     ) {
         String normalizedEmail = normalizeEmail(email);
         validateLoginPasswordInput(password);
-        return identityLockManager.executeForLocalEmail(
+        LocalAuthUser authenticatedUser = identityLockManager.executeForLocalEmail(
                 normalizedEmail,
                 () -> executeWithOptionalGuestLock(
                         guestUserId,
                         () -> loginInTransaction(normalizedEmail, password, guestUserId)
                 )
         );
+        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
     public void changePassword(
@@ -145,7 +146,7 @@ public class LocalAccountService {
                 ));
     }
 
-    private LocalAuthenticationResult loginInTransaction(
+    private LocalAuthUser loginInTransaction(
             String normalizedEmail,
             String password,
             Long guestUserId
@@ -187,7 +188,7 @@ public class LocalAccountService {
         if (attempt.errorStatus() != null) {
             throw new RestApiException(attempt.errorStatus());
         }
-        return completeAuthentication(attempt.user(), guestUserId);
+        return attempt.user();
     }
 
     private LocalAuthenticationResult completeAuthentication(LocalAuthUser user, Long guestUserId) {
