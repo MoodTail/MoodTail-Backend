@@ -133,7 +133,7 @@ public class CocktailService {
         boolean isFavorite = principalDetails != null
                 && cocktailFavoriteRepository.existsByUserIdAndCocktailId(principalDetails.getUserId(), cocktailId);
 
-        return CocktailDetailResponse.from(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
+        return CocktailDetailResponse.of(cocktail, isFavorite, getImageUrl(cocktail.getImage()));
     }
 
     @Transactional
