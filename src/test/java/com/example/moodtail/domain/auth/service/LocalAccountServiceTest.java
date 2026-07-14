@@ -15,9 +15,11 @@ import com.example.moodtail.support.auth.LocalAuthPropertiesFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.security.crypto.factory.PasswordEncoderFactories;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -34,7 +36,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -80,7 +85,7 @@ class LocalAccountServiceTest {
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
         when(localAccountRepository.saveAndFlush(any(LocalAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenSessionService.issueSession(2L, UserRole.USER))
+        when(tokenSessionService.issueSessionReplacingGuest(2L, UserRole.USER, 2L))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
         LocalAuthenticationResult authentication = service.signup(
@@ -98,6 +103,9 @@ class LocalAccountServiceTest {
         assertThat(result.role()).isEqualTo(UserRole.USER);
         assertThat(guest.getGuestUuid()).isNull();
         verify(termAgreementService).recordValidatedAgreements(any(), any(), any());
+        InOrder order = inOrder(transactionManager, tokenSessionService);
+        order.verify(transactionManager).commit(any());
+        order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
     }
 
     @Test
@@ -176,18 +184,20 @@ class LocalAccountServiceTest {
         );
         when(localAccountRepository.findByEmailForUpdate("user@example.com"))
                 .thenReturn(Optional.of(account));
-        when(tokenSessionService.issueSession(9L, UserRole.USER))
+        when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
         LocalAuthUser result = service.login("user@example.com", "correct-password", 2L).user();
 
         assertThat(result.userId()).isEqualTo(9L);
         verify(guestDataMergeService).mergeIntoExistingUser(2L, 9L);
-        verify(tokenSessionService).revokeSessionWithRollback(2L);
+        InOrder order = inOrder(transactionManager, tokenSessionService);
+        order.verify(transactionManager).commit(any());
+        order.verify(tokenSessionService).issueSessionReplacingGuest(9L, UserRole.USER, 2L);
     }
 
     @Test
-    void passwordChangeRevokesTheExistingSessionInTheSameTransaction() {
+    void passwordChangeRevokesTheExistingSessionAfterDatabaseCommit() {
         User user = member(9L);
         LocalAccount account = LocalAccount.create(
                 user,
@@ -201,7 +211,34 @@ class LocalAccountServiceTest {
 
         assertThat(account.getPasswordVersion()).isEqualTo(1);
         assertThat(passwordEncoder.matches("new-password", account.getPasswordHash())).isTrue();
-        verify(tokenSessionService).revokeSessionWithRollback(9L);
+        InOrder order = inOrder(transactionManager, tokenSessionService);
+        order.verify(transactionManager).commit(any());
+        order.verify(tokenSessionService).revokeSession(9L);
+    }
+
+    @Test
+    void passwordChangeCanRetrySessionRevocationAfterDatabaseCommit() {
+        User user = member(9L);
+        LocalAccount account = LocalAccount.create(
+                user,
+                "user@example.com",
+                passwordEncoder.encode("old-password"),
+                LocalDateTime.now()
+        );
+        when(localAccountRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(account));
+        doThrow(new RedisConnectionFailureException("redis unavailable"))
+                .doNothing()
+                .when(tokenSessionService).revokeSession(9L);
+
+        assertThatThrownBy(() -> service.changePassword(3L, 0, "new-password", "new-password"))
+                .isInstanceOf(RedisConnectionFailureException.class);
+
+        assertThat(account.getPasswordVersion()).isEqualTo(1);
+        service.changePassword(3L, 0, "new-password", "new-password");
+
+        assertThat(account.getPasswordVersion()).isEqualTo(1);
+        assertThat(passwordEncoder.matches("new-password", account.getPasswordHash())).isTrue();
+        verify(tokenSessionService, times(2)).revokeSession(9L);
     }
 
     private User guest(Long id) {

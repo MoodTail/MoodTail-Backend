@@ -61,8 +61,9 @@ public class LocalAccountService {
         validatePassword(password, passwordConfirm);
         String passwordHash = passwordEncoder.encode(password);
 
+        LocalAuthUser authenticatedUser;
         try {
-            return identityLockManager.executeForLocalEmail(
+            authenticatedUser = identityLockManager.executeForLocalEmail(
                     normalizedEmail,
                     () -> executeWithOptionalGuestLock(
                             guestUserId,
@@ -77,14 +78,7 @@ public class LocalAccountService {
                                         LocalAccount.create(user, normalizedEmail, passwordHash, now)
                                 );
                                 termAgreementService.recordValidatedAgreements(user, agreedTerms, now);
-                                LocalAuthUser authenticatedUser = LocalAuthUser.from(account, true);
-                                return new LocalAuthenticationResult(
-                                        authenticatedUser,
-                                        tokenSessionService.issueSession(
-                                                authenticatedUser.userId(),
-                                                authenticatedUser.role()
-                                        )
-                                );
+                                return LocalAuthUser.from(account, true);
                             })
                     )
             );
@@ -94,6 +88,10 @@ public class LocalAccountService {
             }
             throw exception;
         }
+        if (authenticatedUser == null) {
+            throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+        }
+        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
     public LocalAuthenticationResult login(
@@ -120,17 +118,21 @@ public class LocalAccountService {
     ) {
         validatePassword(password, passwordConfirm);
         String passwordHash = passwordEncoder.encode(password);
-        requiresNewTransaction().executeWithoutResult(status -> {
+        Long userId = requiresNewTransaction().execute(status -> {
             LocalAccount account = localAccountRepository.findByIdForUpdate(localAccountId)
                     .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
             validateActive(account.getUser());
-            try {
+            if (account.getPasswordVersion() == expectedPasswordVersion) {
                 account.changePassword(passwordHash, expectedPasswordVersion, LocalDateTime.now());
-            } catch (IllegalStateException e) {
+            } else if (!isRetriedPasswordChange(account, expectedPasswordVersion, password)) {
                 throw new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN);
             }
-            tokenSessionService.revokeSessionWithRollback(account.getUser().getId());
+            return account.getUser().getId();
         });
+        if (userId == null) {
+            throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+        }
+        tokenSessionService.revokeSession(userId);
     }
 
     public Optional<PasswordResetAccount> findPasswordResetAccount(String email) {
@@ -177,14 +179,7 @@ public class LocalAccountService {
             }
             user.updateLastAccessedAt(now);
             LocalAuthUser authenticatedUser = LocalAuthUser.from(account, false);
-            LocalAuthenticationResult result = new LocalAuthenticationResult(
-                    authenticatedUser,
-                    tokenSessionService.issueSession(authenticatedUser.userId(), authenticatedUser.role())
-            );
-            if (guestUserId != null && !guestUserId.equals(user.getId())) {
-                tokenSessionService.revokeSessionWithRollback(guestUserId);
-            }
-            return LoginAttempt.success(result);
+            return LoginAttempt.success(authenticatedUser);
         });
         if (attempt == null) {
             throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
@@ -192,7 +187,27 @@ public class LocalAccountService {
         if (attempt.errorStatus() != null) {
             throw new RestApiException(attempt.errorStatus());
         }
-        return attempt.result();
+        return completeAuthentication(attempt.user(), guestUserId);
+    }
+
+    private LocalAuthenticationResult completeAuthentication(LocalAuthUser user, Long guestUserId) {
+        return new LocalAuthenticationResult(
+                user,
+                tokenSessionService.issueSessionReplacingGuest(
+                        user.userId(),
+                        user.role(),
+                        guestUserId
+                )
+        );
+    }
+
+    private boolean isRetriedPasswordChange(
+            LocalAccount account,
+            int expectedPasswordVersion,
+            String requestedPassword
+    ) {
+        return (long) account.getPasswordVersion() == (long) expectedPasswordVersion + 1L
+                && passwordEncoder.matches(requestedPassword, account.getPasswordHash());
     }
 
     private User createOrUpgradeUser(Long guestUserId, String nickname, LocalDateTime now) {
@@ -264,9 +279,9 @@ public class LocalAccountService {
         return template;
     }
 
-    private record LoginAttempt(LocalAuthenticationResult result, AuthErrorStatus errorStatus) {
-        static LoginAttempt success(LocalAuthenticationResult result) {
-            return new LoginAttempt(result, null);
+    private record LoginAttempt(LocalAuthUser user, AuthErrorStatus errorStatus) {
+        static LoginAttempt success(LocalAuthUser user) {
+            return new LoginAttempt(user, null);
         }
 
         static LoginAttempt failure(AuthErrorStatus status) {

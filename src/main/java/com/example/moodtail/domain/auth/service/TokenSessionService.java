@@ -21,8 +21,9 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
@@ -42,6 +43,7 @@ import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.req
 public class TokenSessionService {
 
     private final UserRepository userRepository;
+    private final PlatformTransactionManager transactionManager;
     private final JwtProvider jwtProvider;
     private final RedisRepository redisRepository;
     private final AuthRequestOriginValidator authRequestOriginValidator;
@@ -64,31 +66,40 @@ public class TokenSessionService {
     }
 
     public TokenInfo issueSession(Long userId, UserRole role) {
-        Optional<String> previousRefreshJti = required(
-                "find previous refresh session",
-                () -> redisRepository.findRefreshJtiByUserId(userId)
+        requireNoActiveDatabaseTransaction("issue authentication session");
+        return createAndStoreSession(userId, role);
+    }
+
+    public TokenInfo issueSessionReplacingGuest(Long userId, UserRole role, Long guestUserId) {
+        requireNoActiveDatabaseTransaction("issue authentication session and revoke guest session");
+        if (guestUserId == null || guestUserId.equals(userId)) {
+            return createAndStoreSession(userId, role);
+        }
+
+        TokenInfo tokenInfo = createAndStoreSession(userId, role);
+        bestEffort(
+                "delete merged guest refresh session",
+                () -> redisRepository.deleteRefreshJti(guestUserId)
         );
+        return tokenInfo;
+    }
+
+    private TokenInfo createAndStoreSession(Long userId, UserRole role) {
         TokenInfo tokenInfo = jwtProvider.generateToken(userId, role);
         Claims refreshClaims = jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken());
         String refreshJti = requireRefreshJti(refreshClaims);
 
         required("save refresh session", () -> redisRepository.saveRefreshJti(userId, refreshJti));
-        registerRollbackAction(() -> restoreIssuedSessionBestEffort(userId, refreshJti, previousRefreshJti));
-
         return tokenInfo;
     }
 
-    public void revokeSessionWithRollback(Long userId) {
-        Optional<String> previousRefreshJti = required(
-                "find refresh session before deletion",
-                () -> redisRepository.findRefreshJtiByUserId(userId)
-        );
+    public void revokeSession(Long userId) {
+        requireNoActiveDatabaseTransaction("revoke authentication session");
         required("delete refresh session", () -> redisRepository.deleteRefreshJti(userId));
-        registerRollbackAction(() -> restoreRevokedSessionBestEffort(userId, previousRefreshJti));
     }
 
-    @Transactional
     public TokenResponse reissue(HttpServletRequest request, HttpServletResponse response) {
+        requireNoActiveDatabaseTransaction("reissue authentication session");
         authRequestOriginValidator.validateCookieAuthenticatedRequest(request);
         try {
             String refreshToken = resolveRefreshToken(request)
@@ -106,18 +117,13 @@ public class TokenSessionService {
                 throw new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN);
             }
 
-            User user = userRepository.findById(userId)
-                    .orElseThrow(() -> {
-                        required("delete orphaned refresh session", () -> redisRepository.deleteRefreshJti(userId));
-                        return new RestApiException(AuthErrorStatus.USER_NOT_FOUND);
-                    });
-            if (!user.isActive() || user.isDeleted()) {
-                required("delete inactive user refresh session", () -> redisRepository.deleteRefreshJti(userId));
-                throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
-            }
-            user.updateLastAccessedAt(LocalDateTime.now());
-
-            TokenInfo tokenInfo = rotateRefreshToken(user, refreshJti, response);
+            RefreshUser refreshUser = loadRefreshUser(userId);
+            TokenInfo tokenInfo = rotateRefreshToken(
+                    refreshUser.userId(),
+                    refreshUser.role(),
+                    refreshJti,
+                    response
+            );
             return TokenResponse.from(tokenInfo);
         } catch (RestApiException exception) {
             if (!isAuthInfrastructureUnavailable(exception)) {
@@ -200,14 +206,42 @@ public class TokenSessionService {
         return currentSession ? Optional.of(userId) : Optional.empty();
     }
 
-    private TokenInfo rotateRefreshToken(User user, String expectedRefreshJti, HttpServletResponse response) {
-        TokenInfo tokenInfo = jwtProvider.generateToken(user.getId(), user.getRole());
+    private RefreshUser loadRefreshUser(Long userId) {
+        RefreshUser refreshUser = requiresNewTransaction().execute(status -> {
+            Optional<User> userOptional = userRepository.findById(userId);
+            if (userOptional.isEmpty()) {
+                return RefreshUser.failure(AuthErrorStatus.USER_NOT_FOUND);
+            }
+            User user = userOptional.get();
+            if (!user.isActive() || user.isDeleted()) {
+                return RefreshUser.failure(AuthErrorStatus.INACTIVE_USER);
+            }
+            user.updateLastAccessedAt(LocalDateTime.now());
+            return RefreshUser.success(user.getId(), user.getRole());
+        });
+        if (refreshUser == null) {
+            throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+        }
+        if (refreshUser.errorStatus() != null) {
+            required("delete unusable refresh session", () -> redisRepository.deleteRefreshJti(userId));
+            throw new RestApiException(refreshUser.errorStatus());
+        }
+        return refreshUser;
+    }
+
+    private TokenInfo rotateRefreshToken(
+            Long userId,
+            UserRole role,
+            String expectedRefreshJti,
+            HttpServletResponse response
+    ) {
+        TokenInfo tokenInfo = jwtProvider.generateToken(userId, role);
         Claims newRefreshClaims = jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken());
         String newRefreshJti = requireRefreshJti(newRefreshClaims);
         boolean rotated = required(
                 "rotate refresh session",
                 () -> redisRepository.replaceRefreshJti(
-                        user.getId(),
+                        userId,
                         expectedRefreshJti,
                         newRefreshJti
                 )
@@ -216,67 +250,20 @@ public class TokenSessionService {
         if (!rotated) {
             throw new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN);
         }
-
-        registerRollbackAction(() -> bestEffort(
-                "restore rotated refresh session after database rollback",
-                () -> redisRepository.replaceRefreshJti(
-                        user.getId(),
-                        newRefreshJti,
-                        expectedRefreshJti
-                )
-        ));
-        runAfterCommit(() -> setRefreshTokenCookie(response, tokenInfo.refreshToken()));
+        setRefreshTokenCookie(response, tokenInfo.refreshToken());
         return tokenInfo;
     }
 
-    private void restoreIssuedSessionBestEffort(
-            Long userId,
-            String issuedRefreshJti,
-            Optional<String> previousRefreshJti
-    ) {
-        bestEffort("restore replaced refresh session after database rollback", () -> {
-            if (previousRefreshJti.isPresent()) {
-                redisRepository.replaceRefreshJti(userId, issuedRefreshJti, previousRefreshJti.get());
-            } else {
-                redisRepository.deleteRefreshJtiIfMatches(userId, issuedRefreshJti);
-            }
-        });
-    }
-
-    private void restoreRevokedSessionBestEffort(Long userId, Optional<String> previousRefreshJti) {
-        previousRefreshJti.ifPresent(refreshJti -> bestEffort(
-                "restore revoked refresh session after database rollback",
-                () -> redisRepository.saveRefreshJtiIfAbsent(userId, refreshJti)
-        ));
-    }
-
-    private void registerRollbackAction(Runnable rollbackAction) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()
-                || !TransactionSynchronizationManager.isSynchronizationActive()) {
-            return;
+    private void requireNoActiveDatabaseTransaction(String operation) {
+        if (TransactionSynchronizationManager.isActualTransactionActive()) {
+            throw new IllegalStateException(operation + " must run after the database transaction commits");
         }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status != TransactionSynchronization.STATUS_COMMITTED) {
-                    rollbackAction.run();
-                }
-            }
-        });
     }
 
-    private void runAfterCommit(Runnable action) {
-        if (!TransactionSynchronizationManager.isActualTransactionActive()
-                || !TransactionSynchronizationManager.isSynchronizationActive()) {
-            action.run();
-            return;
-        }
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCommit() {
-                action.run();
-            }
-        });
+    private TransactionTemplate requiresNewTransaction() {
+        TransactionTemplate template = new TransactionTemplate(transactionManager);
+        template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return template;
     }
 
     private Optional<String> resolveRefreshToken(HttpServletRequest request) {
@@ -333,4 +320,15 @@ public class TokenSessionService {
         }
         return cookieBuilder.build();
     }
+
+    private record RefreshUser(Long userId, UserRole role, AuthErrorStatus errorStatus) {
+        static RefreshUser success(Long userId, UserRole role) {
+            return new RefreshUser(userId, role, null);
+        }
+
+        static RefreshUser failure(AuthErrorStatus errorStatus) {
+            return new RefreshUser(null, null, errorStatus);
+        }
+    }
+
 }

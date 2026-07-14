@@ -12,7 +12,6 @@ import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.security.MessageDigest;
@@ -25,7 +24,6 @@ import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.req
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 public class OAuthStateService {
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();

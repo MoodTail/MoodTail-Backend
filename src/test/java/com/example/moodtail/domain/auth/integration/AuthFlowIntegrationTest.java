@@ -273,10 +273,11 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void unifiedSocialSignupRollsBackDatabaseWhenRefreshSessionStorageFails() throws Exception {
+    void unifiedSocialSignupCommitsDatabaseBeforeRefreshSessionStorageAndCanRecoverByLogin() throws Exception {
         String guestToken = guestLogin(UUID.randomUUID());
         JsonNode state = issueState(guestToken);
         doThrow(new RedisConnectionFailureException("forced integration failure"))
+                .doCallRealMethod()
                 .when(redisRepository).saveRefreshJti(anyLong(), anyString());
 
         ResponseEntity<String> signupResponse = exchangeJson(
@@ -293,11 +294,26 @@ class AuthFlowIntegrationTest {
         assertThat(signupResponse.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
         assertThat(objectMapper.readTree(signupResponse.getBody()).path("code").asText()).isEqualTo("AUTH028");
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where role = 'GUEST' and deleted_at is null",
+                "select count(*) from users where role = 'USER' and deleted_at is null",
                 Integer.class
         )).isEqualTo(1);
-        assertThat(jdbcTemplate.queryForObject("select count(*) from social_accounts", Integer.class)).isZero();
-        assertThat(jdbcTemplate.queryForObject("select count(*) from user_term_agreements", Integer.class)).isZero();
+        assertThat(jdbcTemplate.queryForObject("select count(*) from social_accounts", Integer.class)).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select count(*) from user_term_agreements", Integer.class)).isEqualTo(1);
+
+        String retryGuestToken = guestLogin(UUID.randomUUID());
+        JsonNode retryState = issueState(retryGuestToken);
+        JsonNode recoveredLogin = postJson(
+                "/api/v1/auth/login/google",
+                Map.of(
+                        "authorizationCode", "retry-google-code",
+                        "state", retryState.path("state").asText()
+                ),
+                null
+        ).path("result");
+
+        assertThat(recoveredLogin.path("isNewUser").asBoolean()).isFalse();
+        assertThat(getCurrentUser(recoveredLogin.path("accessToken").asText()).getStatusCode())
+                .isEqualTo(HttpStatus.OK);
     }
 
     @Test

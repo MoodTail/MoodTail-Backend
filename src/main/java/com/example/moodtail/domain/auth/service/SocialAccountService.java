@@ -68,39 +68,37 @@ public class SocialAccountService {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
         for (int attempt = 0; attempt < authProperties.concurrency().socialRegistrationMaxAttempts(); attempt++) {
             try {
-                SocialAuthenticationResult result = transactionTemplate.execute(status -> {
+                SocialLoginUser result = transactionTemplate.execute(status -> {
                     Optional<SocialLoginUser> existing = loginInTransaction(profile, guestUserId);
-                    SocialLoginUser user = existing.orElseGet(
+                    return existing.orElseGet(
                             () -> registerInTransaction(profile, guestUserId, consents)
                     );
-                    return completeAuthentication(user, guestUserId);
                 });
                 if (result != null) {
-                    return result;
+                    return completeAuthentication(result, guestUserId);
                 }
             } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
-                Optional<SocialAuthenticationResult> committedAuthentication = recoverCommittedAuthentication(
+                Optional<SocialLoginUser> committedAuthentication = recoverCommittedAuthentication(
                         transactionTemplate,
                         profile,
                         guestUserId
                 );
                 if (committedAuthentication.isPresent()) {
-                    return committedAuthentication.get();
+                    return completeAuthentication(committedAuthentication.get(), guestUserId);
                 }
             }
         }
         throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
     }
 
-    private Optional<SocialAuthenticationResult> recoverCommittedAuthentication(
+    private Optional<SocialLoginUser> recoverCommittedAuthentication(
             TransactionTemplate transactionTemplate,
             SocialUserProfile profile,
             Long guestUserId
     ) {
         try {
-            Optional<SocialAuthenticationResult> result = transactionTemplate.execute(
+            Optional<SocialLoginUser> result = transactionTemplate.execute(
                     status -> loginInTransaction(profile, guestUserId)
-                            .map(user -> completeAuthentication(user, guestUserId))
             );
             return result == null ? Optional.empty() : result;
         } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
@@ -196,11 +194,12 @@ public class SocialAccountService {
     private SocialAuthenticationResult completeAuthentication(SocialLoginUser user, Long guestUserId) {
         SocialAuthenticationResult result = new SocialAuthenticationResult(
                 user,
-                tokenSessionService.issueSession(user.userId(), user.role())
+                tokenSessionService.issueSessionReplacingGuest(
+                        user.userId(),
+                        user.role(),
+                        guestUserId
+                )
         );
-        if (!guestUserId.equals(user.userId())) {
-            tokenSessionService.revokeSessionWithRollback(guestUserId);
-        }
         return result;
     }
 

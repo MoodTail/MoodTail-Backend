@@ -36,6 +36,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
@@ -43,6 +44,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -54,6 +57,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -69,6 +73,9 @@ class AuthServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @Mock
     private JwtProvider jwtProvider;
@@ -114,8 +121,10 @@ class AuthServiceImplTest {
         lenient().when(googleOAuthClient.provider()).thenReturn(SocialProvider.GOOGLE);
         lenient().when(googleOAuthClient.isEnabled()).thenReturn(true);
         lenient().when(redisRepository.findRefreshJtiByUserId(any())).thenReturn(Optional.empty());
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         tokenSessionService = new TokenSessionService(
                 userRepository,
+                transactionManager,
                 jwtProvider,
                 redisRepository,
                 authRequestOriginValidator,
@@ -397,6 +406,10 @@ class AuthServiceImplTest {
 
         assertThat(result.accessToken()).isEqualTo("new-access-token");
         assertRefreshCookie(response, "new-refresh-token", 1_209_600);
+        InOrder order = inOrder(redisRepository, transactionManager);
+        order.verify(redisRepository).findRefreshJtiByUserId(1L);
+        order.verify(transactionManager).commit(any());
+        order.verify(redisRepository).replaceRefreshJti(1L, "old-refresh-jti", "new-refresh-jti");
     }
 
     @Test

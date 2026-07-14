@@ -15,12 +15,14 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
-import java.util.Optional;
-
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -29,6 +31,9 @@ class TokenSessionServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     @Mock
     private JwtProvider jwtProvider;
@@ -45,68 +50,64 @@ class TokenSessionServiceTest {
     void setUp() {
         service = new TokenSessionService(
                 userRepository,
+                transactionManager,
                 jwtProvider,
                 redisRepository,
                 authRequestOriginValidator,
                 AuthPropertiesFixtures.defaults()
         );
         ReflectionTestUtils.setField(service, "jwtRefreshExpirationMillis", 1_209_600_000L);
-        TransactionSynchronizationManager.setActualTransactionActive(true);
-        TransactionSynchronizationManager.initSynchronization();
     }
 
     @AfterEach
     void tearDown() {
-        if (TransactionSynchronizationManager.isSynchronizationActive()) {
-            TransactionSynchronizationManager.clearSynchronization();
-        }
         TransactionSynchronizationManager.setActualTransactionActive(false);
     }
 
     @Test
-    void rollbackRestoresPreviousSessionOnlyWhenIssuedSessionStillOwnsTheKey() {
-        when(redisRepository.findRefreshJtiByUserId(7L)).thenReturn(Optional.of("previous-jti"));
+    void sessionIssueStoresRefreshJtiOutsideDatabaseTransaction() {
         when(jwtProvider.generateToken(7L, UserRole.USER))
                 .thenReturn(new TokenInfo("access", "refresh"));
         when(jwtProvider.getRefreshTokenClaims("refresh")).thenReturn(refreshClaims("issued-jti"));
 
         service.issueSession(7L, UserRole.USER);
-        completeRollback();
 
-        verify(redisRepository).replaceRefreshJti(7L, "issued-jti", "previous-jti");
+        verify(redisRepository).saveRefreshJti(7L, "issued-jti");
     }
 
     @Test
-    void rollbackDeletesNewSessionOnlyWhenThereWasNoPreviousSession() {
-        when(redisRepository.findRefreshJtiByUserId(7L)).thenReturn(Optional.empty());
+    void guestRevocationFailureDoesNotDiscardIssuedTargetSession() {
         when(jwtProvider.generateToken(7L, UserRole.USER))
                 .thenReturn(new TokenInfo("access", "refresh"));
         when(jwtProvider.getRefreshTokenClaims("refresh")).thenReturn(refreshClaims("issued-jti"));
+        doThrow(new RedisConnectionFailureException("redis unavailable"))
+                .when(redisRepository).deleteRefreshJti(2L);
 
-        service.issueSession(7L, UserRole.USER);
-        completeRollback();
+        service.issueSessionReplacingGuest(7L, UserRole.USER, 2L);
 
-        verify(redisRepository).deleteRefreshJtiIfMatches(7L, "issued-jti");
+        verify(redisRepository).saveRefreshJti(7L, "issued-jti");
+        verify(redisRepository, never()).deleteRefreshJti(7L);
     }
 
     @Test
-    void rollbackDoesNotOverwriteANewerSessionWhenRestoringARevokedSession() {
-        when(redisRepository.findRefreshJtiByUserId(7L)).thenReturn(Optional.of("revoked-jti"));
+    void sessionIssueIsRejectedWhileDatabaseTransactionIsActive() {
+        TransactionSynchronizationManager.setActualTransactionActive(true);
 
-        service.revokeSessionWithRollback(7L);
-        completeRollback();
+        assertThatThrownBy(() -> service.issueSession(7L, UserRole.USER))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("after the database transaction commits");
+    }
 
-        verify(redisRepository).saveRefreshJtiIfAbsent(7L, "revoked-jti");
+    @Test
+    void sessionRevocationIsRejectedWhileDatabaseTransactionIsActive() {
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+
+        assertThatThrownBy(() -> service.revokeSession(7L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("after the database transaction commits");
     }
 
     private Claims refreshClaims(String jti) {
         return Jwts.claims().setId(jti);
-    }
-
-    private void completeRollback() {
-        TransactionSynchronizationManager.getSynchronizations()
-                .forEach(synchronization -> synchronization.afterCompletion(
-                        TransactionSynchronization.STATUS_ROLLED_BACK
-                ));
     }
 }
