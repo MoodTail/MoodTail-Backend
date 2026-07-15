@@ -1,0 +1,211 @@
+package com.example.moodtail.domain.history.controller;
+
+import com.example.moodtail.domain.history.dto.request.HistoryUpdateRequest;
+import com.example.moodtail.domain.history.dto.response.HistoryCalendarResponse;
+import com.example.moodtail.domain.history.dto.response.HistoryCreateResponse;
+import com.example.moodtail.domain.history.dto.response.HistoryDateResponse;
+import com.example.moodtail.domain.history.dto.response.HistoryDetailResponse;
+import com.example.moodtail.domain.history.dto.response.HistoryPhotoResponse;
+import com.example.moodtail.domain.history.dto.response.HistoryTestResultDetailResponse;
+import com.example.moodtail.domain.history.dto.response.HistoryUpdateResponse;
+import com.example.moodtail.domain.history.service.HistoryPhotoService;
+import com.example.moodtail.domain.history.service.HistoryService;
+import com.example.moodtail.domain.image.entity.ImageSourceType;
+import com.example.moodtail.domain.user.entity.UserRole;
+import com.example.moodtail.global.common.exception.ExceptionAdvice;
+import com.example.moodtail.global.config.security.auth.PrincipalDetails;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.MethodParameter;
+import org.springframework.http.MediaType;
+import org.springframework.http.converter.StringHttpMessageConverter;
+import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.request.NativeWebRequest;
+import org.springframework.web.method.support.HandlerMethodArgumentResolver;
+import org.springframework.web.method.support.ModelAndViewContainer;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@ExtendWith(MockitoExtension.class)
+class HistoryControllerTest {
+
+    private static final Long USER_ID = 1L;
+
+    @Mock
+    private HistoryService historyService;
+    @Mock
+    private HistoryPhotoService historyPhotoService;
+
+    private MockMvc mockMvc;
+
+    @BeforeEach
+    void setUp() {
+        PrincipalDetails principal = new PrincipalDetails(USER_ID, UserRole.USER);
+        MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
+        converter.getObjectMapper().findAndRegisterModules();
+        converter.getObjectMapper().disable(
+                com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS
+        );
+        mockMvc = MockMvcBuilders.standaloneSetup(new HistoryController(historyService, historyPhotoService))
+                .setControllerAdvice(new ExceptionAdvice())
+                .setCustomArgumentResolvers(new FixedPrincipalResolver(principal))
+                .setMessageConverters(new StringHttpMessageConverter(StandardCharsets.UTF_8), converter)
+                .build();
+    }
+
+    @Test
+    void routesHistoryQueriesUsingSpecificationPaths() throws Exception {
+        when(historyService.getCalendar(USER_ID, 2026, 7)).thenReturn(new HistoryCalendarResponse(
+                2026, 7, 0, 0, 5, false, List.of(), List.of()
+        ));
+        when(historyService.getByDate(USER_ID, "2026-07-05")).thenReturn(new HistoryDateResponse(
+                LocalDate.of(2026, 7, 5), null, null, List.of()
+        ));
+        when(historyService.getDetail(USER_ID, 31L)).thenReturn(new HistoryDetailResponse(
+                31L, 10L, "모히토", null, LocalDate.of(2026, 7, 5)
+        ));
+        when(historyService.getTestResultDetail(USER_ID, 10L)).thenReturn(
+                new HistoryTestResultDetailResponse(
+                        10L,
+                        LocalDate.of(2026, 7, 5),
+                        null,
+                        null,
+                        List.of()
+                )
+        );
+
+        mockMvc.perform(get("/api/v1/history/calendar").param("year", "2026").param("month", "7"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.reportRequiredTestCount").value(5));
+        mockMvc.perform(get("/api/v1/history/dates/2026-07-05"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.date").value("2026-07-05"));
+        mockMvc.perform(get("/api/v1/history/drinking-records/31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.recordId").value(31));
+        mockMvc.perform(get("/api/v1/history/test-results/10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.resultId").value(10));
+    }
+
+    @Test
+    void routesCreateUpdateAndDeleteUsingSpecificationPaths() throws Exception {
+        when(historyService.create(eq(USER_ID), any())).thenReturn(
+                new HistoryCreateResponse(31L, LocalDate.of(2026, 7, 5))
+        );
+        when(historyService.update(eq(USER_ID), eq(31L), any())).thenReturn(
+                new HistoryUpdateResponse(31L)
+        );
+
+        mockMvc.perform(post("/api/v1/history/drinking-records")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cocktailId": 10,
+                                  "recordDate": "2026-07-05"
+                                }
+                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.recordId").value(31));
+        mockMvc.perform(patch("/api/v1/history/drinking-records/31")
+                        .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"cocktailId\":11}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.recordId").value(31));
+        mockMvc.perform(delete("/api/v1/history/drinking-records/31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("COMMON200"));
+
+        ArgumentCaptor<HistoryUpdateRequest> captor = ArgumentCaptor.forClass(HistoryUpdateRequest.class);
+        verify(historyService).update(eq(USER_ID), eq(31L), captor.capture());
+        assertThat(captor.getValue().cocktailId()).isEqualTo(11L);
+        assertThat(captor.getValue().recordDate()).isNull();
+    }
+
+    @Test
+    void routesPhotoAddAndDeleteUsingSpecificationPaths() throws Exception {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "history.jpg",
+                "image/jpeg",
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
+        );
+        MockMultipartFile sourceType = new MockMultipartFile(
+                "sourceType",
+                "",
+                "text/plain",
+                "CAMERA".getBytes(StandardCharsets.UTF_8)
+        );
+        when(historyPhotoService.add(eq(USER_ID), eq("2026-07-05"), any(), eq("CAMERA"))).thenReturn(
+                new HistoryPhotoResponse(
+                        3L,
+                        LocalDate.of(2026, 7, 5),
+                        ImageSourceType.CAMERA,
+                        "https://cdn.example/photo.jpg"
+                )
+        );
+        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+                        .file(image)
+                        .file(sourceType))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.recordDate").value("2026-07-05"))
+                .andExpect(jsonPath("$.result.sourceType").value("CAMERA"));
+        mockMvc.perform(delete("/api/v1/history/dates/2026-07-05/photos/3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value("COMMON200"));
+    }
+
+    @Test
+    void rejectsInvalidCreateRequestBeforeCallingService() throws Exception {
+        mockMvc.perform(post("/api/v1/history/drinking-records")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"cocktailId\":0}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    private static class FixedPrincipalResolver implements HandlerMethodArgumentResolver {
+
+        private final PrincipalDetails principal;
+
+        private FixedPrincipalResolver(PrincipalDetails principal) {
+            this.principal = principal;
+        }
+
+        @Override
+        public boolean supportsParameter(MethodParameter parameter) {
+            return parameter.getParameterType() == PrincipalDetails.class;
+        }
+
+        @Override
+        public Object resolveArgument(
+                MethodParameter parameter,
+                ModelAndViewContainer mavContainer,
+                NativeWebRequest webRequest,
+                org.springframework.web.bind.support.WebDataBinderFactory binderFactory
+        ) {
+            return principal;
+        }
+    }
+}
