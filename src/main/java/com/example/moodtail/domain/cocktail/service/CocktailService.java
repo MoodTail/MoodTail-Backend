@@ -16,6 +16,7 @@ import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.entity.UserStatus;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -76,6 +77,7 @@ public class CocktailService {
                 .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_TYPE_NOT_FOUND));
 
         String characterImageUrl = getImageUrl(moodType.getCharacterImage());
+        int typePercent = calculateRepresentativeTypePercent(typeId);
 
         MoodType bestMatch = compatibilityRepository.findByMoodTypeAndCompatibilityType(moodType, CompatibilityType.BEST)
                 .map(MoodTypeCompatibility::getTargetMoodType)
@@ -93,8 +95,8 @@ public class CocktailService {
                         .typeCode(moodType.getCode())
                         .name(moodType.getName())
                         .description(moodType.getDescription())
-                        .imageUrl(characterImageUrl) // todo S3 연결 전 하드코딩
-                        .typePercent(68)      // todo 기능 구현 전 임시 하드코딩
+                        .imageUrl(characterImageUrl)
+                        .typePercent(typePercent)
                         .build())
                 .typeFigures(MoodTypeResponse.TypeFiguresDto.builder()
                         .alcoholIntensity(moodType.getAlcoholIntensity().multiply(new BigDecimal("20")).intValue())
@@ -120,6 +122,23 @@ public class CocktailService {
                                 .build())
                         .toList())
                 .build();
+    }
+
+    private int calculateRepresentativeTypePercent(Long moodTypeId) {
+        long totalUserCount =
+                userRepository.countByStatusAndDeletedAtIsNull(UserStatus.ACTIVE);
+
+        if (totalUserCount == 0) {
+            return 0;
+        }
+
+        long representativeTypeUserCount =
+                userRepository
+                        .countByRepresentativeMoodType_IdAndStatusAndDeletedAtIsNull(moodTypeId, UserStatus.ACTIVE);
+
+        return (int) Math.round(
+                representativeTypeUserCount * 100.0 / totalUserCount
+        );
     }
 
     @Transactional(readOnly = true)
