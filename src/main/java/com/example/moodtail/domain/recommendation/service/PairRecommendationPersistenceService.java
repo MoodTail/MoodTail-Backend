@@ -26,8 +26,6 @@ import static com.example.moodtail.global.common.exception.code.status.Recommend
 @Service
 @RequiredArgsConstructor
 public class PairRecommendationPersistenceService {
-    private static final int REQUIRED_RECOMMENDATION_COUNT = 4;
-
     private final CocktailRepository cocktailRepository;
     private final RecommendationItemRepository recommendationItemRepository;
     private final RecommendationSessionRepository recommendationSessionRepository;
@@ -39,7 +37,7 @@ public class PairRecommendationPersistenceService {
             MoodTestResult partnerMoodTestResult,
             List<RecommendationItemCommand> commands
     ){
-        if (commands.size() != REQUIRED_RECOMMENDATION_COUNT) {
+        if (commands.isEmpty()) {
             throw new RestApiException(RECOMMENDATION_UNAVAILABLE);
         }
 
