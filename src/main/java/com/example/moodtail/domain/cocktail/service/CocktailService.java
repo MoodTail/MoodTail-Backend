@@ -7,6 +7,8 @@ import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
 import com.example.moodtail.domain.cocktail.entity.CocktailFavorite;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
+import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
+import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
@@ -30,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -42,6 +45,8 @@ public class CocktailService {
     private final CocktailRepository cocktailRepository;
     private final CocktailFavoriteRepository cocktailFavoriteRepository;
     private final UserRepository userRepository;
+    private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
+    private final UserUnlockedCocktailRepository userUnlockedCocktailRepository;
 
     @Transactional(readOnly = true)
     public CocktailListResponse getCocktails(
@@ -72,57 +77,165 @@ public class CocktailService {
     }
 
     @Transactional(readOnly = true)
-    public MoodTypeResponse getMoodType(Long typeId) {
-        MoodType moodType = moodTypeRepository.findById(typeId)
+    public MoodTypeResponse getMoodType(
+            Long moodTypeId,
+            PrincipalDetails principalDetails
+    ) {
+        Long userId = principalDetails.getUserId();
+
+        MoodType moodType = moodTypeRepository.findDetailById(moodTypeId)
                 .orElseThrow(() -> new RestApiException(CocktailErrorStatus.COCKTAIL_TYPE_NOT_FOUND));
 
-        String characterImageUrl = getImageUrl(moodType.getCharacterImage());
-        int typePercent = calculateRepresentativeTypePercent(typeId);
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
 
-        MoodType bestMatch = compatibilityRepository.findByMoodTypeAndCompatibilityType(moodType, CompatibilityType.BEST)
+        boolean unlocked =
+                userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(userId, moodTypeId);
+
+        boolean representative =
+                user.getRepresentativeMoodType() != null
+                        && Objects.equals(
+                        user.getRepresentativeMoodType().getId(),
+                        moodTypeId
+                );
+
+        boolean canSetRepresentative = !user.isGuest() && unlocked && !representative;
+
+        int typePercent = calculateRepresentativeTypePercent(moodTypeId);
+
+        List<MoodTypeCompatibility> compatibilityList =
+                compatibilityRepository.findAllByMoodTypeId(moodTypeId);
+
+        MoodType bestMatch = compatibilityList.stream()
+                .filter(compatibility ->
+                        compatibility.getCompatibilityType()
+                                == CompatibilityType.BEST
+                )
                 .map(MoodTypeCompatibility::getTargetMoodType)
+                .findFirst()
                 .orElse(null);
 
-        MoodType worstMatch = compatibilityRepository.findByMoodTypeAndCompatibilityType(moodType, CompatibilityType.WORST)
+        MoodType worstMatch = compatibilityList.stream()
+                .filter(compatibility ->
+                        compatibility.getCompatibilityType()
+                                == CompatibilityType.WORST
+                )
                 .map(MoodTypeCompatibility::getTargetMoodType)
+                .findFirst()
                 .orElse(null);
 
-        List<Cocktail> cocktails = cocktailRepository.findByMoodTypeId(typeId);
+        List<Cocktail> cocktails = cocktailRepository.findByMoodTypeId(moodTypeId);
+
+        Set<Long> unlockedCocktailIds =
+                userUnlockedCocktailRepository
+                        .findUnlockedCocktailIds(
+                                userId,
+                                moodTypeId
+                        );
+
+        int totalCocktailCount = cocktails.size();
+        int unlockedCocktailCount = unlockedCocktailIds.size();
+
+        int collectionRate = calculateCollectionRate(
+                unlockedCocktailCount,
+                totalCocktailCount
+        );
+
+        List<MoodTypeResponse.CocktailSummaryDto> cocktailResponses =
+                cocktails.stream()
+                        .map(cocktail ->
+                                MoodTypeResponse.CocktailSummaryDto.builder()
+                                        .cocktailId(cocktail.getId())
+                                        .nameKo(cocktail.getNameKo())
+                                        .nameEn(cocktail.getNameEn())
+                                        .shortDescription(
+                                                cocktail.getShortDescription()
+                                        )
+                                        .imageUrl(
+                                                getImageUrl(cocktail.getImage())
+                                        )
+                                        .unlocked(
+                                                unlockedCocktailIds.contains(
+                                                        cocktail.getId()
+                                                )
+                                        )
+                                        .build()
+                        )
+                        .toList();
 
         return MoodTypeResponse.builder()
-                .moodType(MoodTypeResponse.MoodTypeDto.builder()
-                        .typeId(moodType.getId())
-                        .typeCode(moodType.getCode())
-                        .name(moodType.getName())
-                        .description(moodType.getDescription())
-                        .imageUrl(characterImageUrl)
-                        .typePercent(typePercent)
-                        .build())
-                .typeFigures(MoodTypeResponse.TypeFiguresDto.builder()
-                        .alcoholIntensity(moodType.getAlcoholIntensity().multiply(new BigDecimal("20")).intValue())
-                        .sweetness(moodType.getSweetness().multiply(new BigDecimal("20")).intValue())
-                        .sourness(moodType.getSourness().multiply(new BigDecimal("20")).intValue())
-                        .bitterness(moodType.getBitterness().multiply(new BigDecimal("20")).intValue())
-                        .refreshing(moodType.getRefreshing().multiply(new BigDecimal("20")).intValue())
-                        .build())
-                .bestMatchType(bestMatch != null ? MoodTypeResponse.MatchTypeDto.builder()
-                        .typeId(bestMatch.getId())
-                        .name(bestMatch.getName())
-                        .build() : null)
-                .worstMatchType(worstMatch != null ? MoodTypeResponse.MatchTypeDto.builder()
-                        .typeId(worstMatch.getId())
-                        .name(worstMatch.getName())
-                        .build() : null)
-                .cocktails(cocktails.stream()
-                        .map(c -> MoodTypeResponse.CocktailSummaryDto.builder()
-                                .cocktailId(c.getId())
-                                .name(c.getNameKo())
-                                .shortDescription(c.getShortDescription())
-                                .imageUrl(getImageUrl(c.getImage()))
-                                .build())
-                        .toList())
+                .moodTypeId(moodType.getId())
+                .typeCode(moodType.getCode())
+                .name(moodType.getName())
+                .shortDescription(moodType.getShortDescription())
+                .description(moodType.getDescription())
+                .catchphrase(moodType.getCharacterQuote())
+                .characterImageUrl(
+                        getImageUrl(moodType.getCharacterImage())
+                )
+                .unlocked(unlocked)
+                .representative(representative)
+                .canSetRepresentative(canSetRepresentative)
+                .typePercent(typePercent)
+                .collectionRate(collectionRate)
+                .typeFigures(
+                        MoodTypeResponse.TypeFiguresDto.builder()
+                                .alcoholIntensity(convertFigure(moodType.getAlcoholIntensity()))
+                                .sweetness(convertFigure(moodType.getSweetness()))
+                                .sourness(convertFigure(moodType.getSourness()))
+                                .refreshing(convertFigure(moodType.getRefreshing()))
+                                .bitterness(convertFigure(moodType.getBitterness()))
+                                .build()
+                )
+                .compatibilities(
+                        MoodTypeResponse.CompatibilitiesDto.builder()
+                                .best(toCompatibilityResponse(bestMatch))
+                                .worst(toCompatibilityResponse(worstMatch))
+                                .build()
+                )
+                .cocktails(cocktailResponses)
+                .totalCocktailCount(totalCocktailCount)
+                .unlockedCocktailCount(unlockedCocktailCount)
                 .build();
     }
+
+    private int convertFigure(BigDecimal value) {
+        return value.multiply(
+                new BigDecimal("20")
+        ).intValue();
+    }
+
+    private int calculateCollectionRate(
+            int unlockedCocktailCount,
+            int totalCocktailCount
+    ) {
+        if (totalCocktailCount == 0) {
+            return 0;
+        }
+
+        return (int) (
+                unlockedCocktailCount * 100L
+                        / totalCocktailCount
+        );
+    }
+
+    private MoodTypeResponse.CompatibilityDto toCompatibilityResponse(
+            MoodType moodType
+    ) {
+        if (moodType == null) {
+            return null;
+        }
+
+        return MoodTypeResponse.CompatibilityDto.builder()
+                .moodTypeId(moodType.getId())
+                .typeCode(moodType.getCode())
+                .name(moodType.getName())
+                .characterImageUrl(
+                        getImageUrl(moodType.getCharacterImage())
+                )
+                .build();
+    }
+
 
     private int calculateRepresentativeTypePercent(Long moodTypeId) {
         long totalUserCount =
