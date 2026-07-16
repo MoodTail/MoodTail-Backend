@@ -1,7 +1,7 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
-import com.example.moodtail.domain.auth.model.PasswordResetAccount;
+import com.example.moodtail.domain.auth.service.LocalAccountService.PasswordResetAccount;
 import com.example.moodtail.global.auth.mail.PasswordResetMailSender;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -38,6 +38,7 @@ class PasswordResetServiceTest {
     @Mock PasswordResetMailSender mailSender;
     @Mock RedisRepository redisRepository;
     @Mock IdentityLockManager identityLockManager;
+    @Mock TokenSessionService tokenSessionService;
 
     private PasswordResetService service;
 
@@ -48,7 +49,8 @@ class PasswordResetServiceTest {
                 mailSender,
                 redisRepository,
                 identityLockManager,
-                LocalAuthPropertiesFixtures.enabled()
+                LocalAuthPropertiesFixtures.enabled(),
+                tokenSessionService
         );
         lenient().when(localAccountService.normalizeEmail(anyString()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -99,6 +101,8 @@ class PasswordResetServiceTest {
     void passwordChangeUsesTokenOnceAndDelegatesToLocalAccountService() {
         when(redisRepository.findPasswordResetToken(anyString()))
                 .thenReturn(Optional.of(new RedisRepository.PasswordResetTokenSession(3L, 2)));
+        when(localAccountService.changePassword(3L, 2, "new-password", "new-password"))
+                .thenReturn(9L);
 
         service.changePassword("reset-token", "new-password", "new-password");
 
@@ -106,6 +110,7 @@ class PasswordResetServiceTest {
         verify(redisRepository).findPasswordResetToken(tokenKeyCaptor.capture());
         assertThat(tokenKeyCaptor.getValue()).hasSize(64).isNotEqualTo("reset-token");
         verify(localAccountService).changePassword(3L, 2, "new-password", "new-password");
+        verify(tokenSessionService).revokeSession(9L);
         verify(redisRepository).deletePasswordResetToken(tokenKeyCaptor.getValue());
     }
 

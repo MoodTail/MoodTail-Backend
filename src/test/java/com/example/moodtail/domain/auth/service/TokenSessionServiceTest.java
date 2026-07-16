@@ -1,8 +1,8 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
+import com.example.moodtail.global.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
@@ -105,6 +105,18 @@ class TokenSessionServiceTest {
         assertThatThrownBy(() -> service.revokeSession(7L))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("after the database transaction commits");
+    }
+
+    @Test
+    void withdrawnUserStateCleanupContinuesWhenOneRedisKeyFails() {
+        doThrow(new RedisConnectionFailureException("redis unavailable"))
+                .when(redisRepository).deleteRefreshJti(7L);
+
+        service.clearWithdrawnUserState(7L);
+
+        verify(redisRepository).deleteRefreshJti(7L);
+        verify(redisRepository).deleteUserInTime(7L);
+        verify(redisRepository).deleteUserTrigger(7L);
     }
 
     private Claims refreshClaims(String jti) {

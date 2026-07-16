@@ -1,7 +1,7 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
-import com.example.moodtail.domain.auth.model.OAuthState;
+import com.example.moodtail.domain.auth.service.OAuthStateService.ConsumedOAuthState;
+import com.example.moodtail.domain.auth.service.OAuthStateService.OAuthState;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.domain.user.repository.UserRepository;

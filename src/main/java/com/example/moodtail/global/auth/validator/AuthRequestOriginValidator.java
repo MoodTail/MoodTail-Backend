@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.auth.validator;
+package com.example.moodtail.global.auth.validator;
 
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;

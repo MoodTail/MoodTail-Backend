@@ -1,9 +1,9 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.entity.SocialAccount;
-import com.example.moodtail.domain.auth.model.Consent;
-import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
+import com.example.moodtail.domain.auth.service.SocialAccountService.SocialLoginUser;
+import com.example.moodtail.domain.auth.service.TermAgreementService.Consent;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.term.entity.TermType;
 import com.example.moodtail.domain.term.repository.TermRepository;
@@ -15,13 +15,11 @@ import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.common.exception.RestApiException;
-import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import com.example.moodtail.global.lock.IdentityLockManager;
 import com.example.moodtail.support.auth.AuthPropertiesFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -42,7 +40,6 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -72,9 +69,6 @@ class SocialAccountServiceTest {
     @Mock
     private GuestDataMergeService guestDataMergeService;
 
-    @Mock
-    private TokenSessionService tokenSessionService;
-
     private SocialAccountService service;
 
     @BeforeEach
@@ -86,16 +80,13 @@ class SocialAccountServiceTest {
                 identityLockManager,
                 guestDataMergeService,
                 new TermAgreementService(termRepository, userTermAgreementRepository),
-                AuthPropertiesFixtures.defaults(),
-                tokenSessionService
+                AuthPropertiesFixtures.defaults()
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
         lenient().when(identityLockManager.executeForSocialLogin(any(), anyString(), any()))
                 .thenAnswer(invocation -> get(invocation.getArgument(2)));
         lenient().when(identityLockManager.executeForGuestUserId(anyLong(), any()))
                 .thenAnswer(invocation -> get(invocation.getArgument(1)));
-        lenient().when(tokenSessionService.issueSessionReplacingGuest(anyLong(), any(), anyLong()))
-                .thenReturn(new TokenInfo("access", "refresh"));
     }
 
     @Test
@@ -115,14 +106,12 @@ class SocialAccountServiceTest {
                 profile,
                 2L,
                 List.of(new Consent(1L, true))
-        ).user();
+        );
 
         assertThat(result.userId()).isEqualTo(2L);
         assertThat(result.role()).isEqualTo(UserRole.USER);
         assertThat(result.socialEmail()).isNull();
-        InOrder order = inOrder(transactionManager, tokenSessionService);
-        order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
+        verify(transactionManager).commit(any());
         assertThat(result.isNewUser()).isTrue();
         assertThat(guest.getGuestUuid()).isNull();
         assertThat(guest.getRole()).isEqualTo(UserRole.USER);
@@ -162,24 +151,17 @@ class SocialAccountServiceTest {
                         identityLockHeld,
                         invocation.getArgument(2)
                 ));
-        when(tokenSessionService.issueSessionReplacingGuest(99L, UserRole.USER, 2L))
-                .thenAnswer(invocation -> {
-                    assertThat(identityLockHeld.get()).isFalse();
-                    return new TokenInfo("access", "refresh");
-                });
-
         SocialLoginUser result = service.authenticate(
                 profile,
                 2L,
                 List.of()
-        ).user();
+        );
 
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();
+        assertThat(identityLockHeld.get()).isFalse();
         verify(guestDataMergeService).mergeIntoExistingUser(2L, 99L);
-        InOrder order = inOrder(transactionManager, tokenSessionService);
-        order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
+        verify(transactionManager).commit(any());
         verify(userTermAgreementRepository, never()).saveAll(any());
     }
 
@@ -266,7 +248,7 @@ class SocialAccountServiceTest {
                 kakaoProfile(),
                 2L,
                 List.of(new Consent(1L, true))
-        ).user();
+        );
 
         assertThat(result.userId()).isEqualTo(2L);
         assertThat(result.isNewUser()).isFalse();
@@ -299,7 +281,7 @@ class SocialAccountServiceTest {
                 kakaoProfile(),
                 2L,
                 List.of(new Consent(1L, true))
-        ).user();
+        );
 
         assertThat(result.userId()).isEqualTo(2L);
         assertThat(result.isNewUser()).isFalse();
@@ -332,7 +314,7 @@ class SocialAccountServiceTest {
                 kakaoProfile(),
                 2L,
                 List.of(new Consent(1L, true))
-        ).user();
+        );
 
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();

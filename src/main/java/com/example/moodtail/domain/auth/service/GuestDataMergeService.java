@@ -54,11 +54,13 @@ public class GuestDataMergeService {
         }
 
         GuestDataMergeRepository.MergeResult result = mergeRepository.merge(guestUserId, targetUserId);
-        guestUser.delete();
+        if (result.retiredGuests() != 1) {
+            throw new RestApiException(INVALID_GUEST_SESSION);
+        }
 
         log.info(
                 "Merged guest user {} into existing user {}: moodTestResults={}, recommendationSessions={}, "
-                        + "drinkingRecords={}, inquiries={}, cocktailFavorites={}, moodTypes={}, "
+                        + "drinkingRecords={}, inquiries={}, cocktailFavorites={}, moodTypes={}, cocktails={}, "
                         + "representativeMoodTypeInherited={}",
                 guestUserId,
                 targetUserId,
@@ -68,6 +70,7 @@ public class GuestDataMergeService {
                 result.transferredInquiries(),
                 result.mergedCocktailFavorites(),
                 result.mergedMoodTypes(),
+                result.mergedCocktails(),
                 inheritedRepresentativeMoodType
         );
     }

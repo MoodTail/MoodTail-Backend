@@ -8,6 +8,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
 import com.example.moodtail.domain.auth.dto.request.TermAgreementRequest;
+import com.example.moodtail.domain.auth.dto.response.EmailAvailabilityResponse;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.auth.dto.response.OAuthStateResponse;
@@ -15,20 +16,21 @@ import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
-import com.example.moodtail.domain.auth.model.Consent;
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
-import com.example.moodtail.domain.auth.model.GuestLoginUser;
-import com.example.moodtail.domain.auth.model.LocalAuthenticationResult;
-import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
-import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.service.AuthService;
+import com.example.moodtail.domain.auth.service.GuestLoginRateLimitService;
 import com.example.moodtail.domain.auth.service.GuestUserRegistrationService;
+import com.example.moodtail.domain.auth.service.GuestUserRegistrationService.GuestLoginUser;
 import com.example.moodtail.domain.auth.service.LocalAccountService;
+import com.example.moodtail.domain.auth.service.LocalAccountService.LocalAuthUser;
 import com.example.moodtail.domain.auth.service.OAuthStateService;
+import com.example.moodtail.domain.auth.service.OAuthStateService.ConsumedOAuthState;
+import com.example.moodtail.domain.auth.service.OAuthStateService.OAuthState;
 import com.example.moodtail.domain.auth.service.PasswordResetService;
 import com.example.moodtail.domain.auth.service.SocialAccountService;
+import com.example.moodtail.domain.auth.service.SocialAccountService.SocialLoginUser;
+import com.example.moodtail.domain.auth.service.TermAgreementService.Consent;
 import com.example.moodtail.domain.auth.service.TokenSessionService;
-import com.example.moodtail.domain.auth.validator.GuestLoginRateLimiter;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.auth.client.OAuthClient;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
@@ -58,7 +60,7 @@ public class AuthServiceImpl implements AuthService {
     private final SocialAccountService socialAccountService;
     private final GuestUserRegistrationService guestUserRegistrationService;
     private final OAuthStateService oAuthStateService;
-    private final GuestLoginRateLimiter guestLoginRateLimiter;
+    private final GuestLoginRateLimitService guestLoginRateLimitService;
     private final LocalAccountService localAccountService;
     private final PasswordResetService passwordResetService;
     private final TokenSessionService tokenSessionService;
@@ -82,7 +84,7 @@ public class AuthServiceImpl implements AuthService {
             HttpServletRequest httpRequest,
             HttpServletResponse response
     ) {
-        guestLoginRateLimiter.check(request.guestUuid(), httpRequest);
+        guestLoginRateLimitService.check(request.guestUuid(), httpRequest);
         GuestLoginUser guestLoginUser = guestUserRegistrationService.findOrCreate(request.guestUuid());
         TokenInfo tokenInfo = tokenSessionService.issueAndSetCookie(
                 guestLoginUser.userId(),
@@ -90,14 +92,25 @@ public class AuthServiceImpl implements AuthService {
                 response
         );
 
-        return GuestLoginResponse.of(guestLoginUser, tokenInfo);
+        return GuestLoginResponse.of(
+                guestLoginUser.userId(),
+                guestLoginUser.guestUuid(),
+                guestLoginUser.isNewUser(),
+                tokenInfo
+        );
     }
 
     @Override
     public OAuthStateResponse createOAuthState(String providerName, Long guestUserId) {
         SocialProvider provider = parseSocialProvider(providerName);
         findEnabledOAuthClient(provider);
-        return OAuthStateResponse.from(oAuthStateService.issue(guestUserId, provider));
+        OAuthState state = oAuthStateService.issue(guestUserId, provider);
+        return new OAuthStateResponse(
+                state.value(),
+                state.codeChallenge(),
+                state.codeChallengeMethod(),
+                state.expiresInSeconds()
+        );
     }
 
     @Override
@@ -115,14 +128,17 @@ public class AuthServiceImpl implements AuthService {
         );
 
         SocialUserProfile requestedProfile = withRequestedNickname(authentication.profile(), request.nickname());
-        SocialAuthenticationResult completedLogin = socialAccountService.authenticate(
+        SocialLoginUser socialLoginUser = socialAccountService.authenticate(
                 requestedProfile,
                 authentication.guestUserId(),
                 toConsents(request.agreements())
         );
-        SocialLoginUser socialLoginUser = completedLogin.user();
-        TokenInfo tokenInfo = completedLogin.tokenInfo();
-        tokenSessionService.setRefreshTokenCookie(response, tokenInfo.refreshToken());
+        TokenInfo tokenInfo = issueSessionReplacingGuest(
+                socialLoginUser.userId(),
+                socialLoginUser.role(),
+                authentication.guestUserId(),
+                response
+        );
         return SocialLoginResponse.of(
                 socialLoginUser.userId(),
                 socialLoginUser.nickname(),
@@ -139,7 +155,7 @@ public class AuthServiceImpl implements AuthService {
             Long guestUserId,
             HttpServletResponse response
     ) {
-        LocalAuthenticationResult completed = localAccountService.signup(
+        LocalAuthUser user = localAccountService.signup(
                 request.email(),
                 request.password(),
                 request.passwordConfirm(),
@@ -147,13 +163,27 @@ public class AuthServiceImpl implements AuthService {
                 toConsents(request.agreements()),
                 guestUserId
         );
-        tokenSessionService.setRefreshTokenCookie(response, completed.tokenInfo().refreshToken());
+        TokenInfo tokenInfo = issueSessionReplacingGuest(
+                user.userId(),
+                user.role(),
+                guestUserId,
+                response
+        );
         return LocalAuthResponse.of(
-                completed.user().userId(),
-                completed.user().email(),
-                completed.user().nickname(),
+                user.userId(),
+                user.email(),
+                user.nickname(),
                 true,
-                completed.tokenInfo()
+                tokenInfo
+        );
+    }
+
+    @Override
+    public EmailAvailabilityResponse checkLocalEmailAvailability(String email) {
+        String normalizedEmail = localAccountService.normalizeEmail(email);
+        return new EmailAvailabilityResponse(
+                normalizedEmail,
+                localAccountService.isEmailAvailable(normalizedEmail)
         );
     }
 
@@ -163,18 +193,23 @@ public class AuthServiceImpl implements AuthService {
             Long guestUserId,
             HttpServletResponse response
     ) {
-        LocalAuthenticationResult completed = localAccountService.login(
+        LocalAuthUser user = localAccountService.login(
                 request.email(),
                 request.password(),
                 guestUserId
         );
-        tokenSessionService.setRefreshTokenCookie(response, completed.tokenInfo().refreshToken());
+        TokenInfo tokenInfo = issueSessionReplacingGuest(
+                user.userId(),
+                user.role(),
+                guestUserId,
+                response
+        );
         return LocalAuthResponse.of(
-                completed.user().userId(),
-                completed.user().email(),
-                completed.user().nickname(),
+                user.userId(),
+                user.email(),
+                user.nickname(),
                 false,
-                completed.tokenInfo()
+                tokenInfo
         );
     }
 
@@ -220,6 +255,17 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(HttpServletRequest request, HttpServletResponse response) {
         tokenSessionService.logout(request, response);
+    }
+
+    private TokenInfo issueSessionReplacingGuest(
+            Long userId,
+            UserRole role,
+            Long guestUserId,
+            HttpServletResponse response
+    ) {
+        TokenInfo tokenInfo = tokenSessionService.issueSessionReplacingGuest(userId, role, guestUserId);
+        tokenSessionService.setRefreshTokenCookie(response, tokenInfo.refreshToken());
+        return tokenInfo;
     }
 
     private SocialProvider parseSocialProvider(String providerName) {

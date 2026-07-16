@@ -7,6 +7,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordChangeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
+import com.example.moodtail.domain.auth.dto.response.EmailAvailabilityResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
@@ -39,6 +40,7 @@ import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -250,6 +252,20 @@ class AuthControllerTest {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON402"));
+    }
+
+    @Test
+    void localEmailAvailabilitySupportsSignupDuplicateCheck() throws Exception {
+        when(authService.checkLocalEmailAvailability("user@example.com"))
+                .thenReturn(new EmailAvailabilityResponse("user@example.com", true));
+
+        mockMvc.perform(get("/api/v1/auth/signup/local/email-availability")
+                        .param("email", "user@example.com"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.email").value("user@example.com"))
+                .andExpect(jsonPath("$.result.available").value(true));
+
+        verify(authService).checkLocalEmailAvailability("user@example.com");
     }
 
     @Test

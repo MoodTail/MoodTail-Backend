@@ -323,8 +323,8 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/signup/local",
                 Map.of(
                         "email", "local-integration@example.com",
-                        "password", "integration-password",
-                        "passwordConfirm", "integration-password",
+                        "password", "integration-password1",
+                        "passwordConfirm", "integration-password1",
                         "nickname", "로컬통합사용자",
                         "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
                 ),
@@ -338,7 +338,7 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/login/local",
                 Map.of(
                         "email", "LOCAL-INTEGRATION@example.com",
-                        "password", "integration-password"
+                        "password", "integration-password1"
                 ),
                 loginGuestToken
         ).path("result");
@@ -364,8 +364,8 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/signup/local",
                 Map.of(
                         "email", "session-integration@example.com",
-                        "password", "integration-password",
-                        "passwordConfirm", "integration-password",
+                        "password", "integration-password1",
+                        "passwordConfirm", "integration-password1",
                         "nickname", "세션통합사용자",
                         "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
                 ),
@@ -409,8 +409,8 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/signup/local",
                 Map.of(
                         "email", "password-reset-integration@example.com",
-                        "password", "old-integration-password",
-                        "passwordConfirm", "old-integration-password",
+                        "password", "old-integration-password1",
+                        "passwordConfirm", "old-integration-password1",
                         "nickname", "비밀번호통합사용자",
                         "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
                 ),
@@ -441,8 +441,8 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/password",
                 Map.of(
                         "resetToken", resetToken,
-                        "newPassword", "new-integration-password",
-                        "newPasswordConfirm", "new-integration-password"
+                        "newPassword", "new-integration-password1",
+                        "newPasswordConfirm", "new-integration-password1"
                 ),
                 null
         );
@@ -454,7 +454,7 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/login/local",
                 Map.of(
                         "email", "password-reset-integration@example.com",
-                        "password", "old-integration-password"
+                        "password", "old-integration-password1"
                 ),
                 null
         );
@@ -465,7 +465,7 @@ class AuthFlowIntegrationTest {
                 "/api/v1/auth/login/local",
                 Map.of(
                         "email", "password-reset-integration@example.com",
-                        "password", "new-integration-password"
+                        "password", "new-integration-password1"
                 ),
                 null
         );

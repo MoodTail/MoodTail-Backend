@@ -1,6 +1,5 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.Consent;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.term.repository.TermRepository;
 import com.example.moodtail.domain.user.entity.User;
@@ -23,6 +22,9 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class TermAgreementService {
+
+    public record Consent(Long termId, boolean agreed) {
+    }
 
     private final TermRepository termRepository;
     private final UserTermAgreementRepository userTermAgreementRepository;

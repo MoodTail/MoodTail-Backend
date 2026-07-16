@@ -3,24 +3,20 @@ package com.example.moodtail.global.lock;
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.common.exception.RestApiException;
-import com.example.moodtail.global.common.exception.code.BaseCodeInterface;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.example.moodtail.global.common.exception.code.status.GlobalErrorStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.locks.LockSupport;
 import java.util.function.Supplier;
 
+import static com.example.moodtail.global.common.util.Sha256Hasher.hashToHex;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
@@ -43,48 +39,43 @@ public class IdentityLockManager {
             Supplier<T> action
     ) {
         return executeWithLock(
-                "social-login:" + provider.name().toLowerCase() + ":" + providerUserId,
-                action,
-                AuthErrorStatus.FAILED_SOCIAL_LOGIN
+                "social-login:" + provider.name().toLowerCase(Locale.ROOT) + ":" + providerUserId,
+                action
         );
     }
 
     public <T> T executeForGuestUser(String guestUuid, Supplier<T> action) {
         return executeWithLock(
                 "guest-user:" + guestUuid,
-                action,
-                GlobalErrorStatus._INTERNAL_SERVER_ERROR
+                action
         );
     }
 
     public <T> T executeForGuestUserId(Long guestUserId, Supplier<T> action) {
         return executeWithLock(
                 "guest-user-id:" + guestUserId,
-                action,
-                AuthErrorStatus.INVALID_GUEST_SESSION
+                action
         );
     }
 
     public <T> T executeForLocalEmail(String normalizedEmail, Supplier<T> action) {
         return executeWithLock(
                 "local-email:" + normalizedEmail,
-                action,
-                AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE
+                action
         );
     }
 
     public <T> T executeForPasswordResetToken(String resetToken, Supplier<T> action) {
         return executeWithLock(
                 "password-reset-token:" + resetToken,
-                action,
-                AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN
+                action
         );
     }
 
-    private <T> T executeWithLock(String identifier, Supplier<T> action, BaseCodeInterface failureStatus) {
-        String key = authProperties.redis().keyPrefix() + LOCK_KEY_PREFIX + hash(identifier);
+    private <T> T executeWithLock(String identifier, Supplier<T> action) {
+        String key = authProperties.redis().keyPrefix() + LOCK_KEY_PREFIX + hashToHex(identifier);
         String owner = UUID.randomUUID().toString();
-        acquire(key, owner, failureStatus);
+        acquire(key, owner);
 
         try {
             return action.get();
@@ -93,7 +84,7 @@ public class IdentityLockManager {
         }
     }
 
-    private void acquire(String key, String owner, BaseCodeInterface failureStatus) {
+    private void acquire(String key, String owner) {
         AuthProperties.Concurrency concurrency = authProperties.concurrency();
         long deadline = System.nanoTime() + Duration.ofMillis(concurrency.acquireTimeoutMillis()).toNanos();
 
@@ -112,20 +103,11 @@ public class IdentityLockManager {
             LockSupport.parkNanos(Duration.ofMillis(concurrency.retryIntervalMillis()).toNanos());
         }
 
-        throw new RestApiException(failureStatus);
+        throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
     }
 
     private void release(String key, String owner) {
         redisTemplate.execute(RELEASE_LOCK_SCRIPT, List.of(key), owner);
     }
 
-    private String hash(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
-        }
-    }
 }

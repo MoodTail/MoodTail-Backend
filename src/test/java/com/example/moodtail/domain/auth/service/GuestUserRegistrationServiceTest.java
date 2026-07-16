@@ -1,6 +1,6 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.GuestLoginUser;
+import com.example.moodtail.domain.auth.service.GuestUserRegistrationService.GuestLoginUser;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;

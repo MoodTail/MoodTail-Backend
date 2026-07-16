@@ -2,7 +2,6 @@ package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
-import com.example.moodtail.domain.auth.model.PasswordResetAccount;
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.auth.config.LocalAuthProperties;
 import com.example.moodtail.global.auth.mail.PasswordResetMailSender;
@@ -19,12 +18,12 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
-import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
 
+import static com.example.moodtail.global.common.util.Sha256Hasher.hashToHex;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
@@ -40,11 +39,12 @@ public class PasswordResetService {
     private final RedisRepository redisRepository;
     private final IdentityLockManager identityLockManager;
     private final LocalAuthProperties properties;
+    private final TokenSessionService tokenSessionService;
 
     public PasswordResetCodeResponse requestCode(String email, HttpServletRequest request) {
         LocalAuthProperties.PasswordReset reset = enabledPolicy();
         String normalizedEmail = localAccountService.normalizeEmail(email);
-        String emailFingerprint = sha256(normalizedEmail);
+        String emailFingerprint = hashToHex(normalizedEmail);
         enforceRequestLimits(emailFingerprint, resolveClientAddress(request), reset);
 
         localAccountService.findPasswordResetAccount(normalizedEmail).ifPresent(account -> {
@@ -80,13 +80,14 @@ public class PasswordResetService {
     public PasswordResetVerificationResponse verifyCode(String email, String code) {
         LocalAuthProperties.PasswordReset reset = enabledPolicy();
         String normalizedEmail = localAccountService.normalizeEmail(email);
+        String emailFingerprint = hashToHex(normalizedEmail);
         if (code == null || !code.matches("^[0-9]{6}$")) {
             throw new RestApiException(AuthErrorStatus.EMAIL_CODE_MISMATCH);
         }
         RedisRepository.PasswordResetTokenSession session = required(
                 "verify password-reset code",
                 () -> redisRepository.verifyPasswordResetCode(
-                        sha256(normalizedEmail),
+                        emailFingerprint,
                         codeDigest(normalizedEmail, code, reset.pepper()),
                         reset.maxVerificationAttempts()
                 )
@@ -94,10 +95,18 @@ public class PasswordResetService {
 
         String resetToken = randomToken();
         Duration tokenTtl = Duration.ofMillis(reset.tokenExpirationMillis());
-        required(
-                "save password-reset token",
-                () -> redisRepository.savePasswordResetToken(sha256(resetToken), session, tokenTtl)
-        );
+        try {
+            required(
+                    "save password-reset token",
+                    () -> redisRepository.savePasswordResetToken(hashToHex(resetToken), session, tokenTtl)
+            );
+        } catch (RuntimeException exception) {
+            bestEffort(
+                    "release password-reset cooldown after token storage failure",
+                    () -> redisRepository.deletePasswordResetCooldown(emailFingerprint)
+            );
+            throw exception;
+        }
         return new PasswordResetVerificationResponse(resetToken, tokenTtl.toSeconds());
     }
 
@@ -107,25 +116,28 @@ public class PasswordResetService {
             throw new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN);
         }
         localAccountService.validatePassword(password, passwordConfirm);
-        identityLockManager.executeForPasswordResetToken(resetToken, () -> {
-            String tokenHash = sha256(resetToken);
+        String tokenHash = hashToHex(resetToken);
+        Long userId = identityLockManager.executeForPasswordResetToken(resetToken, () -> {
             RedisRepository.PasswordResetTokenSession session = required(
                     "find password-reset token",
                     () -> redisRepository.findPasswordResetToken(tokenHash)
             ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
 
-            localAccountService.changePassword(
+            return localAccountService.changePassword(
                     session.localAccountId(),
                     session.passwordVersion(),
                     password,
                     passwordConfirm
             );
-            bestEffort(
-                    "delete used password-reset token",
-                    () -> redisRepository.deletePasswordResetToken(tokenHash)
-            );
-            return null;
         });
+        if (userId == null) {
+            throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+        }
+        tokenSessionService.revokeSession(userId);
+        required(
+                "delete used password-reset token",
+                () -> redisRepository.deletePasswordResetToken(tokenHash)
+        );
     }
 
     private void enforceRequestLimits(
@@ -137,7 +149,7 @@ public class PasswordResetService {
         boolean clientAllowed = required(
                 "acquire password-reset client rate-limit slot",
                 () -> redisRepository.acquirePasswordResetClientSlot(
-                        sha256(clientAddress),
+                        hashToHex(clientAddress),
                         clientLimit.maxAttempts(),
                         Duration.ofMillis(clientLimit.windowMillis())
                 )
@@ -205,13 +217,4 @@ public class PasswordResetService {
         }
     }
 
-    private String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(
-                    MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))
-            );
-        } catch (GeneralSecurityException e) {
-            throw new IllegalStateException("SHA-256 is unavailable", e);
-        }
-    }
 }

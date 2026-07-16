@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.auth.validator;
+package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -6,21 +6,18 @@ import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
-import java.util.HexFormat;
 import java.util.UUID;
 
+import static com.example.moodtail.global.common.util.Sha256Hasher.hashToHex;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
-@Component
+@Service
 @RequiredArgsConstructor
-public class GuestLoginRateLimiter {
+public class GuestLoginRateLimitService {
 
     private static final int MAX_CLIENT_ADDRESS_LENGTH = 128;
 
@@ -53,23 +50,13 @@ public class GuestLoginRateLimiter {
         boolean acquired = required(
                 "acquire guest login rate-limit slot",
                 () -> redisRepository.acquireGuestLoginSlot(
-                        hash(scope + ":" + identifier),
+                        hashToHex(scope + ":" + identifier),
                         rateLimit.maxAttempts(),
                         Duration.ofMillis(rateLimit.windowMillis())
                 )
         );
         if (!acquired) {
             throw new RestApiException(AuthErrorStatus.TOO_MANY_GUEST_LOGIN_REQUESTS);
-        }
-    }
-
-    private String hash(String value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(digest);
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 is not available", e);
         }
     }
 }

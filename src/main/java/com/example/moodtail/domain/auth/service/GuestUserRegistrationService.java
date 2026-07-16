@@ -1,6 +1,5 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.GuestLoginUser;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
@@ -22,6 +21,23 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class GuestUserRegistrationService {
+
+    public record GuestLoginUser(
+            Long userId,
+            String guestUuid,
+            UserRole role,
+            boolean isNewUser
+    ) {
+
+        private static GuestLoginUser from(User user, boolean isNewUser) {
+            return new GuestLoginUser(
+                    user.getId(),
+                    user.getGuestUuid(),
+                    user.getRole(),
+                    isNewUser
+            );
+        }
+    }
 
     private final UserRepository userRepository;
     private final IdentityLockManager identityLockManager;

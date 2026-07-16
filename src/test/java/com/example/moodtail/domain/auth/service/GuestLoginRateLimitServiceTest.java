@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.auth.validator;
+package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -26,7 +26,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class GuestLoginRateLimiterTest {
+class GuestLoginRateLimitServiceTest {
 
     private static final UUID GUEST_UUID = UUID.fromString("b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d");
 
@@ -41,7 +41,7 @@ class GuestLoginRateLimiterTest {
                 new AuthProperties.RateLimit(7, 30_000L),
                 new AuthProperties.RateLimit(40, 120_000L)
         ));
-        GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, properties);
+        GuestLoginRateLimitService limiter = new GuestLoginRateLimitService(redisRepository, properties);
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("10.0.0.10");
         request.addHeader("X-Forwarded-For", "203.0.113.7, 10.0.0.10");
@@ -70,7 +70,7 @@ class GuestLoginRateLimiterTest {
 
     @Test
     void stopsBeforeUuidCheckWhenClientLimitIsExceeded() {
-        GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, defaults());
+        GuestLoginRateLimitService limiter = new GuestLoginRateLimitService(redisRepository, defaults());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("203.0.113.7");
         when(redisRepository.acquireGuestLoginSlot(anyString(), anyInt(), any())).thenReturn(false);
@@ -88,7 +88,7 @@ class GuestLoginRateLimiterTest {
 
     @Test
     void redisFailureFailsClosedWithServiceUnavailable() {
-        GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, defaults());
+        GuestLoginRateLimitService limiter = new GuestLoginRateLimitService(redisRepository, defaults());
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setRemoteAddr("203.0.113.7");
         when(redisRepository.acquireGuestLoginSlot(anyString(), anyInt(), any()))

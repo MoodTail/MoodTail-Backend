@@ -9,6 +9,7 @@ import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.auth.validator.PkceCodeVerifierValidator;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -165,6 +166,48 @@ public class KakaoOAuthClient implements OAuthClient {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
         return redirectUri;
+    }
+
+    private record KakaoTokenResponse(
+            @JsonProperty("access_token") String accessToken
+    ) {
+    }
+
+    record KakaoUserInfoResponse(
+            Long id,
+            @JsonProperty("kakao_account") KakaoAccount kakaoAccount
+    ) {
+
+        String providerUserId() {
+            return id == null ? null : String.valueOf(id);
+        }
+
+        String verifiedEmail() {
+            if (kakaoAccount == null
+                    || !Boolean.TRUE.equals(kakaoAccount.emailValid())
+                    || !Boolean.TRUE.equals(kakaoAccount.emailVerified())) {
+                return null;
+            }
+            return kakaoAccount.email();
+        }
+
+        String nickname() {
+            if (kakaoAccount == null || kakaoAccount.profile() == null) {
+                return null;
+            }
+            return kakaoAccount.profile().nickname();
+        }
+    }
+
+    record KakaoAccount(
+            String email,
+            @JsonProperty("is_email_valid") Boolean emailValid,
+            @JsonProperty("is_email_verified") Boolean emailVerified,
+            KakaoProfile profile
+    ) {
+    }
+
+    record KakaoProfile(String nickname) {
     }
 
 }

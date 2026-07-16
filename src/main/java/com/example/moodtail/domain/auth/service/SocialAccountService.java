@@ -1,14 +1,14 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.entity.SocialAccount;
-import com.example.moodtail.domain.auth.model.Consent;
-import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
-import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
+import com.example.moodtail.domain.auth.service.TermAgreementService.Consent;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.config.AuthProperties;
+import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -30,6 +30,16 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SocialAccountService {
 
+    public record SocialLoginUser(
+            Long userId,
+            UserRole role,
+            String nickname,
+            SocialProvider provider,
+            String socialEmail,
+            boolean isNewUser
+    ) {
+    }
+
     private final PlatformTransactionManager transactionManager;
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
@@ -37,9 +47,8 @@ public class SocialAccountService {
     private final GuestDataMergeService guestDataMergeService;
     private final TermAgreementService termAgreementService;
     private final AuthProperties authProperties;
-    private final TokenSessionService tokenSessionService;
 
-    public SocialAuthenticationResult authenticate(
+    public SocialLoginUser authenticate(
             SocialUserProfile profile,
             Long guestUserId,
             List<Consent> consents
@@ -50,7 +59,7 @@ public class SocialAccountService {
         if (profile == null || profile.provider() == null || !StringUtils.hasText(profile.providerUserId())) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        SocialLoginUser authenticatedUser = identityLockManager.executeForSocialLogin(
+        return identityLockManager.executeForSocialLogin(
                 profile.provider(),
                 profile.providerUserId(),
                 () -> identityLockManager.executeForGuestUserId(
@@ -58,7 +67,6 @@ public class SocialAccountService {
                         () -> authenticateWithRetry(profile, guestUserId, consents)
                 )
         );
-        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
     private SocialLoginUser authenticateWithRetry(
@@ -189,17 +197,6 @@ public class SocialAccountService {
                 socialAccount.getProvider(),
                 socialAccount.getEmail(),
                 isNewUser
-        );
-    }
-
-    private SocialAuthenticationResult completeAuthentication(SocialLoginUser user, Long guestUserId) {
-        return new SocialAuthenticationResult(
-                user,
-                tokenSessionService.issueSessionReplacingGuest(
-                        user.userId(),
-                        user.role(),
-                        guestUserId
-                )
         );
     }
 

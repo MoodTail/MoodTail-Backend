@@ -78,6 +78,11 @@ jwt:
   refreshExpiration: ${JWT_REFRESH_EXPIRATION:1209600000}
 
 auth:
+  withdrawal:
+    asset-cleanup-batch-size: ${ACCOUNT_WITHDRAWAL_ASSET_CLEANUP_BATCH_SIZE:100}
+    asset-cleanup-initial-delay-millis: ${ACCOUNT_WITHDRAWAL_ASSET_CLEANUP_INITIAL_DELAY:30000}
+    asset-cleanup-interval-millis: ${ACCOUNT_WITHDRAWAL_ASSET_CLEANUP_INTERVAL:60000}
+    asset-cleanup-retry-delay-millis: ${ACCOUNT_WITHDRAWAL_ASSET_CLEANUP_RETRY_DELAY:300000}
   refresh-cookie:
     name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
     path: ${JWT_REFRESH_COOKIE_PATH:/}

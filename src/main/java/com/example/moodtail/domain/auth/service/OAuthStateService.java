@@ -1,7 +1,5 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
-import com.example.moodtail.domain.auth.model.OAuthState;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.config.AuthProperties;
@@ -26,6 +24,17 @@ import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.req
 @Service
 @RequiredArgsConstructor
 public class OAuthStateService {
+
+    public record OAuthState(
+            String value,
+            String codeChallenge,
+            String codeChallengeMethod,
+            long expiresInSeconds
+    ) {
+    }
+
+    public record ConsumedOAuthState(Long guestUserId, String codeVerifier) {
+    }
 
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int STATE_BYTE_LENGTH = 32;

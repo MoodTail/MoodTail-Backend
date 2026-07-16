@@ -8,6 +8,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
+import com.example.moodtail.domain.auth.dto.response.EmailAvailabilityResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.auth.dto.response.OAuthStateResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
@@ -38,6 +39,8 @@ public interface AuthService {
             Long guestUserId,
             HttpServletResponse response
     );
+
+    EmailAvailabilityResponse checkLocalEmailAvailability(String email);
 
     LocalAuthResponse localLogin(
             LocalLoginRequest request,

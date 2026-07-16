@@ -1,11 +1,11 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
-import com.example.moodtail.domain.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.config.AuthProperties;
+import com.example.moodtail.global.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
@@ -96,6 +96,12 @@ public class TokenSessionService {
     public void revokeSession(Long userId) {
         requireNoActiveDatabaseTransaction("revoke authentication session");
         required("delete refresh session", () -> redisRepository.deleteRefreshJti(userId));
+    }
+
+    public void clearWithdrawnUserState(Long userId) {
+        bestEffort("delete withdrawn user refresh session", () -> redisRepository.deleteRefreshJti(userId));
+        bestEffort("delete withdrawn user activity", () -> redisRepository.deleteUserInTime(userId));
+        bestEffort("delete withdrawn user activity trigger", () -> redisRepository.deleteUserTrigger(userId));
     }
 
     public TokenResponse reissue(HttpServletRequest request, HttpServletResponse response) {

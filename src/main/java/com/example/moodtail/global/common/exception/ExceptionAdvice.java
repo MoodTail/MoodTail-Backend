@@ -36,7 +36,7 @@ public class ExceptionAdvice extends ResponseEntityExceptionHandler {
     @ExceptionHandler(Exception.class)
     public ResponseEntity<BaseResponse<String>> handleException(Exception e) {
         log.error("Unhandled exception", e);
-        return handleExceptionInternalFalse(GlobalErrorStatus._INTERNAL_SERVER_ERROR.getCode(), e.getMessage());
+        return handleExceptionInternal(GlobalErrorStatus._INTERNAL_SERVER_ERROR.getCode());
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -112,12 +112,4 @@ public class ExceptionAdvice extends ResponseEntityExceptionHandler {
                 .body(BaseResponse.onFailure(errorCode.getCode(), errorCode.getMessage(), errorArgs));
     }
 
-    private ResponseEntity<BaseResponse<String>> handleExceptionInternalFalse(
-            BaseCodeDto errorCode,
-            String errorPoint
-    ) {
-        return ResponseEntity
-                .status(errorCode.getHttpStatus().value())
-                .body(BaseResponse.onFailure(errorCode.getCode(), errorCode.getMessage(), errorPoint));
-    }
 }

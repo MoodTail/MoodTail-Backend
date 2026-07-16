@@ -4,6 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.util.UUID;
+
 @Repository
 @RequiredArgsConstructor
 public class GuestDataMergeRepository {
@@ -72,6 +74,27 @@ public class GuestDataMergeRepository {
              where user_id = ?
             """;
 
+    private static final String MERGE_COCKTAIL_UNLOCKS_SQL = """
+            insert into user_unlocked_cocktails (user_id, cocktail_id, unlocked_at)
+            select ?, guest_unlock.cocktail_id, guest_unlock.unlocked_at
+              from user_unlocked_cocktails guest_unlock
+             where guest_unlock.user_id = ?
+            on duplicate key update
+                unlocked_at = least(user_unlocked_cocktails.unlocked_at, values(unlocked_at))
+            """;
+
+    private static final String DELETE_GUEST_COCKTAIL_UNLOCKS_SQL = """
+            delete from user_unlocked_cocktails where user_id = ?
+            """;
+
+    private static final String RETIRE_GUEST_IDENTITY_SQL = """
+            update users
+               set guest_uuid = ?, deleted_at = now(), updated_at = now()
+             where id = ?
+               and role = 'GUEST'
+               and deleted_at is null
+            """;
+
     private final JdbcTemplate jdbcTemplate;
 
     public MergeResult merge(Long guestUserId, Long targetUserId) {
@@ -88,11 +111,14 @@ public class GuestDataMergeRepository {
                 targetUserId,
                 targetUserId
         );
-        int transferredDrinkingRecords = jdbcTemplate.update(
-                TRANSFER_DRINKING_RECORDS_SQL,
-                targetUserId,
-                guestUserId
-        );
+        int transferredDrinkingRecords = 0;
+        if (tableExists("drinking_records")) {
+            transferredDrinkingRecords = jdbcTemplate.update(
+                    TRANSFER_DRINKING_RECORDS_SQL,
+                    targetUserId,
+                    guestUserId
+            );
+        }
         int transferredInquiries = jdbcTemplate.update(
                 TRANSFER_INQUIRIES_SQL,
                 targetUserId,
@@ -113,14 +139,42 @@ public class GuestDataMergeRepository {
         );
         jdbcTemplate.update(DELETE_GUEST_MOOD_TYPE_UNLOCKS_SQL, guestUserId);
 
+        int mergedCocktails = 0;
+        if (tableExists("user_unlocked_cocktails")) {
+            mergedCocktails = jdbcTemplate.update(
+                    MERGE_COCKTAIL_UNLOCKS_SQL,
+                    targetUserId,
+                    guestUserId
+            );
+            jdbcTemplate.update(DELETE_GUEST_COCKTAIL_UNLOCKS_SQL, guestUserId);
+        }
+
+        int retiredGuests = jdbcTemplate.update(
+                RETIRE_GUEST_IDENTITY_SQL,
+                UUID.randomUUID().toString(),
+                guestUserId
+        );
+
         return new MergeResult(
                 transferredMoodTestResults,
                 transferredRecommendationSessions,
                 transferredDrinkingRecords,
                 transferredInquiries,
                 mergedCocktailFavorites,
-                mergedMoodTypes
+                mergedMoodTypes,
+                mergedCocktails,
+                retiredGuests
         );
+    }
+
+    private boolean tableExists(String tableName) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from information_schema.tables "
+                        + "where table_schema = database() and table_name = ?",
+                Integer.class,
+                tableName
+        );
+        return count != null && count > 0;
     }
 
     public record MergeResult(
@@ -129,7 +183,9 @@ public class GuestDataMergeRepository {
             int transferredDrinkingRecords,
             int transferredInquiries,
             int mergedCocktailFavorites,
-            int mergedMoodTypes
+            int mergedMoodTypes,
+            int mergedCocktails,
+            int retiredGuests
     ) {
     }
 }

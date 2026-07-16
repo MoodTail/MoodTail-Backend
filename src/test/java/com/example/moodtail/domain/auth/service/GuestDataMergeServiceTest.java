@@ -33,7 +33,7 @@ class GuestDataMergeServiceTest {
     private GuestDataMergeRepository mergeRepository;
 
     @Test
-    void mergesSelectedDataAndSoftDeletesGuestWhileLockingUsersInIdOrder() {
+    void mergesSelectedDataAndRetiresGuestIdentityWhileLockingUsersInIdOrder() {
         User target = socialUser(3L);
         User guest = guestUser(8L);
         MoodType guestMoodType = mock(MoodType.class);
@@ -41,7 +41,7 @@ class GuestDataMergeServiceTest {
         when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(target));
         when(userRepository.findByIdForUpdate(8L)).thenReturn(Optional.of(guest));
         when(mergeRepository.merge(8L, 3L)).thenReturn(
-                new GuestDataMergeRepository.MergeResult(2, 1, 3, 4, 5, 6)
+                new GuestDataMergeRepository.MergeResult(2, 1, 3, 4, 5, 6, 7, 1)
         );
         GuestDataMergeService service = new GuestDataMergeService(userRepository, mergeRepository);
 
@@ -51,7 +51,7 @@ class GuestDataMergeServiceTest {
         lockOrder.verify(userRepository).findByIdForUpdate(3L);
         lockOrder.verify(userRepository).findByIdForUpdate(8L);
         verify(mergeRepository).merge(8L, 3L);
-        assertThat(guest.isDeleted()).isTrue();
+        assertThat(guest.isDeleted()).isFalse();
         assertThat(target.isDeleted()).isFalse();
         assertThat(target.getRepresentativeMoodType()).isSameAs(guestMoodType);
     }
@@ -71,6 +71,23 @@ class GuestDataMergeServiceTest {
                 );
 
         verify(mergeRepository, never()).merge(2L, 9L);
+    }
+
+    @Test
+    void rejectsMergeWhenGuestIdentityCouldNotBeRetired() {
+        User guest = guestUser(2L);
+        User target = socialUser(9L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(target));
+        when(mergeRepository.merge(2L, 9L)).thenReturn(
+                new GuestDataMergeRepository.MergeResult(1, 1, 1, 1, 1, 1, 1, 0)
+        );
+        GuestDataMergeService service = new GuestDataMergeService(userRepository, mergeRepository);
+
+        assertThatThrownBy(() -> service.mergeIntoExistingUser(2L, 9L))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
+                );
     }
 
     @Test

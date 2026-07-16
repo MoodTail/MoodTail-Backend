@@ -1,13 +1,11 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.entity.LocalAccount;
-import com.example.moodtail.domain.auth.model.Consent;
-import com.example.moodtail.domain.auth.model.LocalAuthenticationResult;
-import com.example.moodtail.domain.auth.model.LocalAuthUser;
-import com.example.moodtail.domain.auth.model.PasswordResetAccount;
 import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
+import com.example.moodtail.domain.auth.service.TermAgreementService.Consent;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.config.LocalAuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -35,8 +33,25 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class LocalAccountService {
 
+    private static final int MIN_LOCAL_NICKNAME_CODE_POINTS = 2;
+    private static final int MAX_LOCAL_NICKNAME_CODE_POINTS = 10;
     private static final String DUMMY_PASSWORD_HASH =
             "{bcrypt}$2a$10$7EqJtq98hPqEX7fNZaFWoO5u7/PPD.Rr1M7gL3N0vJ0w3PjYVJx5K";
+
+    public record LocalAuthUser(Long userId, UserRole role, String email, String nickname) {
+
+        private static LocalAuthUser from(LocalAccount account) {
+            return new LocalAuthUser(
+                    account.getUser().getId(),
+                    account.getUser().getRole(),
+                    account.getEmail(),
+                    account.getUser().getNickname()
+            );
+        }
+    }
+
+    public record PasswordResetAccount(Long localAccountId, int passwordVersion, String email) {
+    }
 
     private final PlatformTransactionManager transactionManager;
     private final LocalAccountRepository localAccountRepository;
@@ -46,9 +61,8 @@ public class LocalAccountService {
     private final IdentityLockManager identityLockManager;
     private final PasswordEncoder passwordEncoder;
     private final LocalAuthProperties properties;
-    private final TokenSessionService tokenSessionService;
 
-    public LocalAuthenticationResult signup(
+    public LocalAuthUser signup(
             String email,
             String password,
             String passwordConfirm,
@@ -78,7 +92,7 @@ public class LocalAccountService {
                                         LocalAccount.create(user, normalizedEmail, passwordHash, now)
                                 );
                                 termAgreementService.recordValidatedAgreements(user, agreedTerms, now);
-                                return LocalAuthUser.from(account, true);
+                                return LocalAuthUser.from(account);
                             })
                     )
             );
@@ -91,27 +105,26 @@ public class LocalAccountService {
         if (authenticatedUser == null) {
             throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
         }
-        return completeAuthentication(authenticatedUser, guestUserId);
+        return authenticatedUser;
     }
 
-    public LocalAuthenticationResult login(
+    public LocalAuthUser login(
             String email,
             String password,
             Long guestUserId
     ) {
         String normalizedEmail = normalizeEmail(email);
         validateLoginPasswordInput(password);
-        LocalAuthUser authenticatedUser = identityLockManager.executeForLocalEmail(
+        return identityLockManager.executeForLocalEmail(
                 normalizedEmail,
                 () -> executeWithOptionalGuestLock(
                         guestUserId,
                         () -> loginInTransaction(normalizedEmail, password, guestUserId)
                 )
         );
-        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
-    public void changePassword(
+    public Long changePassword(
             Long localAccountId,
             int expectedPasswordVersion,
             String password,
@@ -133,7 +146,7 @@ public class LocalAccountService {
         if (userId == null) {
             throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
         }
-        tokenSessionService.revokeSession(userId);
+        return userId;
     }
 
     public Optional<PasswordResetAccount> findPasswordResetAccount(String email) {
@@ -144,6 +157,10 @@ public class LocalAccountService {
                         account.getPasswordVersion(),
                         account.getEmail()
                 ));
+    }
+
+    public boolean isEmailAvailable(String normalizedEmail) {
+        return !localAccountRepository.existsByEmail(normalizedEmail);
     }
 
     private LocalAuthUser loginInTransaction(
@@ -179,7 +196,7 @@ public class LocalAccountService {
                 guestDataMergeService.mergeIntoExistingUser(guestUserId, user.getId());
             }
             user.updateLastAccessedAt(now);
-            LocalAuthUser authenticatedUser = LocalAuthUser.from(account, false);
+            LocalAuthUser authenticatedUser = LocalAuthUser.from(account);
             return LoginAttempt.success(authenticatedUser);
         });
         if (attempt == null) {
@@ -189,17 +206,6 @@ public class LocalAccountService {
             throw new RestApiException(attempt.errorStatus());
         }
         return attempt.user();
-    }
-
-    private LocalAuthenticationResult completeAuthentication(LocalAuthUser user, Long guestUserId) {
-        return new LocalAuthenticationResult(
-                user,
-                tokenSessionService.issueSessionReplacingGuest(
-                        user.userId(),
-                        user.role(),
-                        guestUserId
-                )
-        );
     }
 
     private boolean isRetriedPasswordChange(
@@ -252,7 +258,13 @@ public class LocalAccountService {
         if (nickname == null || nickname.trim().isEmpty()) {
             throw new RestApiException(GlobalErrorStatus._BAD_REQUEST);
         }
-        return nickname.trim();
+        String normalized = Normalizer.normalize(nickname.trim(), Normalizer.Form.NFKC);
+        int codePointLength = normalized.codePointCount(0, normalized.length());
+        if (codePointLength < MIN_LOCAL_NICKNAME_CODE_POINTS
+                || codePointLength > MAX_LOCAL_NICKNAME_CODE_POINTS) {
+            throw new RestApiException(GlobalErrorStatus._BAD_REQUEST);
+        }
+        return normalized;
     }
 
     public void validatePassword(String password, String passwordConfirm) {
@@ -262,9 +274,20 @@ public class LocalAccountService {
         int codePointLength = password.codePointCount(0, password.length());
         int byteLength = password.getBytes(StandardCharsets.UTF_8).length;
         if (codePointLength < properties.password().minLength()
-                || byteLength > properties.password().maxBytes()) {
+                || byteLength > properties.password().maxBytes()
+                || !containsAsciiLetter(password)
+                || !containsDigit(password)) {
             throw new RestApiException(AuthErrorStatus.INVALID_PASSWORD_POLICY);
         }
+    }
+
+    private boolean containsAsciiLetter(String value) {
+        return value.chars().anyMatch(character ->
+                (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z'));
+    }
+
+    private boolean containsDigit(String value) {
+        return value.chars().anyMatch(character -> character >= '0' && character <= '9');
     }
 
     private void validateLoginPasswordInput(String password) {

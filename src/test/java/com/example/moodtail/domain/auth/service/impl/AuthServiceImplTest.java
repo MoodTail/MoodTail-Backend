@@ -1,30 +1,34 @@
 package com.example.moodtail.domain.auth.service.impl;
 
 import com.example.moodtail.domain.auth.dto.request.GuestLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.LocalLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.LocalSignupRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.TermAgreementRequest;
+import com.example.moodtail.domain.auth.dto.response.EmailAvailabilityResponse;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.OAuthStateResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
-import com.example.moodtail.domain.auth.model.GuestLoginUser;
-import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
-import com.example.moodtail.domain.auth.model.OAuthState;
-import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.service.GuestUserRegistrationService;
+import com.example.moodtail.domain.auth.service.GuestUserRegistrationService.GuestLoginUser;
+import com.example.moodtail.domain.auth.service.GuestLoginRateLimitService;
 import com.example.moodtail.domain.auth.service.LocalAccountService;
+import com.example.moodtail.domain.auth.service.LocalAccountService.LocalAuthUser;
 import com.example.moodtail.domain.auth.service.OAuthStateService;
+import com.example.moodtail.domain.auth.service.OAuthStateService.ConsumedOAuthState;
+import com.example.moodtail.domain.auth.service.OAuthStateService.OAuthState;
 import com.example.moodtail.domain.auth.service.PasswordResetService;
 import com.example.moodtail.domain.auth.service.SocialAccountService;
+import com.example.moodtail.domain.auth.service.SocialAccountService.SocialLoginUser;
 import com.example.moodtail.domain.auth.service.TokenSessionService;
-import com.example.moodtail.domain.auth.validator.AuthRequestOriginValidator;
-import com.example.moodtail.domain.auth.validator.GuestLoginRateLimiter;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.client.OAuthClient;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
+import com.example.moodtail.global.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
@@ -99,7 +103,7 @@ class AuthServiceImplTest {
     private OAuthStateService oAuthStateService;
 
     @Mock
-    private GuestLoginRateLimiter guestLoginRateLimiter;
+    private GuestLoginRateLimitService guestLoginRateLimitService;
 
     @Mock
     private LocalAccountService localAccountService;
@@ -140,7 +144,7 @@ class AuthServiceImplTest {
                 socialAccountService,
                 guestUserRegistrationService,
                 oAuthStateService,
-                guestLoginRateLimiter,
+                guestLoginRateLimitService,
                 localAccountService,
                 passwordResetService,
                 tokenSessionService
@@ -166,13 +170,13 @@ class AuthServiceImplTest {
         assertThat(result.isNewUser()).isTrue();
         assertThat(result.accessToken()).isEqualTo("guest-access-token");
         assertRefreshCookie(response, "guest-refresh-token", 1_209_600);
-        verify(guestLoginRateLimiter).check(GUEST_UUID, request);
+        verify(guestLoginRateLimitService).check(GUEST_UUID, request);
         verify(redisRepository).saveRefreshJti(2L, "guest-refresh-jti");
     }
 
     @Test
     void createOAuthStateBindsProviderAndGuestUser() {
-        OAuthState state = new OAuthState("state-value", 300L);
+        OAuthState state = new OAuthState("state-value", null, null, 300L);
         when(oAuthStateService.issue(2L, SocialProvider.KAKAO)).thenReturn(state);
 
         OAuthStateResponse result = authService.createOAuthState("kakao", 2L);
@@ -222,8 +226,8 @@ class AuthServiceImplTest {
                 .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
         when(kakaoOAuthClient.provider()).thenReturn(SocialProvider.KAKAO);
         when(kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER)).thenReturn(profile);
-        when(socialAccountService.authenticate(eq(profile), eq(2L), any()))
-                .thenReturn(new SocialAuthenticationResult(socialUser, tokenInfo));
+        when(socialAccountService.authenticate(eq(profile), eq(2L), any())).thenReturn(socialUser);
+        stubSession(99L, tokenInfo, "service-refresh-jti");
 
         MockHttpServletResponse response = new MockHttpServletResponse();
         SocialLoginResponse result = authService.socialLogin(
@@ -254,8 +258,8 @@ class AuthServiceImplTest {
                 2L, UserRole.USER, "신규사용자", SocialProvider.GOOGLE, "new-user@example.com", true
         );
         TokenInfo tokenInfo = new TokenInfo("new-access", "new-refresh");
-        when(socialAccountService.authenticate(eq(profile), eq(2L), anyList()))
-                .thenReturn(new SocialAuthenticationResult(newUser, tokenInfo));
+        when(socialAccountService.authenticate(eq(profile), eq(2L), anyList())).thenReturn(newUser);
+        stubSession(2L, tokenInfo, "new-refresh-jti");
 
         SocialLoginResponse result = authService.socialLogin(
                 "google",
@@ -299,8 +303,8 @@ class AuthServiceImplTest {
                 "google-code", "http://frontend/callback", PKCE_VERIFIER
         ))
                 .thenReturn(profile);
-        when(socialAccountService.authenticate(eq(profile), eq(2L), any()))
-                .thenReturn(new SocialAuthenticationResult(existingUser, tokenInfo));
+        when(socialAccountService.authenticate(eq(profile), eq(2L), any())).thenReturn(existingUser);
+        stubSession(99L, tokenInfo, "refresh-jti");
 
         SocialLoginResponse result = authService.socialLogin(
                 "google",
@@ -349,13 +353,63 @@ class AuthServiceImplTest {
     }
 
     @Test
+    void localSignupIssuesSessionAfterAccountServiceCompletes() {
+        LocalAuthUser user = new LocalAuthUser(9L, UserRole.USER, "user@example.com", "무드테일");
+        TokenInfo tokenInfo = new TokenInfo("local-access", "local-refresh");
+        LocalSignupRequest request = new LocalSignupRequest(
+                "user@example.com",
+                "password123!",
+                "password123!",
+                "무드테일",
+                List.of(new TermAgreementRequest(1L, true))
+        );
+        when(localAccountService.signup(any(), any(), any(), any(), any(), eq(2L))).thenReturn(user);
+        stubSession(9L, tokenInfo, "local-refresh-jti");
+
+        var result = authService.localSignup(request, 2L, new MockHttpServletResponse());
+
+        assertThat(result.userId()).isEqualTo(9L);
+        assertThat(result.accessToken()).isEqualTo("local-access");
+        verify(redisRepository).saveRefreshJti(9L, "local-refresh-jti");
+    }
+
+    @Test
+    void localLoginIssuesSessionForExistingAccountAndReplacesGuestSession() {
+        LocalAuthUser user = new LocalAuthUser(9L, UserRole.USER, "user@example.com", "무드테일");
+        TokenInfo tokenInfo = new TokenInfo("login-access", "login-refresh");
+        when(localAccountService.login("user@example.com", "password123!", 2L)).thenReturn(user);
+        stubSession(9L, tokenInfo, "login-refresh-jti");
+
+        var result = authService.localLogin(
+                new LocalLoginRequest("user@example.com", "password123!"),
+                2L,
+                new MockHttpServletResponse()
+        );
+
+        assertThat(result.isNewUser()).isFalse();
+        assertThat(result.accessToken()).isEqualTo("login-access");
+        verify(redisRepository).saveRefreshJti(9L, "login-refresh-jti");
+    }
+
+    @Test
+    void emailAvailabilityUsesNormalizedEmail() {
+        when(localAccountService.normalizeEmail(" User@Example.com ")).thenReturn("user@example.com");
+        when(localAccountService.isEmailAvailable("user@example.com")).thenReturn(true);
+
+        EmailAvailabilityResponse result = authService.checkLocalEmailAvailability(" User@Example.com ");
+
+        assertThat(result.email()).isEqualTo("user@example.com");
+        assertThat(result.available()).isTrue();
+    }
+
+    @Test
     void oauthClientRegistryRejectsDuplicateProviderAdapters() {
         AuthServiceImpl invalidService = new AuthServiceImpl(
                 List.of(kakaoOAuthClient, kakaoOAuthClient, googleOAuthClient),
                 socialAccountService,
                 guestUserRegistrationService,
                 oAuthStateService,
-                guestLoginRateLimiter,
+                guestLoginRateLimitService,
                 localAccountService,
                 passwordResetService,
                 tokenSessionService
@@ -373,7 +427,7 @@ class AuthServiceImplTest {
                 socialAccountService,
                 guestUserRegistrationService,
                 oAuthStateService,
-                guestLoginRateLimiter,
+                guestLoginRateLimitService,
                 localAccountService,
                 passwordResetService,
                 tokenSessionService
@@ -571,6 +625,12 @@ class AuthServiceImplTest {
         user.upgradeToUser("테스터", LocalDateTime.now());
         ReflectionTestUtils.setField(user, "id", id);
         return user;
+    }
+
+    private void stubSession(Long userId, TokenInfo tokenInfo, String refreshJti) {
+        when(jwtProvider.generateToken(userId, UserRole.USER)).thenReturn(tokenInfo);
+        when(jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken()))
+                .thenReturn(refreshClaims(String.valueOf(userId), refreshJti));
     }
 
     private Claims refreshClaims(String subject, String jti) {
