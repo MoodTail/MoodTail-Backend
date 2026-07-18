@@ -2,6 +2,7 @@ package com.example.moodtail.domain.moodtest.service;
 
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultShareCreateRequest;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultShareCreateResponse;
+import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultSharePageResponse;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultResponse;
 import com.example.moodtail.domain.moodtest.entity.SharedMoodTestResult;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
@@ -39,6 +40,9 @@ public class MoodTestResultShareService {
     @Value("${app.share.base-url}")
     private String shareBaseUrl;
 
+    @Value("${app.share.frontend-base-url}")
+    private String shareFrontendBaseUrl;
+
     @Transactional
     public MoodTestResultShareCreateResponse createShare(
             Long userId,
@@ -68,10 +72,26 @@ public class MoodTestResultShareService {
 
     @Transactional(readOnly = true)
     public MoodTestResultResponse getSharedResult(String shareToken) {
-        SharedMoodTestResult sharedResult = sharedMoodTestResultRepository.findByShareToken(shareToken)
-                .orElseThrow(() -> new RestApiException(MOOD_TEST_SHARED_RESULT_NOT_FOUND));
+        SharedMoodTestResult sharedResult = findSharedResult(shareToken);
 
         return moodTestResultService.calculateResult(sharedResult.toTasteProfile());
+    }
+
+    @Transactional(readOnly = true)
+    public MoodTestResultSharePageResponse getSharePage(String shareToken) {
+        SharedMoodTestResult sharedResult = findSharedResult(shareToken);
+        String sharePath = SHARE_PATH + shareToken;
+
+        return new MoodTestResultSharePageResponse(
+                normalizeBaseUrl(shareBaseUrl) + sharePath,
+                normalizeBaseUrl(shareFrontendBaseUrl) + sharePath,
+                sharedResult.getThumbnailImageUrl()
+        );
+    }
+
+    private SharedMoodTestResult findSharedResult(String shareToken) {
+        return sharedMoodTestResultRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new RestApiException(MOOD_TEST_SHARED_RESULT_NOT_FOUND));
     }
 
     private TasteProfile toTasteProfile(MoodTestResultShareCreateRequest.TasteProfileDto tasteProfile) {

@@ -150,5 +150,6 @@ cors:
 app:
   share:
     base-url: ${SHARE_BASE_URL:http://localhost:8080}
+    frontend-base-url: ${SHARE_FRONTEND_BASE_URL:http://localhost:5173}
   usage:
     timeout: ${USAGE_TIMEOUT:30}

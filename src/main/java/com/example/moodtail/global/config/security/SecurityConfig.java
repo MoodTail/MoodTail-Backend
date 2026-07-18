@@ -74,6 +74,7 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 						.requestMatchers("/api/v1/tests/questions").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/tests/results/share/*").permitAll()
+						.requestMatchers(HttpMethod.GET, "/share/results/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/tests/results/share")
 						.hasAnyRole("GUEST", "USER")
 						.requestMatchers("/api/v1/tests/results").permitAll()
