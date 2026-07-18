@@ -1,5 +1,6 @@
 package com.example.moodtail.global.infra.s3;
 
+import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.infra.s3.config.S3Properties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,15 +15,25 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
+
+import static com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.IMAGE_TOO_LARGE;
+import static com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.INVALID_IMAGE;
 
 @Component
 @RequiredArgsConstructor
 public class S3StorageService {
 
     private static final Pattern DIRECTORY_PATTERN = Pattern.compile("[A-Za-z0-9/_-]+");
-    private static final Pattern EXTENSION_PATTERN = Pattern.compile("[A-Za-z0-9]+");
+    private static final long MAX_IMAGE_SIZE = 5L * 1024 * 1024;
+    private static final Map<String, Set<String>> ALLOWED_IMAGE_EXTENSIONS = Map.of(
+            "image/png", Set.of("png"),
+            "image/jpeg", Set.of("jpg", "jpeg"),
+            "image/webp", Set.of("webp")
+    );
 
     private final S3Client s3Client;
     private final S3Properties properties;
@@ -47,11 +58,28 @@ public class S3StorageService {
 
     private void validateImage(MultipartFile image) {
         if (image == null || image.isEmpty()) {
-            throw new S3StorageException("Image must not be empty");
+            throw new RestApiException(INVALID_IMAGE);
+        }
+        if (image.getSize() > MAX_IMAGE_SIZE) {
+            throw new RestApiException(IMAGE_TOO_LARGE);
+        }
+
+        String contentType = image.getContentType();
+        String extension = StringUtils.getFilenameExtension(image.getOriginalFilename());
+        if (!StringUtils.hasText(contentType)
+                || !StringUtils.hasText(extension)
+                || !isAllowedImageExtension(contentType, extension)) {
+            throw new RestApiException(INVALID_IMAGE);
         }
         if (!StringUtils.hasText(properties.bucket())) {
             throw new S3StorageException("S3 bucket is not configured");
         }
+    }
+
+    private boolean isAllowedImageExtension(String contentType, String extension) {
+        Set<String> allowedExtensions = ALLOWED_IMAGE_EXTENSIONS.get(contentType.toLowerCase(Locale.ROOT));
+        return allowedExtensions != null
+                && allowedExtensions.contains(extension.toLowerCase(Locale.ROOT));
     }
 
     private String createObjectKey(String directory, String originalFilename) {
@@ -82,9 +110,6 @@ public class S3StorageService {
 
     private String resolveExtension(String originalFilename) {
         String extension = StringUtils.getFilenameExtension(originalFilename);
-        if (!StringUtils.hasText(extension) || !EXTENSION_PATTERN.matcher(extension).matches()) {
-            return "";
-        }
         return "." + extension.toLowerCase(Locale.ROOT);
     }
 

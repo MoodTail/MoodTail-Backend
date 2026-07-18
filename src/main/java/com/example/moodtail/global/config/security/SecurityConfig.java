@@ -73,6 +73,8 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/api/v1/terms").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 						.requestMatchers("/api/v1/tests/questions").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/v1/tests/results/share")
+						.hasAnyRole("GUEST", "USER")
 						.requestMatchers("/api/v1/tests/results").permitAll()
 						.requestMatchers("/api/v1/cocktails/*", "/api/v1/cocktails").permitAll()
 						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()

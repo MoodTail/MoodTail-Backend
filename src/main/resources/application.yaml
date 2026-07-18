@@ -15,6 +15,11 @@ spring:
       repositories:
         enabled: false
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:587}
@@ -143,5 +148,7 @@ cors:
   max-age: ${CORS_MAX_AGE:3600}
 
 app:
+  share:
+    base-url: ${SHARE_BASE_URL:http://localhost:8080}
   usage:
     timeout: ${USAGE_TIMEOUT:30}
