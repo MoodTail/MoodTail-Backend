@@ -61,6 +61,11 @@ public class MoodTestResultService {
         validateQuestionTypeCounts(fixedOptions, randomOptions);
 
         TasteProfile userTasteProfile = calculateTasteProfile(fixedOptions, randomOptions);
+        return calculateResult(userTasteProfile);
+    }
+
+    @Transactional(readOnly = true)
+    public MoodTestResultResponse calculateResult(TasteProfile userTasteProfile) {
         MoodType matchedMoodType = findMatchedMoodType(userTasteProfile);
         List<RecommendationWithScore> recommendations = findRecommendations(userTasteProfile, matchedMoodType);
         MoodType bestMoodType = findCompatibility(matchedMoodType, CompatibilityType.BEST);

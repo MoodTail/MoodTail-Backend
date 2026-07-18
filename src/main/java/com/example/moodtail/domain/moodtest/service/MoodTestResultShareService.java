@@ -2,6 +2,7 @@ package com.example.moodtail.domain.moodtest.service;
 
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultShareCreateRequest;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultShareCreateResponse;
+import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultResponse;
 import com.example.moodtail.domain.moodtest.entity.SharedMoodTestResult;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
@@ -19,6 +20,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
+import static com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus.MOOD_TEST_SHARED_RESULT_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +33,7 @@ public class MoodTestResultShareService {
 
     private final UserRepository userRepository;
     private final SharedMoodTestResultRepository sharedMoodTestResultRepository;
+    private final MoodTestResultService moodTestResultService;
     private final S3StorageService s3StorageService;
 
     @Value("${app.share.base-url}")
@@ -61,6 +64,14 @@ public class MoodTestResultShareService {
                 shareToken,
                 normalizeBaseUrl(shareBaseUrl) + SHARE_PATH + shareToken
         );
+    }
+
+    @Transactional(readOnly = true)
+    public MoodTestResultResponse getSharedResult(String shareToken) {
+        SharedMoodTestResult sharedResult = sharedMoodTestResultRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new RestApiException(MOOD_TEST_SHARED_RESULT_NOT_FOUND));
+
+        return moodTestResultService.calculateResult(sharedResult.toTasteProfile());
     }
 
     private TasteProfile toTasteProfile(MoodTestResultShareCreateRequest.TasteProfileDto tasteProfile) {
