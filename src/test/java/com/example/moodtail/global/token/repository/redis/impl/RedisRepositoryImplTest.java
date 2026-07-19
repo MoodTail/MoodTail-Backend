@@ -111,4 +111,23 @@ class RedisRepositoryImplTest {
                 Duration.ofMinutes(1)
         );
     }
+
+    @Test
+    void rateLimitAllowsTheConfiguredBoundaryAndRejectsTheNextRequest() {
+        when(redisTemplate.execute(any(), any(), anyString()))
+                .thenReturn(20L, 21L);
+
+        assertThat(repository.acquireLocalAuthSlot(
+                "login",
+                "client-fingerprint",
+                20,
+                Duration.ofMinutes(1)
+        )).isTrue();
+        assertThat(repository.acquireLocalAuthSlot(
+                "login",
+                "client-fingerprint",
+                20,
+                Duration.ofMinutes(1)
+        )).isFalse();
+    }
 }
