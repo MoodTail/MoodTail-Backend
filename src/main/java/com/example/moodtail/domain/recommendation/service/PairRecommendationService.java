@@ -37,18 +37,17 @@ public class PairRecommendationService {
             Long userId,
             Long resultId,
             String resultShareToken,
-            Long partnerResultId,
             String partnerShareToken
     ) {
         MoodTestResult myResult = findResult(resultId, resultShareToken, userId);
-        MoodTestResult partnerResult = findResult(partnerResultId, partnerShareToken, userId);
+        MoodTestResult partnerResult = findPartnerResult(partnerShareToken);
 
         TasteProfile compromise = myResult.toTasteProfile()
                 .average(partnerResult.toTasteProfile());
 
         List<RecommendedCocktailResponse> recommendations = recommend(compromise);
 
-        boolean saved = canSave(userId, resultId, partnerResultId);
+        boolean saved = canSave(userId, resultId);
         if (saved) {
             pairRecommendationPersistenceService.saveCompromise(
                     myResult.getUser(),
@@ -84,6 +83,15 @@ public class PairRecommendationService {
         throw new RestApiException(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER);
     }
 
+    private MoodTestResult findPartnerResult(String partnerShareToken) {
+        if (partnerShareToken == null) {
+            throw new RestApiException(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER);
+        }
+
+        return moodTestResultRepository.findByShareToken(partnerShareToken)
+                .orElseThrow(() -> new RestApiException(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND));
+    }
+
     private List<RecommendedCocktailResponse> recommend(TasteProfile compromise) {
         List<Cocktail> cocktails = cocktailRepository.findAll();
 
@@ -109,8 +117,8 @@ public class PairRecommendationService {
         return responses;
     }
 
-    private boolean canSave(Long userId, Long resultId, Long partnerResultId) {
-        return userId != null && resultId != null && partnerResultId != null;
+    private boolean canSave(Long userId, Long resultId) {
+        return userId != null && resultId != null;
     }
 
     private List<RecommendationItemCommand> toCommands(List<RecommendedCocktailResponse> recommendations) {

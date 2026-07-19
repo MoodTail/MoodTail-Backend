@@ -75,11 +75,9 @@ class PairRecommendationServiceTest {
                 new BigDecimal("4.0"), new BigDecimal("4.0"), new BigDecimal("4.0"),
                 new BigDecimal("4.0"), new BigDecimal("4.0")
         );
+        User partner = userWithId(2L);
         MoodTestResult myResult = resultOwnedBy(me, 10L, myProfile);
-        // TODO: findResult(partnerResultId, ..., userId)가 파트너 결과의 소유자도 호출자(userId)와
-        // 동일한지 검증하는 현재 구현 때문에, 실제로는 "남"의 결과를 파트너로 사용할 수 없다.
-        // 이 테스트는 정책 논의와 무관하게 현재 구현 그대로의 동작만 검증한다.
-        MoodTestResult partnerResult = resultOwnedBy(me, 20L, partnerProfile);
+        MoodTestResult partnerResult = resultWithShareToken(partner, "partner-share-token", partnerProfile);
 
         TasteProfile compromise = myProfile.average(partnerProfile);
 
@@ -98,11 +96,11 @@ class PairRecommendationServiceTest {
                 new BigDecimal("5.0"), new BigDecimal("5.0"));
 
         when(moodTestResultRepository.findById(10L)).thenReturn(Optional.of(myResult));
-        when(moodTestResultRepository.findById(20L)).thenReturn(Optional.of(partnerResult));
+        when(moodTestResultRepository.findByShareToken("partner-share-token")).thenReturn(Optional.of(partnerResult));
         when(cocktailRepository.findAll())
                 .thenReturn(List.of(excluded, farthest, close, perfectMatch, farther));
 
-        PairRecommendationResponse response = service.recommendPair(1L, 10L, null, 20L, null);
+        PairRecommendationResponse response = service.recommendPair(1L, 10L, null, "partner-share-token");
 
         assertThat(response.recommendationSaved()).isTrue();
         assertThat(response.compromiseProfile()).isEqualTo(CompromiseProfileResponse.from(compromise));
@@ -169,7 +167,7 @@ class PairRecommendationServiceTest {
         ));
 
         PairRecommendationResponse response =
-                service.recommendPair(null, null, "my-share-token", null, "partner-share-token");
+                service.recommendPair(null, null, "my-share-token", "partner-share-token");
 
         assertThat(response.recommendationSaved()).isFalse();
         verify(pairRecommendationPersistenceService, never())
@@ -178,7 +176,7 @@ class PairRecommendationServiceTest {
 
     @Test
     void throwsInvalidParameterWhenNeitherResultIdNorShareTokenIsProvided() {
-        assertThatThrownBy(() -> service.recommendPair(1L, null, null, 20L, null))
+        assertThatThrownBy(() -> service.recommendPair(1L, null, null, "partner-share-token"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER.getCode().getCode())
@@ -189,10 +187,27 @@ class PairRecommendationServiceTest {
     void throwsResultNotFoundWhenResultIdDoesNotExist() {
         when(moodTestResultRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.recommendPair(1L, 999L, null, 20L, null))
+        assertThatThrownBy(() -> service.recommendPair(1L, 999L, null, "partner-share-token"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND.getCode().getCode())
+                );
+    }
+
+    @Test
+    void throwsInvalidParameterWhenPartnerShareTokenIsMissing() {
+        User me = userWithId(1L);
+        TasteProfile myProfile = TasteProfile.of(
+                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
+                new BigDecimal("2.0"), new BigDecimal("2.0")
+        );
+        MoodTestResult myResult = resultOwnedBy(me, 10L, myProfile);
+        when(moodTestResultRepository.findById(10L)).thenReturn(Optional.of(myResult));
+
+        assertThatThrownBy(() -> service.recommendPair(1L, 10L, null, null))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode())
+                                .isEqualTo(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER.getCode().getCode())
                 );
     }
 
@@ -202,15 +217,16 @@ class PairRecommendationServiceTest {
         // 반환하고 그대로 저장을 시도하며, 실제 개수 검증(4개 고정)은 PairRecommendationPersistenceService
         // 쪽 책임으로 넘어가 있다(여기서는 mock이라 실패하지 않음). 정책이 정해지면 이 테스트를 갱신할 것.
         User me = userWithId(1L);
+        User partner = userWithId(2L);
         TasteProfile myProfile = TasteProfile.of(
                 new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0"),
                 new BigDecimal("3.0"), new BigDecimal("3.0")
         );
         MoodTestResult myResult = resultOwnedBy(me, 10L, myProfile);
-        MoodTestResult partnerResult = resultOwnedBy(me, 20L, myProfile);
+        MoodTestResult partnerResult = resultWithShareToken(partner, "partner-share-token", myProfile);
 
         when(moodTestResultRepository.findById(10L)).thenReturn(Optional.of(myResult));
-        when(moodTestResultRepository.findById(20L)).thenReturn(Optional.of(partnerResult));
+        when(moodTestResultRepository.findByShareToken("partner-share-token")).thenReturn(Optional.of(partnerResult));
         when(cocktailRepository.findAll()).thenReturn(List.of(
                 cocktail(301L, "A", "A", new BigDecimal("3.0"), new BigDecimal("3.0"),
                         new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0")),
@@ -218,7 +234,7 @@ class PairRecommendationServiceTest {
                         new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0"))
         ));
 
-        PairRecommendationResponse response = service.recommendPair(1L, 10L, null, 20L, null);
+        PairRecommendationResponse response = service.recommendPair(1L, 10L, null, "partner-share-token");
 
         assertThat(response.recommendations()).hasSize(2);
         assertThat(response.recommendations())

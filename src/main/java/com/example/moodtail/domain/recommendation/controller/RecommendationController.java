@@ -21,7 +21,7 @@ public class RecommendationController {
             operationId = "recommendPair",
             summary = "페어 추천 결과 조회",
             description = "두 사용자의 감정 테스트 결과를 평균낸 타협 맛 지표를 기준으로 칵테일 4종을 추천합니다. "
-                    + "resultId 또는 resultShareToken 중 하나, partnerResultId 또는 partnerShareToken 중 하나가 필요합니다."
+                    + "resultId 또는 resultShareToken 중 하나, partnerShareToken이 필요합니다."
     )
     @PostMapping("/recommends/pair")
     public BaseResponse<PairRecommendationResponse> recommendPair(
@@ -32,7 +32,6 @@ public class RecommendationController {
                 principalDetails != null ? principalDetails.getUserId() : null,
                 request.resultId(),
                 request.resultShareToken(),
-                request.partnerResultId(),
                 request.partnerShareToken()
         );
         return BaseResponse.onSuccess(response);
