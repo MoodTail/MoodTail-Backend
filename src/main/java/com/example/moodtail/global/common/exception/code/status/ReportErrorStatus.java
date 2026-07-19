@@ -14,7 +14,7 @@ public enum ReportErrorStatus implements BaseCodeInterface {
     SHARE_IMAGE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE,
             "REPORT_IMAGE_503",
-            "월간 리포트 공유 이미지를 일시적으로 생성할 수 없습니다."
+            "월간 리포트 공유 이미지를 일시적으로 저장할 수 없습니다."
     );
 
     private final HttpStatus httpStatus;

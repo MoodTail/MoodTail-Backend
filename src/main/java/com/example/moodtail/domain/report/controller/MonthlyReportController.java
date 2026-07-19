@@ -8,12 +8,15 @@ import com.example.moodtail.domain.report.service.MonthlyReportShareImageService
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequiredArgsConstructor
@@ -36,14 +39,18 @@ public class MonthlyReportController implements MonthlyReportControllerDocs {
     }
 
     @Override
-    @PostMapping("/monthly/share-image")
+    @PostMapping(
+            path = "/monthly/share-image",
+            consumes = MediaType.MULTIPART_FORM_DATA_VALUE
+    )
     public BaseResponse<MonthlyReportShareImageResponse> createMonthlyReportShareImage(
             @AuthenticationPrincipal PrincipalDetails principal,
             @RequestParam int year,
-            @RequestParam int month
+            @RequestParam int month,
+            @RequestPart("image") MultipartFile image
     ) {
         return BaseResponse.onSuccess(
-                shareImageService.createShareImage(principal.getUserId(), year, month)
+                shareImageService.uploadShareImage(principal.getUserId(), year, month, image)
         );
     }
 }

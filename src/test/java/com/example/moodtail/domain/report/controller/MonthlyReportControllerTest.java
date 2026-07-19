@@ -15,6 +15,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -24,10 +25,12 @@ import org.springframework.web.method.support.ModelAndViewContainer;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -71,17 +74,32 @@ class MonthlyReportControllerTest {
 
     @Test
     void routesMonthlyReportShareImageUsingTheSpecifiedContract() throws Exception {
-        when(shareImageService.createShareImage(USER_ID, 2026, 7)).thenReturn(
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "monthly-report.png",
+                "image/png",
+                new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47}
+        );
+        when(shareImageService.uploadShareImage(eq(USER_ID), eq(2026), eq(7), any())).thenReturn(
                 new MonthlyReportShareImageResponse("https://cdn.example/report.png")
         );
 
-        mockMvc.perform(post("/api/v1/reports/monthly/share-image")
+        mockMvc.perform(multipart("/api/v1/reports/monthly/share-image")
+                        .file(image)
                         .param("year", "2026")
                         .param("month", "7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.shareImageUrl").value("https://cdn.example/report.png"));
 
-        verify(shareImageService).createShareImage(USER_ID, 2026, 7);
+        verify(shareImageService).uploadShareImage(eq(USER_ID), eq(2026), eq(7), any());
+    }
+
+    @Test
+    void rejectsMonthlyReportShareRequestWithoutImage() throws Exception {
+        mockMvc.perform(multipart("/api/v1/reports/monthly/share-image")
+                        .param("year", "2026")
+                        .param("month", "7"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

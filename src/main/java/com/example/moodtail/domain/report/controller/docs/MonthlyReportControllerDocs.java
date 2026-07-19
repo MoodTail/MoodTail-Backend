@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.multipart.MultipartFile;
 
 @Tag(name = "Reports", description = "월간 리포트 조회 및 공유 API")
 @SecurityRequirement(name = "bearerAuth")
@@ -26,12 +27,13 @@ public interface MonthlyReportControllerDocs {
 
     @Operation(
             operationId = "createMonthlyReportShareImage",
-            summary = "월간 리포트 공유 이미지 생성",
-            description = "월간 리포트를 PNG 공유 카드로 생성하고 이미지 URL을 반환합니다."
+            summary = "월간 리포트 공유 이미지 저장",
+            description = "프론트엔드에서 생성한 월간 리포트 공유 이미지를 저장하고 이미지 URL을 반환합니다."
     )
     BaseResponse<MonthlyReportShareImageResponse> createMonthlyReportShareImage(
             @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(description = "조회 연도", example = "2026") int year,
-            @Parameter(description = "조회 월(1~12)", example = "7") int month
+            @Parameter(description = "조회 월(1~12)", example = "7") int month,
+            @Parameter(description = "프론트엔드에서 생성한 공유 이미지") MultipartFile image
     );
 }
