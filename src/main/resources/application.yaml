@@ -74,8 +74,8 @@ aws:
 
 jwt:
   secret: ${JWT_SECRET}
-  accessExpiration: ${JWT_ACCESS_EXPIRATION:900000}
-  refreshExpiration: ${JWT_REFRESH_EXPIRATION:1209600000}
+  accessExpiration: 900000
+  refreshExpiration: 1209600000
 
 auth:
   refresh-cookie:
