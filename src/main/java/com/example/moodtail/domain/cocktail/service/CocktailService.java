@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.cocktail.service;
 
+import com.example.moodtail.domain.cocktail.calculator.MoodTypeCalculator;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
@@ -19,7 +20,6 @@ import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.user.entity.User;
-import com.example.moodtail.domain.user.entity.UserStatus;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -49,6 +49,7 @@ public class CocktailService {
     private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     private final UserUnlockedCocktailRepository userUnlockedCocktailRepository;
     private final DrinkingRecordRepository drinkingRecordRepository;
+    private final MoodTypeCalculator moodTypeCalculator;
 
     @Transactional(readOnly = true)
     public CocktailListResponse getCocktails(
@@ -103,7 +104,10 @@ public class CocktailService {
 
         boolean canSetRepresentative = !user.isGuest() && unlocked && !representative;
 
-        int typePercent = calculateRepresentativeTypePercent(userId, moodTypeId);
+        long totalRecordCount = drinkingRecordRepository.countByUser_Id(userId);
+        long typeRecordCount = drinkingRecordRepository.countByUser_IdAndCocktail_MoodType_Id(userId, moodTypeId);
+
+        int typePercent = moodTypeCalculator.calculateTypePercent(typeRecordCount, totalRecordCount);
 
         List<MoodTypeCompatibility> compatibilityList =
                 compatibilityRepository.findAllByMoodTypeId(moodTypeId);
@@ -138,119 +142,42 @@ public class CocktailService {
         int totalCocktailCount = cocktails.size();
         int unlockedCocktailCount = unlockedCocktailIds.size();
 
-        int collectionRate = calculateCollectionRate(
+        int collectionRate = moodTypeCalculator.calculateCollectionRate(
                 unlockedCocktailCount,
                 totalCocktailCount
         );
 
-        List<MoodTypeResponse.CocktailSummaryDto> cocktailResponses =
-                cocktails.stream()
-                        .map(cocktail ->
-                                MoodTypeResponse.CocktailSummaryDto.builder()
-                                        .cocktailId(cocktail.getId())
-                                        .nameKo(cocktail.getNameKo())
-                                        .nameEn(cocktail.getNameEn())
-                                        .shortDescription(
-                                                cocktail.getShortDescription()
-                                        )
-                                        .imageUrl(
-                                                getImageUrl(cocktail.getImage())
-                                        )
-                                        .unlocked(
-                                                unlockedCocktailIds.contains(
-                                                        cocktail.getId()
-                                                )
-                                        )
-                                        .build()
+        MoodTypeResponse.TypeFiguresDto typeFigures =
+                MoodTypeResponse.TypeFiguresDto.of(
+                        moodTypeCalculator.convertFigureTo100(
+                                moodType.getAlcoholIntensity()
+                        ),
+                        moodTypeCalculator.convertFigureTo100(
+                                moodType.getSweetness()
+                        ),
+                        moodTypeCalculator.convertFigureTo100(
+                                moodType.getSourness()
+                        ),
+                        moodTypeCalculator.convertFigureTo100(
+                                moodType.getBitterness()
+                        ),
+                        moodTypeCalculator.convertFigureTo100(
+                                moodType.getRefreshing()
                         )
-                        .toList();
+                );
 
-        return MoodTypeResponse.builder()
-                .moodTypeId(moodType.getId())
-                .typeCode(moodType.getCode())
-                .name(moodType.getName())
-                .shortDescription(moodType.getShortDescription())
-                .description(moodType.getDescription())
-                .catchphrase(moodType.getCharacterQuote())
-                .characterImageUrl(
-                        getImageUrl(moodType.getCharacterImage())
-                )
-                .unlocked(unlocked)
-                .representative(representative)
-                .canSetRepresentative(canSetRepresentative)
-                .typePercent(typePercent)
-                .collectionRate(collectionRate)
-                .typeFigures(
-                        MoodTypeResponse.TypeFiguresDto.builder()
-                                .alcoholIntensity(convertFigure(moodType.getAlcoholIntensity()))
-                                .sweetness(convertFigure(moodType.getSweetness()))
-                                .sourness(convertFigure(moodType.getSourness()))
-                                .refreshing(convertFigure(moodType.getRefreshing()))
-                                .bitterness(convertFigure(moodType.getBitterness()))
-                                .build()
-                )
-                .compatibilities(
-                        MoodTypeResponse.CompatibilitiesDto.builder()
-                                .best(toCompatibilityResponse(bestMatch))
-                                .worst(toCompatibilityResponse(worstMatch))
-                                .build()
-                )
-                .cocktails(cocktailResponses)
-                .totalCocktailCount(totalCocktailCount)
-                .unlockedCocktailCount(unlockedCocktailCount)
-                .build();
-    }
-
-    private int convertFigure(BigDecimal value) {
-        return value.multiply(
-                new BigDecimal("20")
-        ).intValue();
-    }
-
-    private int calculateCollectionRate(
-            int unlockedCocktailCount,
-            int totalCocktailCount
-    ) {
-        if (totalCocktailCount == 0) {
-            return 0;
-        }
-
-        return (int) (
-                unlockedCocktailCount * 100L
-                        / totalCocktailCount
-        );
-    }
-
-    private MoodTypeResponse.CompatibilityDto toCompatibilityResponse(
-            MoodType moodType
-    ) {
-        if (moodType == null) {
-            return null;
-        }
-
-        return MoodTypeResponse.CompatibilityDto.builder()
-                .moodTypeId(moodType.getId())
-                .typeCode(moodType.getCode())
-                .name(moodType.getName())
-                .characterImageUrl(
-                        getImageUrl(moodType.getCharacterImage())
-                )
-                .build();
-    }
-
-
-    private int calculateRepresentativeTypePercent(Long userId, Long moodTypeId) {
-        long totalUserCount =
-                drinkingRecordRepository.countByUser_Id(userId);
-
-        if (totalUserCount == 0) {
-            return 0;
-        }
-
-        long typeRecordCount = drinkingRecordRepository.countByUser_IdAndCocktail_MoodType_Id(userId, moodTypeId);
-
-        return (int) Math.round(
-                typeRecordCount * 100.0 / totalUserCount
+        return MoodTypeResponse.from(
+                moodType,
+                unlocked,
+                representative,
+                canSetRepresentative,
+                typePercent,
+                collectionRate,
+                typeFigures,
+                bestMatch,
+                worstMatch,
+                cocktails,
+                unlockedCocktailIds
         );
     }
 

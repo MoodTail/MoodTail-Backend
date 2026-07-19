@@ -31,9 +31,4 @@ public interface UserUnlockedMoodTypeRepository extends JpaRepository<UserUnlock
              order by moodType.sortOrder asc, moodType.id asc
             """)
     List<MoodTypeCollectionProjection> findAllMoodTypesByUserId(@Param("userId") Long userId);
-
-    boolean existsByUserIdAndMoodTypeId(
-            Long userId,
-            Long moodTypeId
-    );
 }
