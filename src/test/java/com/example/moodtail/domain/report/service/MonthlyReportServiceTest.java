@@ -187,6 +187,26 @@ class MonthlyReportServiceTest {
         verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
     }
 
+    @Test
+    void rejectsUnsupportedYearWithTheReportErrorContract() {
+        assertThatThrownBy(() -> monthlyReportService.getMonthlyReport(USER_ID, 999, 12))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_400"));
+
+        verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
+        verify(historyRepository, never()).findFrequentCocktails(any(), any(), any(), any());
+    }
+
+    @Test
+    void rejectsInvalidMonthWithTheReportErrorContract() {
+        assertThatThrownBy(() -> monthlyReportService.getMonthlyReport(USER_ID, 2026, 13))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_400"));
+
+        verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
+        verify(historyRepository, never()).findFrequentCocktails(any(), any(), any(), any());
+    }
+
     private void stubCurrentMonth(
             List<MoodTestResult> currentResults,
             List<HistoryRepository.FrequentCocktail> cocktails

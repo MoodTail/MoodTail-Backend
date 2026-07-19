@@ -44,7 +44,7 @@ public class MonthlyReportService {
     @Transactional(readOnly = true)
     public MonthlyReportResponse getMonthlyReport(Long userId, int year, int month) {
         LocalDate today = LocalDate.now(clock);
-        YearMonth requestedMonth = HistoryDatePolicy.parseYearMonth(year, month);
+        YearMonth requestedMonth = parseRequestedMonth(year, month);
         if (requestedMonth.isAfter(YearMonth.from(today))) {
             throw new RestApiException(INVALID_REQUEST);
         }
@@ -92,6 +92,14 @@ public class MonthlyReportService {
                 frequentCocktails,
                 new MonthlyReportResponse.Activity(currentResults.size(), drinkingRecordCount)
         );
+    }
+
+    private YearMonth parseRequestedMonth(int year, int month) {
+        try {
+            return HistoryDatePolicy.parseYearMonth(year, month);
+        } catch (RestApiException exception) {
+            throw new RestApiException(INVALID_REQUEST);
+        }
     }
 
     private MonthlyReportResponse.TasteProfile previousMonthTasteProfile(Long userId, YearMonth requestedMonth) {
