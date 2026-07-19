@@ -29,8 +29,6 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SocialAccountService {
 
-    private static final int REGISTRATION_MAX_ATTEMPTS = 3;
-
     private final PlatformTransactionManager transactionManager;
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
@@ -58,31 +56,24 @@ public class SocialAccountService {
             List<Consent> consents
     ) {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
-        for (int attempt = 0; attempt < REGISTRATION_MAX_ATTEMPTS; attempt++) {
-            try {
-                SocialLoginUser result = transactionTemplate.execute(status ->
-                        loginInTransaction(profile).orElseGet(
-                                () -> registerInTransaction(profile, guestUserId, consents)
-                        )
-                );
-                if (result == null) {
-                    throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
-                }
-                return result;
-            } catch (DataIntegrityViolationException exception) {
-                Optional<SocialLoginUser> committedAuthentication =
-                        recoverCommittedRegistration(transactionTemplate, profile);
-                if (committedAuthentication.isPresent()) {
-                    return committedAuthentication.get();
-                }
-                throw exception;
-            } catch (CannotAcquireLockException exception) {
-                if (attempt + 1 == REGISTRATION_MAX_ATTEMPTS) {
-                    throw exception;
-                }
+        try {
+            SocialLoginUser result = transactionTemplate.execute(status ->
+                    loginInTransaction(profile).orElseGet(
+                            () -> registerInTransaction(profile, guestUserId, consents)
+                    )
+            );
+            if (result == null) {
+                throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
             }
+            return result;
+        } catch (DataIntegrityViolationException exception) {
+            Optional<SocialLoginUser> committedAuthentication =
+                    recoverCommittedRegistration(transactionTemplate, profile);
+            if (committedAuthentication.isPresent()) {
+                return committedAuthentication.get();
+            }
+            throw exception;
         }
-        throw new IllegalStateException("Social authentication retry loop completed unexpectedly");
     }
 
     private Optional<SocialLoginUser> recoverCommittedRegistration(
@@ -117,16 +108,6 @@ public class SocialAccountService {
             Long guestUserId,
             List<Consent> consents
     ) {
-        Optional<SocialAccount> existingAccount = socialAccountRepository
-                .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
-        if (existingAccount.isPresent()) {
-            SocialAccount account = existingAccount.get();
-            User user = account.getUser();
-            validateActive(user);
-            user.updateLastAccessedAt(LocalDateTime.now());
-            return createSocialLoginUser(user, account, false);
-        }
-
         User guestUser = userRepository.findByIdForUpdate(guestUserId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
         if (!guestUser.isGuest() || !guestUser.isAvailableForAuthentication()) {

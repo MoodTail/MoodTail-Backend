@@ -23,7 +23,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -43,9 +42,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -150,49 +147,6 @@ class SocialAccountServiceTest {
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
-    }
-
-    @Test
-    void authenticationRetriesOneTransientLockFailure() {
-        User existingUser = guestWithId(99L);
-        existingUser.upgradeToUser("기존유저", LocalDateTime.now());
-        SocialAccount account = SocialAccount.create(
-                existingUser,
-                SocialProvider.KAKAO,
-                "12345",
-                null
-        );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenThrow(new CannotAcquireLockException("transient lock failure"))
-                .thenReturn(Optional.of(account));
-
-        SocialLoginUser result = service.authenticate(
-                kakaoProfile(),
-                2L,
-                null
-        ).user();
-
-        assertThat(result.userId()).isEqualTo(99L);
-        verify(socialAccountRepository, times(2))
-                .findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345");
-    }
-
-    @Test
-    void authenticationStopsAfterThreeLockFailures() {
-        CannotAcquireLockException lockFailure =
-                new CannotAcquireLockException("persistent lock failure");
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenThrow(lockFailure);
-
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                null
-        )).isSameAs(lockFailure);
-
-        verify(socialAccountRepository, times(3))
-                .findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345");
-        verifyNoInteractions(userRepository, termRepository, userTermAgreementRepository);
     }
 
     @Test
@@ -311,7 +265,7 @@ class SocialAccountServiceTest {
     }
 
     @Test
-    void authenticationRetryReturnsAlreadyCommittedAccountForSameSignupGuest() {
+    void authenticationRecoversCommittedAccountForSameSignupGuest() {
         User initialGuest = guestWithId(2L);
         User committedGuest = guestWithId(2L);
         committedGuest.upgradeToUser("가입완료", LocalDateTime.now());
@@ -324,11 +278,8 @@ class SocialAccountServiceTest {
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty())
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(account));
-        when(userRepository.findByIdForUpdate(2L))
-                .thenReturn(Optional.of(initialGuest))
-                .thenReturn(Optional.of(committedGuest));
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
         when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
         when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
                 .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
@@ -359,7 +310,6 @@ class SocialAccountServiceTest {
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty())
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(committedAccount));
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
         when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
@@ -378,7 +328,7 @@ class SocialAccountServiceTest {
     }
 
     @Test
-    void authenticationRetryUsesConcurrentlyCommittedAccountOwnedByExistingUser() {
+    void authenticationUsesConcurrentlyCommittedAccountOwnedByExistingUser() {
         User initialGuest = guestWithId(2L);
         User differentUser = guestWithId(99L);
         differentUser.upgradeToUser("다른회원", LocalDateTime.now());
@@ -390,7 +340,6 @@ class SocialAccountServiceTest {
                 null
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(committedAccount));
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
@@ -416,7 +365,6 @@ class SocialAccountServiceTest {
         DataIntegrityViolationException databaseFailure =
                 new DataIntegrityViolationException("unrelated foreign key failure");
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty());
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
