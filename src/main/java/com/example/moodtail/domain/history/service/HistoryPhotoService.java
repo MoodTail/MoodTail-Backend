@@ -3,7 +3,6 @@ package com.example.moodtail.domain.history.service;
 import com.example.moodtail.domain.history.dto.response.HistoryPhotoResponse;
 import com.example.moodtail.domain.history.entity.HistoryPhoto;
 import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
-import com.example.moodtail.domain.history.storage.HistoryPhotoStorage;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.image.repository.ImageRepository;
@@ -11,6 +10,7 @@ import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.infra.s3.S3StorageException;
+import com.example.moodtail.global.infra.s3.S3StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -31,10 +31,12 @@ import static com.example.moodtail.global.common.exception.code.status.ImageErro
 @RequiredArgsConstructor
 public class HistoryPhotoService {
 
+    private static final String PHOTO_DIRECTORY = "history/photos";
+
     private final HistoryPhotoRepository historyPhotoRepository;
     private final ImageRepository imageRepository;
     private final UserRepository userRepository;
-    private final HistoryPhotoStorage photoStorage;
+    private final S3StorageService storageService;
     private final TransactionTemplate transactionTemplate;
     private final Clock clock;
 
@@ -50,7 +52,7 @@ public class HistoryPhotoService {
 
         String imageUrl;
         try {
-            imageUrl = photoStorage.upload(image);
+            imageUrl = storageService.uploadImage(image, PHOTO_DIRECTORY);
         } catch (S3StorageException exception) {
             log.error("Failed to upload history photo", exception);
             throw new RestApiException(PHOTO_STORAGE_UNAVAILABLE);
@@ -112,7 +114,7 @@ public class HistoryPhotoService {
 
     private void deleteStoredImageSafely(String imageUrl) {
         try {
-            photoStorage.delete(imageUrl);
+            storageService.deleteImage(imageUrl);
         } catch (RuntimeException exception) {
             log.error("Failed to delete history photo from storage: imageUrl={}", imageUrl, exception);
         }

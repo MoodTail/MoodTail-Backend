@@ -2,7 +2,6 @@ package com.example.moodtail.domain.history.service;
 
 import com.example.moodtail.domain.history.entity.HistoryPhoto;
 import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
-import com.example.moodtail.domain.history.storage.HistoryPhotoStorage;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.image.repository.ImageRepository;
@@ -10,6 +9,7 @@ import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.infra.s3.S3StorageException;
+import com.example.moodtail.global.infra.s3.S3StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,6 +32,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
@@ -55,7 +56,7 @@ class HistoryPhotoServiceTest {
     @Mock
     private UserRepository userRepository;
     @Mock
-    private HistoryPhotoStorage photoStorage;
+    private S3StorageService storageService;
     @Mock
     private TransactionTemplate transactionTemplate;
 
@@ -72,7 +73,7 @@ class HistoryPhotoServiceTest {
                 historyPhotoRepository,
                 imageRepository,
                 userRepository,
-                photoStorage,
+                storageService,
                 transactionTemplate,
                 CLOCK
         );
@@ -82,7 +83,7 @@ class HistoryPhotoServiceTest {
     void removesUploadedObjectWhenDatabasePersistenceFails() {
         MultipartFile file = mock(MultipartFile.class);
         String url = "https://cdn.example/history/photos/photo.png";
-        when(photoStorage.upload(file)).thenReturn(url);
+        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
         when(userRepository.getReferenceById(1L)).thenReturn(member());
         when(imageRepository.save(any(Image.class)))
                 .thenThrow(new IllegalStateException("database failure"));
@@ -90,7 +91,7 @@ class HistoryPhotoServiceTest {
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
                 .isInstanceOf(RuntimeException.class);
 
-        verify(photoStorage).delete(url);
+        verify(storageService).deleteImage(url);
     }
 
     @Test
@@ -98,12 +99,12 @@ class HistoryPhotoServiceTest {
         MultipartFile file = mock(MultipartFile.class);
         String url = "https://cdn.example/history/photos/photo.png";
         IllegalStateException databaseFailure = new IllegalStateException("database failure");
-        when(photoStorage.upload(file)).thenReturn(url);
+        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
         when(userRepository.getReferenceById(1L)).thenReturn(member());
         when(imageRepository.save(any(Image.class))).thenThrow(databaseFailure);
-        org.mockito.Mockito.doThrow(new RestApiException(
-                com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.INVALID_IMAGE
-        )).when(photoStorage).delete(url);
+        org.mockito.Mockito.doThrow(new S3StorageException("storage failure"))
+                .when(storageService)
+                .deleteImage(url);
 
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
                 .isSameAs(databaseFailure);
@@ -114,7 +115,7 @@ class HistoryPhotoServiceTest {
         MultipartFile file = mock(MultipartFile.class);
         String url = "https://cdn.example/history/photos/photo.png";
         User user = member();
-        when(photoStorage.upload(file)).thenReturn(url);
+        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
         when(userRepository.getReferenceById(1L)).thenReturn(user);
         when(imageRepository.save(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(historyPhotoRepository.save(any())).thenAnswer(invocation -> {
@@ -139,11 +140,12 @@ class HistoryPhotoServiceTest {
     @Test
     void mapsUploadStorageFailureToHistoryContract() {
         MultipartFile file = mock(MultipartFile.class);
-        when(photoStorage.upload(file)).thenThrow(new S3StorageException("storage unavailable"));
+        when(storageService.uploadImage(file, "history/photos"))
+                .thenThrow(new S3StorageException("storage unavailable"));
 
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "camera"))
                 .isInstanceOfSatisfying(
-                        com.example.moodtail.global.common.exception.RestApiException.class,
+                        RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo("HISTORY_PHOTO_503")
                 );
@@ -161,13 +163,13 @@ class HistoryPhotoServiceTest {
 
         photoService.delete(1L, "2026-07-10", 3L);
 
-        InOrder deletionOrder = inOrder(historyPhotoRepository, imageRepository, photoStorage);
+        InOrder deletionOrder = inOrder(historyPhotoRepository, imageRepository, storageService);
         deletionOrder.verify(historyPhotoRepository).delete(photo);
         deletionOrder.verify(historyPhotoRepository).flush();
         deletionOrder.verify(historyPhotoRepository).existsByImageId(9L);
         deletionOrder.verify(imageRepository).delete(image);
         deletionOrder.verify(imageRepository).flush();
-        deletionOrder.verify(photoStorage).delete(image.getImageUrl());
+        deletionOrder.verify(storageService).deleteImage(image.getImageUrl());
     }
 
     @Test
@@ -183,7 +185,7 @@ class HistoryPhotoServiceTest {
         photoService.delete(1L, "2026-07-10", 3L);
 
         verify(imageRepository, never()).delete(any(Image.class));
-        verify(photoStorage, never()).delete(image.getImageUrl());
+        verify(storageService, never()).deleteImage(image.getImageUrl());
     }
 
     @Test
@@ -197,8 +199,8 @@ class HistoryPhotoServiceTest {
                 .thenReturn(Optional.of(photo));
         when(historyPhotoRepository.existsByImageId(9L)).thenReturn(false);
         org.mockito.Mockito.doThrow(new S3StorageException("storage unavailable"))
-                .when(photoStorage)
-                .delete(imageUrl);
+                .when(storageService)
+                .deleteImage(imageUrl);
 
         photoService.delete(1L, "2026-07-10", 3L);
 
@@ -222,7 +224,7 @@ class HistoryPhotoServiceTest {
         assertThatThrownBy(() -> photoService.delete(1L, "2026-07-10", 3L))
                 .isSameAs(databaseFailure);
 
-        verify(photoStorage, never()).delete(imageUrl);
+        verify(storageService, never()).deleteImage(imageUrl);
     }
 
     @Test
@@ -231,11 +233,11 @@ class HistoryPhotoServiceTest {
 
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-12", file, "CAMERA"))
                 .isInstanceOfSatisfying(
-                        com.example.moodtail.global.common.exception.RestApiException.class,
+                        RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400")
                 );
 
-        verify(photoStorage, never()).upload(any());
+        verify(storageService, never()).uploadImage(any(), anyString());
     }
 
     private User member() {
