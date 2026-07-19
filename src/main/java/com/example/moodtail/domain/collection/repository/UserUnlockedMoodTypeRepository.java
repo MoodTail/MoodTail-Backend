@@ -11,6 +11,8 @@ import java.util.Optional;
 
 public interface UserUnlockedMoodTypeRepository extends JpaRepository<UserUnlockedMoodType, Long> {
 
+    boolean existsByUserIdAndMoodTypeId(Long userId, Long moodTypeId);
+
     @EntityGraph(attributePaths = {"moodType", "moodType.characterImage"})
     Optional<UserUnlockedMoodType> findByUserIdAndMoodTypeId(Long userId, Long moodTypeId);
 
