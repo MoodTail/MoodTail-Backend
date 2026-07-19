@@ -53,13 +53,6 @@ public class ImageService {
                         imageUrl,
                         exception
                 );
-            } catch (RuntimeException exception) {
-                failed++;
-                log.error(
-                        "Manual image cleanup required after unexpected storage error: imageUrl={}",
-                        imageUrl,
-                        exception
-                );
             }
         }
         return new StorageCleanupResult(deleted, failed);

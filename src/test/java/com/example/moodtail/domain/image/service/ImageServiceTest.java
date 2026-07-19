@@ -13,7 +13,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
 @ExtendWith(MockitoExtension.class)
@@ -65,19 +67,20 @@ class ImageServiceTest {
     }
 
     @Test
-    void continuesAfterUnexpectedStorageFailureAndReportsIt() {
+    void doesNotHideUnexpectedProgrammingFailureAsStorageCleanupFailure() {
         String failedImage = "https://cdn.example/failed.png";
         String deletedImage = "https://cdn.example/deleted.png";
-        doThrow(new IllegalStateException("unexpected storage failure"))
+        IllegalStateException programmingFailure = new IllegalStateException("unexpected failure");
+        doThrow(programmingFailure)
                 .when(storageService)
                 .deleteImage(failedImage);
 
-        StorageCleanupResult result = imageService.deleteImagesFromStorage(List.of(
-                failedImage,
-                deletedImage
-        ));
+        assertThatThrownBy(() -> imageService.deleteImagesFromStorage(List.of(
+                    failedImage,
+                    deletedImage
+                )))
+                .isSameAs(programmingFailure);
 
-        verify(storageService).deleteImage(deletedImage);
-        assertThat(result).isEqualTo(new StorageCleanupResult(1, 1));
+        verify(storageService, never()).deleteImage(deletedImage);
     }
 }
