@@ -28,7 +28,8 @@ public interface MonthlyReportControllerDocs {
     @Operation(
             operationId = "createMonthlyReportShareImage",
             summary = "월간 리포트 공유 이미지 저장",
-            description = "프론트엔드에서 생성한 월간 리포트 공유 이미지를 저장하고 이미지 URL을 반환합니다."
+            description = "프론트엔드에서 생성한 월간 리포트 공유 이미지를 저장하고 이미지 URL을 반환합니다. "
+                    + "공유 이미지는 7일 동안 보관된 후 S3 수명 주기 정책에 의해 삭제됩니다."
     )
     BaseResponse<MonthlyReportShareImageResponse> createMonthlyReportShareImage(
             @Parameter(hidden = true) PrincipalDetails principal,
