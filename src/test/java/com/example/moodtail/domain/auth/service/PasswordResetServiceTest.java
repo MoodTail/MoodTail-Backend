@@ -1,11 +1,10 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
-import com.example.moodtail.domain.auth.service.LocalAccountService.PasswordResetAccount;
+import com.example.moodtail.domain.auth.model.PasswordResetAccount;
 import com.example.moodtail.global.auth.mail.PasswordResetMailSender;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import com.example.moodtail.support.auth.LocalAuthPropertiesFixtures;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,10 +13,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.util.Optional;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,8 +34,6 @@ class PasswordResetServiceTest {
     @Mock LocalAccountService localAccountService;
     @Mock PasswordResetMailSender mailSender;
     @Mock RedisRepository redisRepository;
-    @Mock IdentityLockManager identityLockManager;
-    @Mock TokenSessionService tokenSessionService;
 
     private PasswordResetService service;
 
@@ -48,16 +43,12 @@ class PasswordResetServiceTest {
                 localAccountService,
                 mailSender,
                 redisRepository,
-                identityLockManager,
-                LocalAuthPropertiesFixtures.enabled(),
-                tokenSessionService
+                LocalAuthPropertiesFixtures.enabled()
         );
         lenient().when(localAccountService.normalizeEmail(anyString()))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         lenient().when(redisRepository.acquirePasswordResetClientSlot(anyString(), anyInt(), any())).thenReturn(true);
         lenient().when(redisRepository.acquirePasswordResetCooldown(anyString(), any())).thenReturn(true);
-        lenient().when(identityLockManager.executeForPasswordResetToken(anyString(), any()))
-                .thenAnswer(invocation -> get(invocation.getArgument(1)));
     }
 
     @Test
@@ -67,7 +58,7 @@ class PasswordResetServiceTest {
                         3L, 2, "user@example.com"
                 )));
 
-        service.requestCode("user@example.com", new MockHttpServletRequest());
+        service.requestCode("user@example.com", "203.0.113.7");
 
         verify(redisRepository).savePasswordResetCode(anyString(), eq(3L), eq(2), anyString(), any());
         verify(mailSender).sendCode(eq("user@example.com"), anyString());
@@ -101,8 +92,6 @@ class PasswordResetServiceTest {
     void passwordChangeUsesTokenOnceAndDelegatesToLocalAccountService() {
         when(redisRepository.findPasswordResetToken(anyString()))
                 .thenReturn(Optional.of(new RedisRepository.PasswordResetTokenSession(3L, 2)));
-        when(localAccountService.changePassword(3L, 2, "new-password", "new-password"))
-                .thenReturn(9L);
 
         service.changePassword("reset-token", "new-password", "new-password");
 
@@ -110,7 +99,6 @@ class PasswordResetServiceTest {
         verify(redisRepository).findPasswordResetToken(tokenKeyCaptor.capture());
         assertThat(tokenKeyCaptor.getValue()).hasSize(64).isNotEqualTo("reset-token");
         verify(localAccountService).changePassword(3L, 2, "new-password", "new-password");
-        verify(tokenSessionService).revokeSession(9L);
         verify(redisRepository).deletePasswordResetToken(tokenKeyCaptor.getValue());
     }
 
@@ -129,18 +117,18 @@ class PasswordResetServiceTest {
     }
 
     @Test
-    void blankResetTokenIsRejectedBeforeAcquiringLock() {
+    void blankResetTokenIsRejectedBeforeRedisLookup() {
         assertThatThrownBy(() -> service.changePassword(" ", "new-password", "new-password"))
                 .isInstanceOf(com.example.moodtail.global.common.exception.RestApiException.class);
 
-        verify(identityLockManager, never()).executeForPasswordResetToken(anyString(), any());
+        verify(redisRepository, never()).findPasswordResetToken(anyString());
     }
 
     @Test
     void rejectedClientRateLimitDoesNotConsumeEmailCooldown() {
         when(redisRepository.acquirePasswordResetClientSlot(anyString(), anyInt(), any())).thenReturn(false);
 
-        assertThatThrownBy(() -> service.requestCode("user@example.com", new MockHttpServletRequest()))
+        assertThatThrownBy(() -> service.requestCode("user@example.com", "203.0.113.7"))
                 .isInstanceOf(com.example.moodtail.global.common.exception.RestApiException.class);
 
         verify(redisRepository, never()).acquirePasswordResetCooldown(anyString(), any());
@@ -156,14 +144,11 @@ class PasswordResetServiceTest {
         doThrow(new IllegalStateException("SMTP unavailable"))
                 .when(mailSender).sendCode(eq("user@example.com"), anyString());
 
-        assertThatThrownBy(() -> service.requestCode("user@example.com", new MockHttpServletRequest()))
+        assertThatThrownBy(() -> service.requestCode("user@example.com", "203.0.113.7"))
                 .isInstanceOf(IllegalStateException.class);
 
         verify(redisRepository).deletePasswordResetCode(anyString());
         verify(redisRepository).deletePasswordResetCooldown(anyString());
     }
 
-    private <T> T get(Supplier<T> supplier) {
-        return supplier.get();
-    }
 }

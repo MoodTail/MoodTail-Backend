@@ -186,13 +186,13 @@ class KakaoOAuthClientTest {
 
     @Test
     void unverifiedKakaoEmailIsNotUsedAsAccountEmail() {
-        KakaoOAuthClient.KakaoUserInfoResponse userInfo = new KakaoOAuthClient.KakaoUserInfoResponse(
+        KakaoUserInfoResponse userInfo = new KakaoUserInfoResponse(
                 12345L,
-                new KakaoOAuthClient.KakaoAccount(
+                new KakaoUserInfoResponse.KakaoAccount(
                         "unverified@example.com",
                         true,
                         false,
-                        new KakaoOAuthClient.KakaoProfile("카카오유저")
+                        new KakaoUserInfoResponse.Profile("카카오유저")
                 )
         );
 

@@ -7,17 +7,21 @@ import com.example.moodtail.domain.auth.dto.request.PasswordChangeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
-import com.example.moodtail.domain.auth.dto.response.EmailAvailabilityResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
+import com.example.moodtail.domain.auth.dto.response.LocalEmailAvailabilityResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
+import com.example.moodtail.domain.auth.model.AuthResult;
 import com.example.moodtail.global.auth.model.SocialProvider;
+import com.example.moodtail.domain.auth.service.AccountWithdrawalService;
 import com.example.moodtail.domain.auth.service.AuthService;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.ExceptionAdvice;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
+import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +30,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
@@ -34,10 +39,12 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -47,14 +54,26 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
 
+    private static final String VALID_OAUTH_STATE = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
     @Mock
     private AuthService authService;
 
+    @Mock
+    private AuthHttpSupport authHttpSupport;
+
+    @Mock
+    private AccountWithdrawalService accountWithdrawalService;
+
+    private AuthController controller;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders.standaloneSetup(new AuthController(authService))
+        controller = new AuthController(authService, accountWithdrawalService, authHttpSupport);
+        mockMvc = MockMvcBuilders.standaloneSetup(
+                        controller
+                )
                 .setControllerAdvice(new ExceptionAdvice())
                 .setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
                 .build();
@@ -71,19 +90,19 @@ class AuthControllerTest {
                 "Bearer",
                 "access-token"
         );
-        when(authService.socialLogin(eq("kakao"), any(SocialLoginRequest.class), any(HttpServletResponse.class)))
-                .thenReturn(socialLoginResponse);
+        when(authService.socialLogin(eq("kakao"), any(SocialLoginRequest.class)))
+                .thenReturn(new AuthResult<>(socialLoginResponse, "refresh-token"));
 
-        mockMvc.perform(post("/api/v1/auth/login/kakao")
+        mockMvc.perform(post("/api/v1/auth/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "code": "kakao-authorization-code",
-                                  "state": "oauth-state",
+                                  "state": "%s",
                                   "nickname": "카카오유저",
                                   "agreements": [{"termId": 1, "agreed": true}]
                                 }
-                                """))
+                                """.formatted(VALID_OAUTH_STATE)))
                 .andExpect(status().isOk())
                 .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header()
                         .string(HttpHeaders.CACHE_CONTROL, "no-store"))
@@ -94,18 +113,12 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.result.isNewUser").value(true));
 
         ArgumentCaptor<SocialLoginRequest> requestCaptor = ArgumentCaptor.forClass(SocialLoginRequest.class);
-        verify(authService).socialLogin(eq("kakao"), requestCaptor.capture(), any(HttpServletResponse.class));
+        verify(authService).socialLogin(eq("kakao"), requestCaptor.capture());
+        verify(authHttpSupport).setRefreshTokenCookie(any(), eq("refresh-token"));
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().authorizationCode())
                 .isEqualTo("kakao-authorization-code");
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().state())
-                .isEqualTo("oauth-state");
-    }
-
-    @Test
-    void oauthStateRejectsMissingGuestPrincipalWithoutNullPointerException() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/oauth-states/kakao"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("AUTH019"));
+                .isEqualTo(VALID_OAUTH_STATE);
     }
 
     @Test
@@ -119,25 +132,25 @@ class AuthControllerTest {
                 "Bearer",
                 "access-token"
         );
-        when(authService.socialLogin(eq("google"), any(SocialLoginRequest.class), any(HttpServletResponse.class)))
-                .thenReturn(socialLoginResponse);
+        when(authService.socialLogin(eq("google"), any(SocialLoginRequest.class)))
+                .thenReturn(new AuthResult<>(socialLoginResponse, "refresh-token"));
 
-        mockMvc.perform(post("/api/v1/auth/login/google")
+        mockMvc.perform(post("/api/v1/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "code": "google-authorization-code",
                                   "redirectUri": "https://frontend.example.com/oauth/google/callback",
-                                  "state": "google-oauth-state"
+                                  "state": "%s"
                                 }
-                                """))
+                                """.formatted(VALID_OAUTH_STATE)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.provider").value("GOOGLE"))
                 .andExpect(jsonPath("$.result.email").value("google@example.com"))
                 .andExpect(jsonPath("$.result.isNewUser").value(false));
 
         ArgumentCaptor<SocialLoginRequest> requestCaptor = ArgumentCaptor.forClass(SocialLoginRequest.class);
-        verify(authService).socialLogin(eq("google"), requestCaptor.capture(), any(HttpServletResponse.class));
+        verify(authService).socialLogin(eq("google"), requestCaptor.capture());
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().redirectUri())
                 .isEqualTo("https://frontend.example.com/oauth/google/callback");
     }
@@ -151,12 +164,9 @@ class AuthControllerTest {
                 "Bearer",
                 "guest-access-token"
         );
-        when(authService.guestLogin(
-                any(GuestLoginRequest.class),
-                any(HttpServletRequest.class),
-                any(HttpServletResponse.class)
-        ))
-                .thenReturn(guestLoginResponse);
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.guestLogin(any(GuestLoginRequest.class), eq("203.0.113.7")))
+                .thenReturn(new AuthResult<>(guestLoginResponse, "guest-refresh-token"));
 
         mockMvc.perform(post("/api/v1/auth/guest")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -181,8 +191,9 @@ class AuthControllerTest {
                 "Bearer",
                 "signup-access-token"
         );
-        when(authService.localSignup(any(LocalSignupRequest.class), isNull(), any(HttpServletResponse.class)))
-                .thenReturn(signupResponse);
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.localSignup(any(LocalSignupRequest.class), isNull(), eq("203.0.113.7")))
+                .thenReturn(new AuthResult<>(signupResponse, "signup-refresh-token"));
 
         mockMvc.perform(post("/api/v1/auth/signup/local")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -207,7 +218,7 @@ class AuthControllerTest {
         verify(authService, times(1)).localSignup(
                 requestCaptor.capture(),
                 isNull(),
-                any(HttpServletResponse.class)
+                eq("203.0.113.7")
         );
         LocalSignupRequest captured = requestCaptor.getValue();
         assertThat(captured.email()).isEqualTo("user@example.com");
@@ -255,17 +266,18 @@ class AuthControllerTest {
     }
 
     @Test
-    void localEmailAvailabilitySupportsSignupDuplicateCheck() throws Exception {
-        when(authService.checkLocalEmailAvailability("user@example.com"))
-                .thenReturn(new EmailAvailabilityResponse("user@example.com", true));
+    void localEmailAvailabilityReturnsOnlyNormalizedEmailAndBoolean() throws Exception {
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.checkLocalEmailAvailability("User@Example.com", "203.0.113.7"))
+                .thenReturn(new LocalEmailAvailabilityResponse("user@example.com", true));
 
         mockMvc.perform(get("/api/v1/auth/signup/local/email-availability")
-                        .param("email", "user@example.com"))
+                        .queryParam("email", "User@Example.com"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.email").value("user@example.com"))
-                .andExpect(jsonPath("$.result.available").value(true));
-
-        verify(authService).checkLocalEmailAvailability("user@example.com");
+                .andExpect(jsonPath("$.result.available").value(true))
+                .andExpect(jsonPath("$.result.userId").doesNotExist())
+                .andExpect(jsonPath("$.result.provider").doesNotExist());
     }
 
     @Test
@@ -278,8 +290,9 @@ class AuthControllerTest {
                 "Bearer",
                 "login-access-token"
         );
-        when(authService.localLogin(any(LocalLoginRequest.class), isNull(), any(HttpServletResponse.class)))
-                .thenReturn(loginResponse);
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.localLogin(any(LocalLoginRequest.class), isNull(), eq("203.0.113.7")))
+                .thenReturn(new AuthResult<>(loginResponse, "login-refresh-token"));
 
         mockMvc.perform(post("/api/v1/auth/login/local")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -297,7 +310,7 @@ class AuthControllerTest {
         verify(authService, times(1)).localLogin(
                 requestCaptor.capture(),
                 isNull(),
-                any(HttpServletResponse.class)
+                eq("203.0.113.7")
         );
         assertThat(requestCaptor.getValue().email()).isEqualTo("user@example.com");
         assertThat(requestCaptor.getValue().password()).isEqualTo("password123!");
@@ -322,7 +335,8 @@ class AuthControllerTest {
 
     @Test
     void passwordResetFlowExposesCodeVerificationAndPasswordChangeEndpoints() throws Exception {
-        when(authService.requestPasswordResetCode(any(), any()))
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.requestPasswordResetCode(any(), eq("203.0.113.7")))
                 .thenReturn(new PasswordResetCodeResponse(300L));
         when(authService.verifyPasswordResetCode(any()))
                 .thenReturn(new PasswordResetVerificationResponse("reset-token", 600L));
@@ -354,7 +368,7 @@ class AuthControllerTest {
                 ArgumentCaptor.forClass(PasswordResetCodeRequest.class);
         verify(authService, times(1)).requestPasswordResetCode(
                 codeRequestCaptor.capture(),
-                any(HttpServletRequest.class)
+                eq("203.0.113.7")
         );
         assertThat(codeRequestCaptor.getValue().email()).isEqualTo("user@example.com");
 
@@ -370,6 +384,45 @@ class AuthControllerTest {
         assertThat(changeRequestCaptor.getValue().resetToken()).isEqualTo("reset-token");
         assertThat(changeRequestCaptor.getValue().newPassword()).isEqualTo("new-password123!");
         assertThat(changeRequestCaptor.getValue().newPasswordConfirm()).isEqualTo("new-password123!");
+    }
+
+    @Test
+    void reissueFailureDoesNotSetOrClearRefreshCookie() throws Exception {
+        when(authHttpSupport.resolveRefreshToken(any())).thenReturn("old-refresh-token");
+        when(authService.reissue("old-refresh-token"))
+                .thenThrow(new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN));
+
+        mockMvc.perform(post("/api/v1/auth/reissue"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH007"));
+
+        verify(authHttpSupport, never()).setRefreshTokenCookie(any(), any());
+        verify(authHttpSupport, never()).clearRefreshTokenCookie(any());
+    }
+
+    @Test
+    void withdrawalClearsRefreshCookieOnlyAfterAccountDeletionSucceeds() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        controller.withdraw(new PrincipalDetails(9L, UserRole.USER), response);
+
+        verify(accountWithdrawalService).withdraw(9L);
+        verify(authHttpSupport).clearRefreshTokenCookie(response);
+    }
+
+    @Test
+    void withdrawalFailureKeepsRefreshCookieSoTheMemberCanRetry() {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        doThrow(new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE))
+                .when(accountWithdrawalService)
+                .withdraw(9L);
+
+        assertThatThrownBy(() -> controller.withdraw(
+                new PrincipalDetails(9L, UserRole.USER),
+                response
+        )).isInstanceOf(RestApiException.class);
+
+        verify(authHttpSupport, never()).clearRefreshTokenCookie(response);
     }
 
     @Test
@@ -396,29 +449,29 @@ class AuthControllerTest {
 
     @Test
     void socialLoginRejectsBlankAuthorizationCode() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login/kakao")
+        mockMvc.perform(post("/api/v1/auth/kakao")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "code": "",
-                                  "state": "oauth-state"
+                                  "state": "%s"
                                 }
-                                """))
+                                """.formatted(VALID_OAUTH_STATE)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON402"));
     }
 
     @Test
     void socialLoginRejectsNullAgreementElement() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login/google")
+        mockMvc.perform(post("/api/v1/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "code": "google-code",
-                                  "state": "oauth-state",
+                                  "state": "%s",
                                   "agreements": [null]
                                 }
-                                """))
+                                """.formatted(VALID_OAUTH_STATE)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON402"));
     }

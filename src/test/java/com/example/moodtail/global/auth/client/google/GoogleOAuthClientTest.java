@@ -97,7 +97,7 @@ class GoogleOAuthClientTest {
 
     @Test
     void unverifiedGoogleEmailIsNotUsedAsAccountEmail() {
-        GoogleOAuthClient.GoogleUserInfoResponse userInfo = new GoogleOAuthClient.GoogleUserInfoResponse(
+        GoogleUserInfoResponse userInfo = new GoogleUserInfoResponse(
                 "google-user-id",
                 "unverified@example.com",
                 false,

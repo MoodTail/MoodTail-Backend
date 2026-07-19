@@ -9,7 +9,6 @@ import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.auth.validator.PkceCodeVerifierValidator;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -68,6 +67,7 @@ public class KakaoOAuthClient implements OAuthClient {
             String requestRedirectUri,
             String codeVerifier
     ) {
+        validateAuthorizationRequest(authorizationCode, requestRedirectUri);
         String resolvedRedirectUri = resolveRedirectUri(requestRedirectUri);
         KakaoTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri, codeVerifier);
         KakaoUserInfoResponse userInfo = requestUserInfo(token.accessToken());
@@ -84,8 +84,22 @@ public class KakaoOAuthClient implements OAuthClient {
         );
     }
 
+    @Override
+    public void validateAuthorizationRequest(String authorizationCode, String requestRedirectUri) {
+        if (!enabled
+                || !StringUtils.hasText(clientId)
+                || !StringUtils.hasText(tokenUri)
+                || !StringUtils.hasText(userInfoUri)) {
+            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
+        }
+        if (!StringUtils.hasText(authorizationCode)) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+        resolveRedirectUri(requestRedirectUri);
+    }
+
     private KakaoTokenResponse requestToken(String authorizationCode, String redirectUri, String codeVerifier) {
-        validateTokenRequest(authorizationCode, redirectUri, codeVerifier);
+        validateCodeVerifier(codeVerifier);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", AUTHORIZATION_CODE_GRANT_TYPE);
@@ -145,15 +159,8 @@ public class KakaoOAuthClient implements OAuthClient {
         }
     }
 
-    private void validateTokenRequest(String authorizationCode, String redirectUri, String codeVerifier) {
-        if (!enabled
-                || !StringUtils.hasText(clientId)
-                || !StringUtils.hasText(redirectUri)
-                || !StringUtils.hasText(tokenUri)
-                || !StringUtils.hasText(userInfoUri)) {
-            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
-        }
-        if (!StringUtils.hasText(authorizationCode) || !PkceCodeVerifierValidator.isValid(codeVerifier)) {
+    private void validateCodeVerifier(String codeVerifier) {
+        if (!PkceCodeVerifierValidator.isValid(codeVerifier)) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
     }
@@ -166,48 +173,6 @@ public class KakaoOAuthClient implements OAuthClient {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
         return redirectUri;
-    }
-
-    private record KakaoTokenResponse(
-            @JsonProperty("access_token") String accessToken
-    ) {
-    }
-
-    record KakaoUserInfoResponse(
-            Long id,
-            @JsonProperty("kakao_account") KakaoAccount kakaoAccount
-    ) {
-
-        String providerUserId() {
-            return id == null ? null : String.valueOf(id);
-        }
-
-        String verifiedEmail() {
-            if (kakaoAccount == null
-                    || !Boolean.TRUE.equals(kakaoAccount.emailValid())
-                    || !Boolean.TRUE.equals(kakaoAccount.emailVerified())) {
-                return null;
-            }
-            return kakaoAccount.email();
-        }
-
-        String nickname() {
-            if (kakaoAccount == null || kakaoAccount.profile() == null) {
-                return null;
-            }
-            return kakaoAccount.profile().nickname();
-        }
-    }
-
-    record KakaoAccount(
-            String email,
-            @JsonProperty("is_email_valid") Boolean emailValid,
-            @JsonProperty("is_email_verified") Boolean emailVerified,
-            KakaoProfile profile
-    ) {
-    }
-
-    record KakaoProfile(String nickname) {
     }
 
 }

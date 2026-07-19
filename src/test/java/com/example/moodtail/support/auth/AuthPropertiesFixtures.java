@@ -17,14 +17,12 @@ public final class AuthPropertiesFixtures {
                         kakaoProvider(),
                         googleProvider()
                 ),
-                new AuthProperties.RefreshCookie("refreshToken", "/", null, false, "Lax"),
+                new AuthProperties.RefreshCookie("refreshToken", null, false, "Lax"),
                 new AuthProperties.GuestLogin(
-                        "",
                         "게스트",
                         new AuthProperties.RateLimit(10, 60_000L),
                         new AuthProperties.RateLimit(60, 60_000L)
                 ),
-                new AuthProperties.Concurrency(10_000L, 25L, 3_000L, 3),
                 new AuthProperties.RedisKeys("moodtail:auth:test:")
         );
     }

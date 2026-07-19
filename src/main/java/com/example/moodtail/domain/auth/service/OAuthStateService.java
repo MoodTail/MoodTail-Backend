@@ -1,7 +1,7 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.user.entity.User;
-import com.example.moodtail.domain.user.repository.UserRepository;
+import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
+import com.example.moodtail.domain.auth.model.OAuthState;
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.validator.PkceCodeVerifierValidator;
@@ -25,23 +25,12 @@ import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.req
 @RequiredArgsConstructor
 public class OAuthStateService {
 
-    public record OAuthState(
-            String value,
-            String codeChallenge,
-            String codeChallengeMethod,
-            long expiresInSeconds
-    ) {
-    }
-
-    public record ConsumedOAuthState(Long guestUserId, String codeVerifier) {
-    }
-
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
     private static final int STATE_BYTE_LENGTH = 32;
     private static final int CODE_VERIFIER_BYTE_LENGTH = 32;
     private static final String CODE_CHALLENGE_METHOD = "S256";
+    private static final String STATE_PATTERN = "^[A-Za-z0-9_-]{43}$";
 
-    private final UserRepository userRepository;
     private final RedisRepository redisRepository;
     private final AuthProperties authProperties;
 
@@ -49,12 +38,6 @@ public class OAuthStateService {
         if (guestUserId == null || provider == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
-        User guestUser = userRepository.findById(guestUserId)
-                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-        }
-
         AuthProperties.RateLimit rateLimit = authProperties.oauth().stateRateLimit();
         boolean acquired = required(
                 "acquire OAuth state rate-limit slot",
@@ -87,7 +70,7 @@ public class OAuthStateService {
     }
 
     public ConsumedOAuthState consumeForAuthentication(String state, SocialProvider provider) {
-        if (!StringUtils.hasText(state) || provider == null) {
+        if (!StringUtils.hasText(state) || !state.matches(STATE_PATTERN) || provider == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
         RedisRepository.OAuthStateSession session = required(
@@ -98,11 +81,6 @@ public class OAuthStateService {
         Long guestUserId = session.guestUserId();
         if (guestUserId == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
-        }
-        User guestUser = userRepository.findById(guestUserId)
-                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
         if (!PkceCodeVerifierValidator.isValid(session.codeVerifier())) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);

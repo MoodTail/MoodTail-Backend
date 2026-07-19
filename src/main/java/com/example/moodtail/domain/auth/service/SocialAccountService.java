@@ -1,18 +1,17 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.entity.SocialAccount;
+import com.example.moodtail.domain.auth.model.Consent;
+import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
+import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
-import com.example.moodtail.domain.auth.service.TermAgreementService.Consent;
+import com.example.moodtail.domain.auth.validator.AuthNicknameValidator;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
-import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
-import com.example.moodtail.global.auth.config.AuthProperties;
-import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -30,25 +29,15 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class SocialAccountService {
 
-    public record SocialLoginUser(
-            Long userId,
-            UserRole role,
-            String nickname,
-            SocialProvider provider,
-            String socialEmail,
-            boolean isNewUser
-    ) {
-    }
+    private static final int REGISTRATION_MAX_ATTEMPTS = 3;
 
     private final PlatformTransactionManager transactionManager;
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
-    private final IdentityLockManager identityLockManager;
-    private final GuestDataMergeService guestDataMergeService;
     private final TermAgreementService termAgreementService;
-    private final AuthProperties authProperties;
+    private final TokenSessionService tokenSessionService;
 
-    public SocialLoginUser authenticate(
+    public SocialAuthenticationResult authenticate(
             SocialUserProfile profile,
             Long guestUserId,
             List<Consent> consents
@@ -59,55 +48,50 @@ public class SocialAccountService {
         if (profile == null || profile.provider() == null || !StringUtils.hasText(profile.providerUserId())) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        return identityLockManager.executeForSocialLogin(
-                profile.provider(),
-                profile.providerUserId(),
-                () -> identityLockManager.executeForGuestUserId(
-                        guestUserId,
-                        () -> authenticateWithRetry(profile, guestUserId, consents)
-                )
-        );
+        SocialLoginUser authenticatedUser = authenticateInTransaction(profile, guestUserId, consents);
+        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
-    private SocialLoginUser authenticateWithRetry(
+    private SocialLoginUser authenticateInTransaction(
             SocialUserProfile profile,
             Long guestUserId,
             List<Consent> consents
     ) {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
-        for (int attempt = 0; attempt < authProperties.concurrency().socialRegistrationMaxAttempts(); attempt++) {
+        for (int attempt = 0; attempt < REGISTRATION_MAX_ATTEMPTS; attempt++) {
             try {
-                SocialLoginUser result = transactionTemplate.execute(status -> {
-                    Optional<SocialLoginUser> existing = loginInTransaction(profile, guestUserId);
-                    return existing.orElseGet(
-                            () -> registerInTransaction(profile, guestUserId, consents)
-                    );
-                });
-                if (result != null) {
-                    return result;
-                }
-            } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
-                Optional<SocialLoginUser> committedAuthentication = recoverCommittedAuthentication(
-                        transactionTemplate,
-                        profile,
-                        guestUserId
+                SocialLoginUser result = transactionTemplate.execute(status ->
+                        loginInTransaction(profile).orElseGet(
+                                () -> registerInTransaction(profile, guestUserId, consents)
+                        )
                 );
+                if (result == null) {
+                    throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+                }
+                return result;
+            } catch (DataIntegrityViolationException exception) {
+                Optional<SocialLoginUser> committedAuthentication =
+                        recoverCommittedRegistration(transactionTemplate, profile);
                 if (committedAuthentication.isPresent()) {
                     return committedAuthentication.get();
                 }
+                throw exception;
+            } catch (CannotAcquireLockException exception) {
+                if (attempt + 1 == REGISTRATION_MAX_ATTEMPTS) {
+                    throw exception;
+                }
             }
         }
-        throw new RestApiException(AuthErrorStatus.FAILED_SOCIAL_LOGIN);
+        throw new IllegalStateException("Social authentication retry loop completed unexpectedly");
     }
 
-    private Optional<SocialLoginUser> recoverCommittedAuthentication(
+    private Optional<SocialLoginUser> recoverCommittedRegistration(
             TransactionTemplate transactionTemplate,
-            SocialUserProfile profile,
-            Long guestUserId
+            SocialUserProfile profile
     ) {
         try {
             Optional<SocialLoginUser> result = transactionTemplate.execute(
-                    status -> loginInTransaction(profile, guestUserId)
+                    status -> loginInTransaction(profile)
             );
             return result == null ? Optional.empty() : result;
         } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
@@ -115,7 +99,7 @@ public class SocialAccountService {
         }
     }
 
-    private Optional<SocialLoginUser> loginInTransaction(SocialUserProfile profile, Long guestUserId) {
+    private Optional<SocialLoginUser> loginInTransaction(SocialUserProfile profile) {
         Optional<SocialAccount> socialAccountOptional = socialAccountRepository
                 .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
         if (socialAccountOptional.isEmpty()) {
@@ -124,7 +108,6 @@ public class SocialAccountService {
         SocialAccount socialAccount = socialAccountOptional.get();
         User user = socialAccount.getUser();
         validateActive(user);
-        guestDataMergeService.mergeIntoExistingUser(guestUserId, user.getId());
         user.updateLastAccessedAt(LocalDateTime.now());
         return Optional.of(createSocialLoginUser(user, socialAccount, false));
     }
@@ -137,18 +120,23 @@ public class SocialAccountService {
         Optional<SocialAccount> existingAccount = socialAccountRepository
                 .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
         if (existingAccount.isPresent()) {
-            return completeExistingRegistration(existingAccount.get(), guestUserId);
+            SocialAccount account = existingAccount.get();
+            User user = account.getUser();
+            validateActive(user);
+            user.updateLastAccessedAt(LocalDateTime.now());
+            return createSocialLoginUser(user, account, false);
         }
 
         User guestUser = userRepository.findByIdForUpdate(guestUserId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guestUser.isGuest() || !guestUser.isActive() || guestUser.isDeleted()) {
+        if (!guestUser.isGuest() || !guestUser.isAvailableForAuthentication()) {
             throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
         }
 
+        String nickname = AuthNicknameValidator.normalize(profile.nickname());
         List<Term> agreedTerms = termAgreementService.validateAgreements(consents);
         LocalDateTime now = LocalDateTime.now();
-        guestUser.upgradeToUser(profile.nickname(), now);
+        guestUser.upgradeToUser(nickname, now);
         SocialAccount socialAccount = socialAccountRepository.saveAndFlush(SocialAccount.create(
                 guestUser,
                 profile.provider(),
@@ -160,21 +148,8 @@ public class SocialAccountService {
         return createSocialLoginUser(guestUser, socialAccount, true);
     }
 
-    private SocialLoginUser completeExistingRegistration(SocialAccount account, Long guestUserId) {
-        if (!account.getUser().getId().equals(guestUserId)) {
-            throw new RestApiException(AuthErrorStatus.SOCIAL_ACCOUNT_ALREADY_EXISTS);
-        }
-        User existingUser = userRepository.findByIdForUpdate(guestUserId)
-                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        validateActive(existingUser);
-        if (existingUser.isGuest()) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-        }
-        return createSocialLoginUser(existingUser, account, false);
-    }
-
     private void validateActive(User user) {
-        if (!user.isActive() || user.isDeleted()) {
+        if (!user.isAvailableForAuthentication()) {
             throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
         }
     }
@@ -198,6 +173,25 @@ public class SocialAccountService {
                 socialAccount.getEmail(),
                 isNewUser
         );
+    }
+
+    private SocialAuthenticationResult completeAuthentication(SocialLoginUser user, Long guestUserId) {
+        try {
+            return new SocialAuthenticationResult(
+                    user,
+                    tokenSessionService.issueSessionReplacingGuest(
+                        user.userId(),
+                        user.role(),
+                        guestUserId
+                    )
+            );
+        } catch (RestApiException exception) {
+            if (AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE.getCode().getCode()
+                    .equals(exception.getErrorCode().getCode())) {
+                throw new RestApiException(AuthErrorStatus.AUTH_SESSION_ISSUE_FAILED);
+            }
+            throw exception;
+        }
     }
 
 }

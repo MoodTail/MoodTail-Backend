@@ -2,14 +2,13 @@ package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
+import com.example.moodtail.domain.auth.model.PasswordResetAccount;
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.auth.config.LocalAuthProperties;
 import com.example.moodtail.global.auth.mail.PasswordResetMailSender;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -18,12 +17,12 @@ import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
 import java.util.HexFormat;
 
-import static com.example.moodtail.global.common.util.Sha256Hasher.hashToHex;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
@@ -37,15 +36,13 @@ public class PasswordResetService {
     private final LocalAccountService localAccountService;
     private final PasswordResetMailSender mailSender;
     private final RedisRepository redisRepository;
-    private final IdentityLockManager identityLockManager;
     private final LocalAuthProperties properties;
-    private final TokenSessionService tokenSessionService;
 
-    public PasswordResetCodeResponse requestCode(String email, HttpServletRequest request) {
+    public PasswordResetCodeResponse requestCode(String email, String clientAddress) {
         LocalAuthProperties.PasswordReset reset = enabledPolicy();
         String normalizedEmail = localAccountService.normalizeEmail(email);
-        String emailFingerprint = hashToHex(normalizedEmail);
-        enforceRequestLimits(emailFingerprint, resolveClientAddress(request), reset);
+        String emailFingerprint = sha256(normalizedEmail);
+        enforceRequestLimits(emailFingerprint, clientAddress, reset);
 
         localAccountService.findPasswordResetAccount(normalizedEmail).ifPresent(account -> {
             String code = generateCode();
@@ -80,14 +77,13 @@ public class PasswordResetService {
     public PasswordResetVerificationResponse verifyCode(String email, String code) {
         LocalAuthProperties.PasswordReset reset = enabledPolicy();
         String normalizedEmail = localAccountService.normalizeEmail(email);
-        String emailFingerprint = hashToHex(normalizedEmail);
         if (code == null || !code.matches("^[0-9]{6}$")) {
             throw new RestApiException(AuthErrorStatus.EMAIL_CODE_MISMATCH);
         }
         RedisRepository.PasswordResetTokenSession session = required(
                 "verify password-reset code",
                 () -> redisRepository.verifyPasswordResetCode(
-                        emailFingerprint,
+                        sha256(normalizedEmail),
                         codeDigest(normalizedEmail, code, reset.pepper()),
                         reset.maxVerificationAttempts()
                 )
@@ -95,18 +91,10 @@ public class PasswordResetService {
 
         String resetToken = randomToken();
         Duration tokenTtl = Duration.ofMillis(reset.tokenExpirationMillis());
-        try {
-            required(
-                    "save password-reset token",
-                    () -> redisRepository.savePasswordResetToken(hashToHex(resetToken), session, tokenTtl)
-            );
-        } catch (RuntimeException exception) {
-            bestEffort(
-                    "release password-reset cooldown after token storage failure",
-                    () -> redisRepository.deletePasswordResetCooldown(emailFingerprint)
-            );
-            throw exception;
-        }
+        required(
+                "save password-reset token",
+                () -> redisRepository.savePasswordResetToken(sha256(resetToken), session, tokenTtl)
+        );
         return new PasswordResetVerificationResponse(resetToken, tokenTtl.toSeconds());
     }
 
@@ -116,25 +104,19 @@ public class PasswordResetService {
             throw new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN);
         }
         localAccountService.validatePassword(password, passwordConfirm);
-        String tokenHash = hashToHex(resetToken);
-        Long userId = identityLockManager.executeForPasswordResetToken(resetToken, () -> {
-            RedisRepository.PasswordResetTokenSession session = required(
-                    "find password-reset token",
-                    () -> redisRepository.findPasswordResetToken(tokenHash)
-            ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
+        String tokenHash = sha256(resetToken);
+        RedisRepository.PasswordResetTokenSession session = required(
+                "find password-reset token",
+                () -> redisRepository.findPasswordResetToken(tokenHash)
+        ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
 
-            return localAccountService.changePassword(
-                    session.localAccountId(),
-                    session.passwordVersion(),
-                    password,
-                    passwordConfirm
-            );
-        });
-        if (userId == null) {
-            throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
-        }
-        tokenSessionService.revokeSession(userId);
-        required(
+        localAccountService.changePassword(
+                session.localAccountId(),
+                session.passwordVersion(),
+                password,
+                passwordConfirm
+        );
+        bestEffort(
                 "delete used password-reset token",
                 () -> redisRepository.deletePasswordResetToken(tokenHash)
         );
@@ -149,7 +131,7 @@ public class PasswordResetService {
         boolean clientAllowed = required(
                 "acquire password-reset client rate-limit slot",
                 () -> redisRepository.acquirePasswordResetClientSlot(
-                        hashToHex(clientAddress),
+                        sha256(clientAddress),
                         clientLimit.maxAttempts(),
                         Duration.ofMillis(clientLimit.windowMillis())
                 )
@@ -177,24 +159,6 @@ public class PasswordResetService {
         return reset;
     }
 
-    private String resolveClientAddress(HttpServletRequest request) {
-        if (request == null) {
-            return "unknown";
-        }
-        String configuredHeader = properties.passwordReset().clientIpHeader();
-        if (StringUtils.hasText(configuredHeader)) {
-            String forwarded = request.getHeader(configuredHeader);
-            if (StringUtils.hasText(forwarded)) {
-                String firstAddress = forwarded.split(",", 2)[0].trim();
-                if (StringUtils.hasText(firstAddress) && firstAddress.length() <= 128) {
-                    return firstAddress;
-                }
-            }
-        }
-        String address = request.getRemoteAddr();
-        return StringUtils.hasText(address) ? address : "unknown";
-    }
-
     private String generateCode() {
         return "%06d".formatted(SECURE_RANDOM.nextInt(1_000_000));
     }
@@ -217,4 +181,13 @@ public class PasswordResetService {
         }
     }
 
+    private String sha256(String value) {
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(value.getBytes(StandardCharsets.UTF_8))
+            );
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("SHA-256 is unavailable", e);
+        }
+    }
 }

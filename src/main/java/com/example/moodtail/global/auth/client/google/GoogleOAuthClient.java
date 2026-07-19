@@ -9,7 +9,6 @@ import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.auth.validator.PkceCodeVerifierValidator;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -71,6 +70,7 @@ public class GoogleOAuthClient implements OAuthClient {
             String requestRedirectUri,
             String codeVerifier
     ) {
+        validateAuthorizationRequest(authorizationCode, requestRedirectUri);
         String resolvedRedirectUri = resolveRedirectUri(requestRedirectUri);
         GoogleTokenResponse token = requestToken(authorizationCode, resolvedRedirectUri, codeVerifier);
         GoogleUserInfoResponse userInfo = requestUserInfo(token.accessToken());
@@ -87,8 +87,23 @@ public class GoogleOAuthClient implements OAuthClient {
         );
     }
 
+    @Override
+    public void validateAuthorizationRequest(String authorizationCode, String requestRedirectUri) {
+        if (!enabled
+                || !StringUtils.hasText(clientId)
+                || !StringUtils.hasText(clientSecret)
+                || !StringUtils.hasText(tokenUri)
+                || !StringUtils.hasText(userInfoUri)) {
+            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
+        }
+        if (!StringUtils.hasText(authorizationCode)) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
+        resolveRedirectUri(requestRedirectUri);
+    }
+
     private GoogleTokenResponse requestToken(String authorizationCode, String redirectUri, String codeVerifier) {
-        validateTokenRequest(authorizationCode, redirectUri, codeVerifier);
+        validateCodeVerifier(codeVerifier);
 
         MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
         form.add("grant_type", AUTHORIZATION_CODE_GRANT_TYPE);
@@ -146,16 +161,8 @@ public class GoogleOAuthClient implements OAuthClient {
         }
     }
 
-    private void validateTokenRequest(String authorizationCode, String redirectUri, String codeVerifier) {
-        if (!enabled
-                || !StringUtils.hasText(clientId)
-                || !StringUtils.hasText(clientSecret)
-                || !StringUtils.hasText(redirectUri)
-                || !StringUtils.hasText(tokenUri)
-                || !StringUtils.hasText(userInfoUri)) {
-            throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
-        }
-        if (!StringUtils.hasText(authorizationCode) || !PkceCodeVerifierValidator.isValid(codeVerifier)) {
+    private void validateCodeVerifier(String codeVerifier) {
+        if (!PkceCodeVerifierValidator.isValid(codeVerifier)) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
     }
@@ -168,31 +175,6 @@ public class GoogleOAuthClient implements OAuthClient {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
         return redirectUri;
-    }
-
-    private record GoogleTokenResponse(
-            @JsonProperty("access_token") String accessToken
-    ) {
-    }
-
-    record GoogleUserInfoResponse(
-            String sub,
-            String email,
-            @JsonProperty("email_verified") Boolean emailVerified,
-            String name
-    ) {
-
-        String providerUserId() {
-            return sub;
-        }
-
-        String nickname() {
-            return name;
-        }
-
-        String verifiedEmail() {
-            return Boolean.TRUE.equals(emailVerified) ? email : null;
-        }
     }
 
 }

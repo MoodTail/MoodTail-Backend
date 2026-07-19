@@ -3,13 +3,14 @@ package com.example.moodtail.global.common.exception;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.common.exception.code.BaseCodeDto;
 import com.example.moodtail.global.common.exception.code.status.GlobalErrorStatus;
+import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
-import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -59,6 +60,19 @@ public class ExceptionAdvice extends ResponseEntityExceptionHandler {
             WebRequest request
     ) {
         BaseCodeDto errorCode = IMAGE_TOO_LARGE.getCode();
+        return ResponseEntity
+                .status(errorCode.getHttpStatus().value())
+                .body(BaseResponse.onFailure(errorCode.getCode(), errorCode.getMessage(), null));
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMissingServletRequestParameter(
+            MissingServletRequestParameterException e,
+            HttpHeaders headers,
+            HttpStatusCode statusCode,
+            WebRequest request
+    ) {
+        BaseCodeDto errorCode = GlobalErrorStatus._VALIDATION_ERROR.getCode();
         return ResponseEntity
                 .status(errorCode.getHttpStatus().value())
                 .body(BaseResponse.onFailure(errorCode.getCode(), errorCode.getMessage(), null));

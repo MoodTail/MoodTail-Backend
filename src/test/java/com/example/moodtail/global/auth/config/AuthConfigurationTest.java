@@ -28,20 +28,14 @@ class AuthConfigurationTest {
                     "auth.oauth.google.token-uri=https://oauth2.googleapis.com/token",
                     "auth.oauth.google.user-info-uri=https://openidconnect.googleapis.com/v1/userinfo",
                     "auth.refresh-cookie.name=refreshToken",
-                    "auth.refresh-cookie.path=/api/v1/auth",
                     "auth.refresh-cookie.domain=.example.com",
                     "auth.refresh-cookie.secure=true",
                     "auth.refresh-cookie.same-site=None",
-                    "auth.guest-login.client-ip-header=X-Forwarded-For",
                     "auth.guest-login.default-nickname=방문자",
                     "auth.guest-login.uuid-rate-limit.max-attempts=10",
                     "auth.guest-login.uuid-rate-limit.window-millis=60000",
                     "auth.guest-login.client-rate-limit.max-attempts=60",
                     "auth.guest-login.client-rate-limit.window-millis=60000",
-                    "auth.concurrency.lock-ttl-millis=10000",
-                    "auth.concurrency.retry-interval-millis=25",
-                    "auth.concurrency.acquire-timeout-millis=3000",
-                    "auth.concurrency.social-registration-max-attempts=3",
                     "auth.redis.key-prefix=moodtail:auth:test:",
                     "auth.local.password.min-length=8",
                     "auth.local.password.max-bytes=72",
@@ -56,7 +50,6 @@ class AuthConfigurationTest {
                     "auth.local.password-reset.token-expiration-millis=600000",
                     "auth.local.password-reset.resend-cooldown-millis=60000",
                     "auth.local.password-reset.max-verification-attempts=5",
-                    "auth.local.password-reset.client-ip-header=",
                     "auth.local.password-reset.client-rate-limit.max-attempts=10",
                     "auth.local.password-reset.client-rate-limit.window-millis=600000"
             );
@@ -76,9 +69,7 @@ class AuthConfigurationTest {
             assertThat(properties.oauth().stateRateLimit().windowMillis()).isEqualTo(60_000L);
             assertThat(properties.refreshCookie().domain()).isEqualTo(".example.com");
             assertThat(properties.refreshCookie().sameSite()).isEqualTo("None");
-            assertThat(properties.guestLogin().clientIpHeader()).isEqualTo("X-Forwarded-For");
             assertThat(properties.guestLogin().defaultNickname()).isEqualTo("방문자");
-            assertThat(properties.concurrency().socialRegistrationMaxAttempts()).isEqualTo(3);
             assertThat(properties.redis().keyPrefix()).isEqualTo("moodtail:auth:test:");
 
             LocalAuthProperties localProperties = context.getBean(LocalAuthProperties.class);
