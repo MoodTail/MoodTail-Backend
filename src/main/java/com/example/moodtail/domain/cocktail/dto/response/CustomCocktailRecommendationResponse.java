@@ -18,13 +18,14 @@ public record CustomCocktailRecommendationResponse (
     public static CustomCocktailRecommendationResponse of(
             Cocktail cocktail,
             int matchRate,
+            String description,
             CustomCocktailRecommendationRequest request,
             TasteProfileCalculator tasteProfileCalculator
     ) {
         return CustomCocktailRecommendationResponse.builder()
                 .cocktailId(cocktail.getId())
                 .name(cocktail.getNameKo())
-                .description(cocktail.getShortDescription())
+                .description(description)
                 .imageUrl(
                         cocktail.getImage() == null
                                 ? null
