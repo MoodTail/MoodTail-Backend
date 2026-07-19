@@ -22,6 +22,7 @@ import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.LocalDateTime;
@@ -30,6 +31,7 @@ import java.util.Optional;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -89,6 +91,23 @@ class SecurityConfigTest {
     }
 
     @Test
+    void oauthStateEndpointRequiresGuestRoleInTheSecurityFilter() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/oauth-states/kakao"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("COMMON401"));
+
+        mockMvc.perform(post("/api/v1/auth/oauth-states/kakao")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer guest-token"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+
+        mockMvc.perform(post("/api/v1/auth/oauth-states/kakao")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer member-token"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("AUTH009"));
+    }
+
+    @Test
     void guestCannotUseUnlistedMemberApi() throws Exception {
         assertGuestBlocked(get("/api/v1/protected"));
 
@@ -136,6 +155,11 @@ class SecurityConfigTest {
 
         @GetMapping("/api/v1/cocktails/favorites")
         String favoritesProbe() {
+            return "ok";
+        }
+
+        @PostMapping("/api/v1/auth/oauth-states/{provider}")
+        String oauthStateProbe() {
             return "ok";
         }
     }
