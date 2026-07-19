@@ -562,7 +562,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void logoutKeepsCookieForRetryWhenRevocationCannotBeStored() {
+    void logoutReportsInfrastructureFailureWhenRevocationCannotBeStored() {
         Claims accessClaims = accessClaims("1", "access-jti");
         when(jwtProvider.validateAccessTokenAndGetClaims("access-token"))
                 .thenReturn(Optional.of(accessClaims));

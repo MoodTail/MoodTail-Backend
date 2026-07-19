@@ -13,6 +13,7 @@ import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
+import com.example.moodtail.domain.auth.dto.response.TokenResponse;
 import com.example.moodtail.domain.auth.model.AuthResult;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.domain.auth.service.AccountWithdrawalService;
@@ -397,6 +398,51 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.code").value("AUTH007"));
 
         verify(authHttpSupport, never()).setRefreshTokenCookie(any(), any());
+        verify(authHttpSupport, never()).clearRefreshTokenCookie(any());
+    }
+
+    @Test
+    void reissueSuccessSetsOnlyTheRotatedRefreshCookie() throws Exception {
+        when(authHttpSupport.resolveRefreshToken(any())).thenReturn("old-refresh-token");
+        when(authService.reissue("old-refresh-token"))
+                .thenReturn(new AuthResult<>(
+                        new TokenResponse("Bearer", "new-access-token"),
+                        "new-refresh-token"
+                ));
+
+        mockMvc.perform(post("/api/v1/auth/reissue"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.accessToken").value("new-access-token"));
+
+        verify(authHttpSupport).validateCookieAuthenticatedRequest(any());
+        verify(authHttpSupport).setRefreshTokenCookie(any(), eq("new-refresh-token"));
+        verify(authHttpSupport, never()).clearRefreshTokenCookie(any());
+    }
+
+    @Test
+    void logoutClearsRefreshCookieAfterServerSessionRevocation() throws Exception {
+        when(authHttpSupport.resolveAccessToken(any())).thenReturn("access-token");
+        when(authHttpSupport.resolveRefreshToken(any())).thenReturn("refresh-token");
+
+        mockMvc.perform(post("/api/v1/auth/logout"))
+                .andExpect(status().isOk());
+
+        verify(authHttpSupport).validateCookieAuthenticatedRequest(any());
+        verify(authService).logout("access-token", "refresh-token");
+        verify(authHttpSupport).clearRefreshTokenCookie(any());
+    }
+
+    @Test
+    void logoutFailureKeepsRefreshCookieForRetry() throws Exception {
+        when(authHttpSupport.resolveAccessToken(any())).thenReturn("access-token");
+        doThrow(new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE))
+                .when(authService)
+                .logout("access-token", null);
+
+        mockMvc.perform(post("/api/v1/auth/logout"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value("AUTH028"));
+
         verify(authHttpSupport, never()).clearRefreshTokenCookie(any());
     }
 
