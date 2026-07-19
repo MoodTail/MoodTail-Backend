@@ -1,7 +1,7 @@
 package com.example.moodtail.global.config.security.jwt;
 
 import com.example.moodtail.domain.user.entity.User;
-import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;

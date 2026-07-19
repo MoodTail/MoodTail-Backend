@@ -1,5 +1,7 @@
 package com.example.moodtail.domain.moodtest.service;
 
+import com.example.moodtail.domain.collection.entity.UserUnlockedMoodType;
+import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultSaveRequest;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
@@ -37,6 +39,7 @@ public class MoodTestResultSaveService {
     private final MoodTypeRepository moodTypeRepository;
     private final MoodTestResultRepository moodTestResultRepository;
     private final RecommendationPersistenceService recommendationPersistenceService;
+    private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     private final PlatformTransactionManager transactionManager;
 
     public Long saveResult(Long userId, MoodTestResultSaveRequest request) {
@@ -87,8 +90,16 @@ public class MoodTestResultSaveService {
                 savedResult,
                 recommendationCommands
         );
+        unlockMoodType(user, moodType);
 
         return savedResult.getId();
+    }
+
+    private void unlockMoodType(User user, MoodType moodType) {
+        if (userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(user.getId(), moodType.getId())) {
+            return;
+        }
+        userUnlockedMoodTypeRepository.save(UserUnlockedMoodType.create(user, moodType));
     }
 
     private boolean isUserDateUniqueConstraintViolation(Throwable throwable) {

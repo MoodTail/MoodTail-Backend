@@ -1,7 +1,7 @@
 package com.example.moodtail.global.lock;
 
-import com.example.moodtail.domain.user.config.AuthProperties;
-import com.example.moodtail.domain.user.enums.SocialProvider;
+import com.example.moodtail.global.auth.config.AuthProperties;
+import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.BaseCodeInterface;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -11,10 +11,10 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
-import java.time.Duration;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.UUID;

@@ -1,7 +1,7 @@
 package com.example.moodtail.domain.user.repository;
 
 import com.example.moodtail.domain.user.entity.User;
-import com.example.moodtail.domain.user.enums.UserRole;
+import com.example.moodtail.domain.user.entity.UserRole;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;

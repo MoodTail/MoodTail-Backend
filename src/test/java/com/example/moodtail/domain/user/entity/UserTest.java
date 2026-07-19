@@ -1,7 +1,7 @@
 package com.example.moodtail.domain.user.entity;
 
-import com.example.moodtail.domain.user.enums.UserRole;
-import com.example.moodtail.domain.user.enums.UserStatus;
+import com.example.moodtail.domain.user.entity.UserRole;
+import com.example.moodtail.domain.user.entity.UserStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDateTime;

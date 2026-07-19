@@ -1,7 +1,6 @@
 package com.example.moodtail.domain.user.entity;
 
 import com.example.moodtail.domain.moodtest.entity.MoodType;
-import com.example.moodtail.domain.user.enums.UserStatus;
 import com.example.moodtail.global.common.base.BaseEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -57,7 +56,7 @@ public class User extends BaseEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private com.example.moodtail.domain.user.enums.UserRole role;
+    private UserRole role;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -71,7 +70,7 @@ public class User extends BaseEntity {
         return User.builder()
                 .guestUuid(guestUuid)
                 .nickname(truncateNickname(nickname))
-                .role(com.example.moodtail.domain.user.enums.UserRole.GUEST)
+                .role(UserRole.GUEST)
                 .status(UserStatus.ACTIVE)
                 .lastAccessedAt(accessedAt)
                 .build();
@@ -80,21 +79,21 @@ public class User extends BaseEntity {
     public static User createMember(String nickname, LocalDateTime accessedAt) {
         return User.builder()
                 .nickname(truncateNickname(nickname))
-                .role(com.example.moodtail.domain.user.enums.UserRole.USER)
+                .role(UserRole.USER)
                 .status(UserStatus.ACTIVE)
                 .lastAccessedAt(accessedAt)
                 .build();
     }
 
     public void upgradeToUser(String socialNickname, LocalDateTime accessedAt) {
-        if (role != com.example.moodtail.domain.user.enums.UserRole.GUEST || guestUuid == null) {
+        if (role != UserRole.GUEST || guestUuid == null) {
             throw new IllegalStateException("게스트 사용자만 소셜 계정으로 전환할 수 있습니다.");
         }
         if (socialNickname != null && !socialNickname.isBlank()) {
             nickname = truncateNickname(socialNickname.trim());
         }
         guestUuid = null;
-        role = com.example.moodtail.domain.user.enums.UserRole.USER;
+        role = UserRole.USER;
         lastAccessedAt = accessedAt;
     }
 
@@ -111,7 +110,7 @@ public class User extends BaseEntity {
     }
 
     public boolean isGuest() {
-        return role == com.example.moodtail.domain.user.enums.UserRole.GUEST;
+        return role == UserRole.GUEST;
     }
 
     public boolean isActive() {

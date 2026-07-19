@@ -1,6 +1,6 @@
 package com.example.moodtail.global.token.repository.redis.impl;
 
-import com.example.moodtail.domain.user.config.AuthProperties;
+import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -14,7 +14,12 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.*;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -53,6 +58,10 @@ public class RedisRepositoryImpl implements RedisRepository {
 					+ "end; return 0",
 			Long.class
 	);
+	private static final DefaultRedisScript<Long> DELETE_REFRESH_JTI_IF_MATCHES_SCRIPT = new DefaultRedisScript<>(
+			"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]); end; return 0",
+			Long.class
+	);
 	private static final DefaultRedisScript<Long> GUEST_LOGIN_RATE_SCRIPT = new DefaultRedisScript<>(
 			"local current = redis.call('incr', KEYS[1]); "
 					+ "if current == 1 then redis.call('pexpire', KEYS[1], ARGV[1]); end; "
@@ -77,7 +86,6 @@ public class RedisRepositoryImpl implements RedisRepository {
 	private final AuthProperties authProperties;
 	private final ObjectMapper objectMapper;
 	private static final long USAGE_EXPIRATION_TIME = 60 * 60 * 24;		// in이 찍히고 24시간동안 out이 안된다면 삭제
-	private static final long REFRESH_EXPIRATION_TIME = 60 * 60 * 24 * 14;
 
 	@Value("${app.usage.timeout}")
 	private long usageTimeout;
@@ -85,26 +93,8 @@ public class RedisRepositoryImpl implements RedisRepository {
 	@Value("${jwt.refreshExpiration}")
 	private long jwtRefreshExpirationMillis;
 
-	// refresh token을 key로 저장 (rotation 시 유리)
 	@Override
-	public void save(Long userId, String refreshToken) {
-		redisTemplate.opsForValue()
-				.set("refresh:" + refreshToken, userId.toString(), REFRESH_EXPIRATION_TIME, TimeUnit.SECONDS);
-	}
-
-	@Override
-	public Optional<Long> findUserIdByToken(String refreshToken) {
-		String userId = redisTemplate.opsForValue().get("refresh:" + refreshToken);
-		return Optional.ofNullable(userId).map(Long::valueOf);
-	}
-
-	@Override
-	public Boolean delete(String refreshToken) {
-		return redisTemplate.delete("refresh:" + refreshToken);
-	}
-
-	@Override
-	public Boolean blockAccessToken(String accessToken, Claims claims) {
+	public void blockAccessToken(Claims claims) {
 		// TTL = 토큰 만료 시각 - 현재 시각
 		Date expiration = claims.getExpiration();
 		long ttl = expiration.getTime() - System.currentTimeMillis();
@@ -112,18 +102,16 @@ public class RedisRepositoryImpl implements RedisRepository {
 		if (ttl > 0) {
 			String jti = claims.getId();
 			if (jti == null || jti.isBlank()) {
-				return false;
+				throw new IllegalArgumentException("Access-token claims must contain a JTI");
 			}
 			redisTemplate.opsForValue()
 			             .set(createAccessBlacklistKey(jti), "blacklisted", ttl, TimeUnit.MILLISECONDS);
 		}
-
-		return true;
 	}
 
 	@Override
-	public Boolean isJtiBlocked(String jti) {
-		return redisTemplate.hasKey(createAccessBlacklistKey(jti));
+	public boolean isJtiBlocked(String jti) {
+		return Boolean.TRUE.equals(redisTemplate.hasKey(createAccessBlacklistKey(jti)));
 	}
 
 	@Override
@@ -187,12 +175,21 @@ public class RedisRepositoryImpl implements RedisRepository {
 	}
 
 	@Override
-	public void saveRefreshJti(Long userId, String refreshJti){
+	public void saveRefreshJti(Long userId, String refreshJti) {
 		redisTemplate.opsForValue().set(
 				createRefreshTokenKey(userId),
 				refreshJti,
 				Duration.ofMillis(jwtRefreshExpirationMillis)
 		);
+	}
+
+	@Override
+	public boolean saveRefreshJtiIfAbsent(Long userId, String refreshJti) {
+		return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(
+				createRefreshTokenKey(userId),
+				refreshJti,
+				Duration.ofMillis(jwtRefreshExpirationMillis)
+		));
 	}
 
 	@Override
@@ -205,6 +202,16 @@ public class RedisRepositoryImpl implements RedisRepository {
 				String.valueOf(jwtRefreshExpirationMillis)
 		);
 		return Long.valueOf(1L).equals(replaced);
+	}
+
+	@Override
+	public boolean deleteRefreshJtiIfMatches(Long userId, String expectedRefreshJti) {
+		Long deleted = redisTemplate.execute(
+				DELETE_REFRESH_JTI_IF_MATCHES_SCRIPT,
+				List.of(createRefreshTokenKey(userId)),
+				expectedRefreshJti
+		);
+		return Long.valueOf(1L).equals(deleted);
 	}
 
 	@Override
@@ -359,28 +366,16 @@ public class RedisRepositoryImpl implements RedisRepository {
 	}
 
 	@Override
-	public Optional<PasswordResetTokenSession> consumePasswordResetToken(String token) {
-		String value = redisTemplate.execute(
-				CONSUME_VALUE_SCRIPT,
-				List.of(createAuthKey(PASSWORD_RESET_TOKEN_KEY_PREFIX + token))
+	public Optional<PasswordResetTokenSession> findPasswordResetToken(String token) {
+		String value = redisTemplate.opsForValue().get(
+				createAuthKey(PASSWORD_RESET_TOKEN_KEY_PREFIX + token)
 		);
 		return deserialize(value, PasswordResetTokenSession.class);
 	}
 
 	@Override
-	public void saveLastLogin(String email, LocalDateTime lastLogin){
-		String key = "last_login:" + email;
-		redisTemplate.opsForValue().set(key, lastLogin.toString(), REFRESH_EXPIRATION_TIME, TimeUnit.SECONDS);
-	}
-
-	@Override
-	public LocalDateTime getLastLogin(String email){
-		String key = "last_login:" + email;
-		String value = redisTemplate.opsForValue().get(key);
-		if(value == null){
-			return null;
-		}
-		return LocalDateTime.parse(value);
+	public void deletePasswordResetToken(String token) {
+		redisTemplate.delete(createAuthKey(PASSWORD_RESET_TOKEN_KEY_PREFIX + token));
 	}
 
 	private String createRefreshTokenKey(Long userId) {

@@ -8,19 +8,17 @@ import java.util.List;
 import java.util.Optional;
 
 public interface RedisRepository {
-	void save(Long userId, String refreshToken);
+	void blockAccessToken(Claims claims);
 
-	Optional<Long> findUserIdByToken(String refreshToken);
-
-	Boolean delete(String refreshToken);
-
-	Boolean blockAccessToken(String accessToken, Claims claims);
-
-	Boolean isJtiBlocked(String jti);
+	boolean isJtiBlocked(String jti);
 
 	void saveRefreshJti(Long userId, String refreshJti);
 
+	boolean saveRefreshJtiIfAbsent(Long userId, String refreshJti);
+
 	boolean replaceRefreshJti(Long userId, String expectedRefreshJti, String newRefreshJti);
+
+	boolean deleteRefreshJtiIfMatches(Long userId, String expectedRefreshJti);
 
 	Optional<String> findRefreshJtiByUserId(Long userId);
 
@@ -29,14 +27,6 @@ public interface RedisRepository {
 	void saveOAuthState(String state, Long guestUserId, String provider, String codeVerifier, Duration ttl);
 
 	Optional<OAuthStateSession> consumeOAuthStateSession(String state, String provider);
-
-	default void saveOAuthState(String state, Long guestUserId, String provider, Duration ttl) {
-		saveOAuthState(state, guestUserId, provider, "", ttl);
-	}
-
-	default Optional<Long> consumeOAuthState(String state, String provider) {
-		return consumeOAuthStateSession(state, provider).map(OAuthStateSession::guestUserId);
-	}
 
 	boolean acquireOAuthStateSlot(Long guestUserId, String provider, int maxAttempts, Duration window);
 
@@ -66,11 +56,9 @@ public interface RedisRepository {
 
 	void savePasswordResetToken(String token, PasswordResetTokenSession session, Duration ttl);
 
-	Optional<PasswordResetTokenSession> consumePasswordResetToken(String token);
+	Optional<PasswordResetTokenSession> findPasswordResetToken(String token);
 
-	void saveLastLogin(String email, LocalDateTime lastLogin);
-
-	LocalDateTime getLastLogin(String email);
+	void deletePasswordResetToken(String token);
 
 	// 사용자 입장(in) 시간 저장
 	void saveUserInTime(Long userId, LocalDateTime inTime);
