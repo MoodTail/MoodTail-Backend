@@ -31,7 +31,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
@@ -54,7 +53,6 @@ import static com.example.moodtail.global.common.exception.code.status.GlobalErr
 @RequiredArgsConstructor
 public class HistoryService {
 
-    private static final int MYSQL_MIN_YEAR = 1000;
     private static final int MONTHLY_REPORT_REQUIRED_TEST_COUNT = 5;
     private static final String USER_DATE_UNIQUE_CONSTRAINT = "uk_drinking_record_user_date";
 
@@ -69,7 +67,7 @@ public class HistoryService {
     @Transactional(readOnly = true)
     public HistoryCalendarResponse getCalendar(Long userId, int year, int month) {
         LocalDate today = LocalDate.now(clock);
-        YearMonth requestedMonth = parseYearMonth(year, month);
+        YearMonth requestedMonth = HistoryDatePolicy.parseYearMonth(year, month);
         if (requestedMonth.isAfter(YearMonth.from(today))) {
             throw new RestApiException(INVALID_REQUEST);
         }
@@ -265,17 +263,6 @@ public class HistoryService {
 
         historyRepository.delete(record);
         historyRepository.flush();
-    }
-
-    private YearMonth parseYearMonth(int year, int month) {
-        if (year < MYSQL_MIN_YEAR) {
-            throw new RestApiException(INVALID_REQUEST);
-        }
-        try {
-            return YearMonth.of(year, month);
-        } catch (DateTimeException exception) {
-            throw new RestApiException(INVALID_REQUEST);
-        }
     }
 
     private void validateId(Long id) {

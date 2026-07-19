@@ -90,6 +90,31 @@ class MonthlyReportShareImageServiceTest {
     }
 
     @Test
+    void rendersAtMostThreeCocktails() {
+        List<MonthlyReportResponse.FrequentCocktail> topThree = List.of(
+                cocktail(1L, "첫 번째", 1),
+                cocktail(2L, "두 번째", 2),
+                cocktail(3L, "세 번째", 3)
+        );
+        List<MonthlyReportResponse.FrequentCocktail> withFourth = List.of(
+                topThree.get(0),
+                topThree.get(1),
+                topThree.get(2),
+                cocktail(4L, "렌더링되면 안 되는 네 번째", 4)
+        );
+        when(monthlyReportService.getMonthlyReport(USER_ID, 2026, 7))
+                .thenReturn(report(topThree))
+                .thenReturn(report(withFourth));
+        when(s3Client.putObject(any(PutObjectRequest.class), any(RequestBody.class)))
+                .thenReturn(PutObjectResponse.builder().build());
+
+        var topThreeImage = shareImageService.createShareImage(USER_ID, 2026, 7);
+        var withFourthImage = shareImageService.createShareImage(USER_ID, 2026, 7);
+
+        assertThat(withFourthImage.shareImageUrl()).isEqualTo(topThreeImage.shareImageUrl());
+    }
+
+    @Test
     void failsWithoutUploadingWhenTheSharedS3BucketIsNotConfigured() {
         shareImageService = new MonthlyReportShareImageService(
                 monthlyReportService,
@@ -117,6 +142,12 @@ class MonthlyReportShareImageServiceTest {
     }
 
     private MonthlyReportResponse report() {
+        return report(List.of(cocktail(7L, "모히토", 1)));
+    }
+
+    private MonthlyReportResponse report(
+            List<MonthlyReportResponse.FrequentCocktail> frequentCocktails
+    ) {
         MonthlyReportResponse.TasteProfile profile = new MonthlyReportResponse.TasteProfile(
                 new BigDecimal("3.4"),
                 new BigDecimal("2.8"),
@@ -146,16 +177,20 @@ class MonthlyReportShareImageServiceTest {
                 scores,
                 null,
                 null,
-                List.of(new MonthlyReportResponse.FrequentCocktail(
-                        7L,
-                        "모히토",
-                        "Mojito",
-                        "민트와 라임의 산뜻한 조합",
-                        null,
-                        3,
-                        1
-                )),
+                frequentCocktails,
                 new MonthlyReportResponse.Activity(8, 5)
+        );
+    }
+
+    private MonthlyReportResponse.FrequentCocktail cocktail(Long id, String name, int ranking) {
+        return new MonthlyReportResponse.FrequentCocktail(
+                id,
+                name,
+                name,
+                "칵테일 설명",
+                null,
+                3,
+                ranking
         );
     }
 }

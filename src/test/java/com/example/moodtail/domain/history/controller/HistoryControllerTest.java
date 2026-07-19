@@ -152,12 +152,6 @@ class HistoryControllerTest {
                 "image/jpeg",
                 new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
         );
-        MockMultipartFile sourceType = new MockMultipartFile(
-                "sourceType",
-                "",
-                "text/plain",
-                "CAMERA".getBytes(StandardCharsets.UTF_8)
-        );
         when(historyPhotoService.add(eq(USER_ID), eq("2026-07-05"), any(), eq("CAMERA"))).thenReturn(
                 new HistoryPhotoResponse(
                         3L,
@@ -168,7 +162,7 @@ class HistoryControllerTest {
         );
         mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
                         .file(image)
-                        .file(sourceType))
+                        .param("sourceType", "CAMERA"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.recordDate").value("2026-07-05"))
                 .andExpect(jsonPath("$.result.sourceType").value("CAMERA"));

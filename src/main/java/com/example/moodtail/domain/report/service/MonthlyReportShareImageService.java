@@ -41,6 +41,7 @@ public class MonthlyReportShareImageService {
 
     private static final int IMAGE_WIDTH = 1080;
     private static final int IMAGE_HEIGHT = 1350;
+    private static final int MAX_RENDERED_COCKTAILS = 3;
     private static final String DIRECTORY = "reports/monthly";
     private static final Color BACKGROUND = new Color(255, 248, 246);
     private static final Color TEXT = new Color(38, 34, 33);
@@ -234,7 +235,13 @@ public class MonthlyReportShareImageService {
         }
 
         int x = 115;
-        for (MonthlyReportResponse.FrequentCocktail cocktail : report.frequentCocktails()) {
+        int renderedCocktailCount = Math.min(
+                report.frequentCocktails().size(),
+                MAX_RENDERED_COCKTAILS
+        );
+        for (int index = 0; index < renderedCocktailCount; index++) {
+            MonthlyReportResponse.FrequentCocktail cocktail =
+                    report.frequentCocktails().get(index);
             graphics.setColor(ACCENT);
             graphics.drawString(cocktail.ranking() + ".", x, 1213);
             graphics.setColor(TEXT);

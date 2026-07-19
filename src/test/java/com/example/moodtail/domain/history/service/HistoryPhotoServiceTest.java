@@ -204,6 +204,8 @@ class HistoryPhotoServiceTest {
                         com.example.moodtail.global.common.exception.RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400")
                 );
+
+        verify(photoStorage, never()).upload(any());
     }
 
     private User member() {

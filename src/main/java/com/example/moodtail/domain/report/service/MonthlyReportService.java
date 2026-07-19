@@ -2,6 +2,7 @@ package com.example.moodtail.domain.report.service;
 
 import com.example.moodtail.domain.history.repository.HistoryRepository;
 import com.example.moodtail.domain.history.repository.HistoryMoodTestResultRepository;
+import com.example.moodtail.domain.history.service.HistoryDatePolicy;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
@@ -15,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
-import java.time.DateTimeException;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.text.Collator;
@@ -33,7 +33,6 @@ import static com.example.moodtail.global.common.exception.code.status.ReportErr
 @RequiredArgsConstructor
 public class MonthlyReportService {
 
-    private static final int MYSQL_MIN_YEAR = 1000;
     private static final int TOP_MOOD_TYPE_LIMIT = 3;
     private static final int TOP_COCKTAIL_LIMIT = 3;
     private static final int REQUIRED_TEST_RESULT_COUNT = 5;
@@ -45,7 +44,7 @@ public class MonthlyReportService {
     @Transactional(readOnly = true)
     public MonthlyReportResponse getMonthlyReport(Long userId, int year, int month) {
         LocalDate today = LocalDate.now(clock);
-        YearMonth requestedMonth = parseYearMonth(year, month);
+        YearMonth requestedMonth = HistoryDatePolicy.parseYearMonth(year, month);
         if (requestedMonth.isAfter(YearMonth.from(today))) {
             throw new RestApiException(INVALID_REQUEST);
         }
@@ -96,7 +95,7 @@ public class MonthlyReportService {
     }
 
     private MonthlyReportResponse.TasteProfile previousMonthTasteProfile(Long userId, YearMonth requestedMonth) {
-        if (requestedMonth.equals(YearMonth.of(MYSQL_MIN_YEAR, 1))) {
+        if (HistoryDatePolicy.isMinimumSupportedMonth(requestedMonth)) {
             return null;
         }
         YearMonth previousMonth = requestedMonth.minusMonths(1);
@@ -106,17 +105,6 @@ public class MonthlyReportService {
                 previousMonth.atEndOfMonth()
         );
         return previousResults.isEmpty() ? null : averageTasteProfile(previousResults);
-    }
-
-    private YearMonth parseYearMonth(int year, int month) {
-        if (year < MYSQL_MIN_YEAR) {
-            throw new RestApiException(INVALID_REQUEST);
-        }
-        try {
-            return YearMonth.of(year, month);
-        } catch (DateTimeException exception) {
-            throw new RestApiException(INVALID_REQUEST);
-        }
     }
 
     private DateRange dateRange(YearMonth requestedMonth, LocalDate today) {

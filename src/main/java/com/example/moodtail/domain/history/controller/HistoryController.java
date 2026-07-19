@@ -113,7 +113,7 @@ public class HistoryController implements HistoryControllerDocs {
             @AuthenticationPrincipal PrincipalDetails principal,
             @PathVariable String date,
             @RequestPart("image") MultipartFile image,
-            @RequestPart("sourceType") String sourceType
+            @RequestParam("sourceType") String sourceType
     ) {
         return BaseResponse.onSuccess(
                 historyPhotoService.add(principal.getUserId(), date, image, sourceType)

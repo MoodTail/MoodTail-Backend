@@ -6,6 +6,8 @@ import com.example.moodtail.global.infra.s3.config.S3Properties;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -77,6 +79,22 @@ class HistoryPhotoStorageTest {
                 "https://moodtail.s3.ap-northeast-2.amazonaws.com/users/"
                         + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
         )).isInstanceOf(RestApiException.class);
+
+        verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+                    + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png?versionId=malicious",
+            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+                    + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png#malicious",
+            "https://attacker@moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+                    + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
+    })
+    void rejectsAnObjectUrlContainingQueryFragmentOrUserInfo(String imageUrl) {
+        assertThatThrownBy(() -> historyPhotoStorage.delete(imageUrl))
+                .isInstanceOf(RestApiException.class);
 
         verify(s3Client, never()).deleteObject(any(DeleteObjectRequest.class));
     }
