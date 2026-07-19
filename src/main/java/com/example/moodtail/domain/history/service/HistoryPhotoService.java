@@ -2,11 +2,11 @@ package com.example.moodtail.domain.history.service;
 
 import com.example.moodtail.domain.history.dto.response.HistoryPhotoResponse;
 import com.example.moodtail.domain.history.entity.HistoryPhoto;
-import com.example.moodtail.domain.history.repository.HistoryImageWriter;
 import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
 import com.example.moodtail.domain.history.storage.HistoryPhotoStorage;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.entity.ImageSourceType;
+import com.example.moodtail.domain.image.repository.ImageRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -32,7 +32,7 @@ import static com.example.moodtail.global.common.exception.code.status.ImageErro
 public class HistoryPhotoService {
 
     private final HistoryPhotoRepository historyPhotoRepository;
-    private final HistoryImageWriter imageWriter;
+    private final ImageRepository imageRepository;
     private final UserRepository userRepository;
     private final HistoryPhotoStorage photoStorage;
     private final TransactionTemplate transactionTemplate;
@@ -88,7 +88,7 @@ public class HistoryPhotoService {
             ImageSourceType sourceType
     ) {
         User user = userRepository.getReferenceById(userId);
-        Image image = imageWriter.insert(imageUrl, sourceType);
+        Image image = imageRepository.save(Image.create(imageUrl, sourceType));
         HistoryPhoto photo = historyPhotoRepository.save(HistoryPhoto.create(user, recordDate, image));
         return new HistoryPhotoResponse(photo.getId(), recordDate, sourceType, imageUrl);
     }
@@ -101,8 +101,13 @@ public class HistoryPhotoService {
 
         historyPhotoRepository.delete(photo);
         historyPhotoRepository.flush();
-        boolean imageDeleted = imageWriter.deleteIfUnreferenced(image.getId());
-        return new DeletedImage(imageUrl, imageDeleted);
+        if (historyPhotoRepository.existsByImageId(image.getId())) {
+            return new DeletedImage(imageUrl, false);
+        }
+
+        imageRepository.delete(image);
+        imageRepository.flush();
+        return new DeletedImage(imageUrl, true);
     }
 
     private void deleteStoredImageSafely(String imageUrl) {

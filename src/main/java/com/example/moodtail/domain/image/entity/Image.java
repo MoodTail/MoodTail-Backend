@@ -29,4 +29,13 @@ public class Image {
     @Enumerated(EnumType.STRING)
     @Column(name = "source_type", nullable = false)
     private ImageSourceType sourceType;
+
+    private Image(String imageUrl, ImageSourceType sourceType) {
+        this.imageUrl = imageUrl;
+        this.sourceType = sourceType;
+    }
+
+    public static Image create(String imageUrl, ImageSourceType sourceType) {
+        return new Image(imageUrl, sourceType);
+    }
 }

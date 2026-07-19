@@ -1,11 +1,11 @@
 package com.example.moodtail.domain.history.service;
 
 import com.example.moodtail.domain.history.entity.HistoryPhoto;
-import com.example.moodtail.domain.history.repository.HistoryImageWriter;
 import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
 import com.example.moodtail.domain.history.storage.HistoryPhotoStorage;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.entity.ImageSourceType;
+import com.example.moodtail.domain.image.repository.ImageRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -13,6 +13,8 @@ import com.example.moodtail.global.infra.s3.S3StorageException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -30,6 +32,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -48,7 +51,7 @@ class HistoryPhotoServiceTest {
     @Mock
     private HistoryPhotoRepository historyPhotoRepository;
     @Mock
-    private HistoryImageWriter imageWriter;
+    private ImageRepository imageRepository;
     @Mock
     private UserRepository userRepository;
     @Mock
@@ -67,7 +70,7 @@ class HistoryPhotoServiceTest {
         });
         photoService = new HistoryPhotoService(
                 historyPhotoRepository,
-                imageWriter,
+                imageRepository,
                 userRepository,
                 photoStorage,
                 transactionTemplate,
@@ -81,7 +84,7 @@ class HistoryPhotoServiceTest {
         String url = "https://cdn.example/history/photos/photo.png";
         when(photoStorage.upload(file)).thenReturn(url);
         when(userRepository.getReferenceById(1L)).thenReturn(member());
-        when(imageWriter.insert(url, ImageSourceType.GALLERY))
+        when(imageRepository.save(any(Image.class)))
                 .thenThrow(new IllegalStateException("database failure"));
 
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
@@ -97,7 +100,7 @@ class HistoryPhotoServiceTest {
         IllegalStateException databaseFailure = new IllegalStateException("database failure");
         when(photoStorage.upload(file)).thenReturn(url);
         when(userRepository.getReferenceById(1L)).thenReturn(member());
-        when(imageWriter.insert(url, ImageSourceType.GALLERY)).thenThrow(databaseFailure);
+        when(imageRepository.save(any(Image.class))).thenThrow(databaseFailure);
         org.mockito.Mockito.doThrow(new RestApiException(
                 com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.INVALID_IMAGE
         )).when(photoStorage).delete(url);
@@ -111,10 +114,9 @@ class HistoryPhotoServiceTest {
         MultipartFile file = mock(MultipartFile.class);
         String url = "https://cdn.example/history/photos/photo.png";
         User user = member();
-        Image image = mock(Image.class);
         when(photoStorage.upload(file)).thenReturn(url);
         when(userRepository.getReferenceById(1L)).thenReturn(user);
-        when(imageWriter.insert(url, ImageSourceType.CAMERA)).thenReturn(image);
+        when(imageRepository.save(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(historyPhotoRepository.save(any())).thenAnswer(invocation -> {
             HistoryPhoto photo = invocation.getArgument(0);
             ReflectionTestUtils.setField(photo, "id", 3L);
@@ -127,6 +129,11 @@ class HistoryPhotoServiceTest {
         assertThat(response.recordDate()).isEqualTo(RECORD_DATE);
         assertThat(response.imageUrl()).isEqualTo(url);
         assertThat(response.sourceType()).isEqualTo(ImageSourceType.CAMERA);
+
+        ArgumentCaptor<Image> imageCaptor = ArgumentCaptor.forClass(Image.class);
+        verify(imageRepository).save(imageCaptor.capture());
+        assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(url);
+        assertThat(imageCaptor.getValue().getSourceType()).isEqualTo(ImageSourceType.CAMERA);
     }
 
     @Test
@@ -150,14 +157,17 @@ class HistoryPhotoServiceTest {
         HistoryPhoto photo = HistoryPhoto.create(member(), RECORD_DATE, image);
         when(historyPhotoRepository.findOwnedForUpdate(3L, 1L, RECORD_DATE))
                 .thenReturn(Optional.of(photo));
-        when(imageWriter.deleteIfUnreferenced(9L)).thenReturn(true);
+        when(historyPhotoRepository.existsByImageId(9L)).thenReturn(false);
 
         photoService.delete(1L, "2026-07-10", 3L);
 
-        verify(historyPhotoRepository).delete(photo);
-        verify(historyPhotoRepository).flush();
-        verify(imageWriter).deleteIfUnreferenced(9L);
-        verify(photoStorage).delete(image.getImageUrl());
+        InOrder deletionOrder = inOrder(historyPhotoRepository, imageRepository, photoStorage);
+        deletionOrder.verify(historyPhotoRepository).delete(photo);
+        deletionOrder.verify(historyPhotoRepository).flush();
+        deletionOrder.verify(historyPhotoRepository).existsByImageId(9L);
+        deletionOrder.verify(imageRepository).delete(image);
+        deletionOrder.verify(imageRepository).flush();
+        deletionOrder.verify(photoStorage).delete(image.getImageUrl());
     }
 
     @Test
@@ -168,10 +178,11 @@ class HistoryPhotoServiceTest {
         HistoryPhoto photo = HistoryPhoto.create(member(), RECORD_DATE, image);
         when(historyPhotoRepository.findOwnedForUpdate(3L, 1L, RECORD_DATE))
                 .thenReturn(Optional.of(photo));
-        when(imageWriter.deleteIfUnreferenced(9L)).thenReturn(false);
+        when(historyPhotoRepository.existsByImageId(9L)).thenReturn(true);
 
         photoService.delete(1L, "2026-07-10", 3L);
 
+        verify(imageRepository, never()).delete(any(Image.class));
         verify(photoStorage, never()).delete(image.getImageUrl());
     }
 
@@ -184,7 +195,7 @@ class HistoryPhotoServiceTest {
         HistoryPhoto photo = HistoryPhoto.create(member(), RECORD_DATE, image);
         when(historyPhotoRepository.findOwnedForUpdate(3L, 1L, RECORD_DATE))
                 .thenReturn(Optional.of(photo));
-        when(imageWriter.deleteIfUnreferenced(9L)).thenReturn(true);
+        when(historyPhotoRepository.existsByImageId(9L)).thenReturn(false);
         org.mockito.Mockito.doThrow(new S3StorageException("storage unavailable"))
                 .when(photoStorage)
                 .delete(imageUrl);
@@ -193,6 +204,25 @@ class HistoryPhotoServiceTest {
 
         verify(historyPhotoRepository).delete(photo);
         verify(historyPhotoRepository).flush();
+    }
+
+    @Test
+    void doesNotDeleteStoredObjectWhenImageDeletionFails() {
+        Image image = mock(Image.class);
+        String imageUrl = "https://cdn.example/history/photos/photo.png";
+        when(image.getId()).thenReturn(9L);
+        when(image.getImageUrl()).thenReturn(imageUrl);
+        HistoryPhoto photo = HistoryPhoto.create(member(), RECORD_DATE, image);
+        when(historyPhotoRepository.findOwnedForUpdate(3L, 1L, RECORD_DATE))
+                .thenReturn(Optional.of(photo));
+        when(historyPhotoRepository.existsByImageId(9L)).thenReturn(false);
+        IllegalStateException databaseFailure = new IllegalStateException("database failure");
+        org.mockito.Mockito.doThrow(databaseFailure).when(imageRepository).flush();
+
+        assertThatThrownBy(() -> photoService.delete(1L, "2026-07-10", 3L))
+                .isSameAs(databaseFailure);
+
+        verify(photoStorage, never()).delete(imageUrl);
     }
 
     @Test

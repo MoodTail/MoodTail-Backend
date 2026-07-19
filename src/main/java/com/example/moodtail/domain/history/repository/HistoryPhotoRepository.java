@@ -13,6 +13,8 @@ import java.util.Optional;
 
 public interface HistoryPhotoRepository extends JpaRepository<HistoryPhoto, Long> {
 
+    boolean existsByImageId(Long imageId);
+
     @Query("""
             select photo
               from HistoryPhoto photo
