@@ -7,6 +7,7 @@ import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.MoodTypeResponse;
 import com.example.moodtail.domain.cocktail.entity.CocktailFavorite;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
+import com.example.moodtail.domain.cocktail.repository.DrinkingRecordRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.image.entity.Image;
@@ -47,6 +48,7 @@ public class CocktailService {
     private final UserRepository userRepository;
     private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     private final UserUnlockedCocktailRepository userUnlockedCocktailRepository;
+    private final DrinkingRecordRepository drinkingRecordRepository;
 
     @Transactional(readOnly = true)
     public CocktailListResponse getCocktails(
@@ -101,7 +103,7 @@ public class CocktailService {
 
         boolean canSetRepresentative = !user.isGuest() && unlocked && !representative;
 
-        int typePercent = calculateRepresentativeTypePercent(moodTypeId);
+        int typePercent = calculateRepresentativeTypePercent(userId, moodTypeId);
 
         List<MoodTypeCompatibility> compatibilityList =
                 compatibilityRepository.findAllByMoodTypeId(moodTypeId);
@@ -237,20 +239,18 @@ public class CocktailService {
     }
 
 
-    private int calculateRepresentativeTypePercent(Long moodTypeId) {
+    private int calculateRepresentativeTypePercent(Long userId, Long moodTypeId) {
         long totalUserCount =
-                userRepository.countByStatusAndDeletedAtIsNull(UserStatus.ACTIVE);
+                drinkingRecordRepository.countByUser_Id(userId);
 
         if (totalUserCount == 0) {
             return 0;
         }
 
-        long representativeTypeUserCount =
-                userRepository
-                        .countByRepresentativeMoodType_IdAndStatusAndDeletedAtIsNull(moodTypeId, UserStatus.ACTIVE);
+        long typeRecordCount = drinkingRecordRepository.countByUser_IdAndCocktail_MoodType_Id(userId, moodTypeId);
 
         return (int) Math.round(
-                representativeTypeUserCount * 100.0 / totalUserCount
+                typeRecordCount * 100.0 / totalUserCount
         );
     }
 
