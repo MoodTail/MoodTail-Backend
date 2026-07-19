@@ -1,13 +1,13 @@
 package com.example.moodtail.domain.cocktail.controller;
 
-import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
-import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteListResponse;
-import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
-import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
+import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
+import com.example.moodtail.domain.cocktail.dto.response.*;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
+import com.example.moodtail.domain.recommendation.service.CustomCocktailRecommendationService;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +20,8 @@ import java.math.BigDecimal;
 public class CocktailController {
 
     private final CocktailService cocktailService; // 칵테일 서비스로 변경
+
+    private final CustomCocktailRecommendationService customCocktailRecommendationService;
 
     @GetMapping
     @Operation(
@@ -86,5 +88,20 @@ public class CocktailController {
     ) {
         return BaseResponse.onSuccess(cocktailService.removeFavorite(cocktailId, principalDetails));
     }
+
+    @PostMapping("/custom")
+    @Operation(
+            summary = "커스텀 칵테일 추천",
+            description = "사용자가 설정한 5가지 맛 지표와 유클리드 거리가 가장 가까운 칵테일 하나를 추천합니다. "
+    )
+    public BaseResponse<CustomCocktailRecommendationResponse>
+    recommendCustomCocktail(
+            @Valid @RequestBody CustomCocktailRecommendationRequest request
+    ) {
+        return BaseResponse.onSuccess(
+                customCocktailRecommendationService.recommend(request)
+        );
+    }
+
 
 }

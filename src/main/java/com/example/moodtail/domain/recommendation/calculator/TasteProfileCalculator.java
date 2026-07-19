@@ -17,6 +17,8 @@ public class TasteProfileCalculator {
 
     private static final BigDecimal MIN_SCORE = BigDecimal.valueOf(1.0);
     private static final BigDecimal MAX_SCORE = BigDecimal.valueOf(5.0);
+    private static final BigDecimal DISPLAY_SCORE_MAX = BigDecimal.valueOf(100);
+    private static final BigDecimal TASTE_SCORE_RANGE = BigDecimal.valueOf(4);
 
     public TasteProfile calculate(List<MoodQuestionOption> fixedOptions, List<MoodQuestionOption> randomOptions) {
         Map<TasteMetricType, BigDecimal> fixedProfile = calculateFixedProfile(fixedOptions);
@@ -84,5 +86,45 @@ public class TasteProfileCalculator {
             return MAX_SCORE;
         }
         return value;
+    }
+
+    // 추천 로직 사용하기 위해 0~100으로 받은 커스텀 추천 스코어를 1.0 ~ 5.0 범위로 변환
+    public TasteProfile calculateFromDisplayScores(
+            int alcoholIntensity,
+            int sweetness,
+            int sourness,
+            int refreshing,
+            int bitterness
+    ) {
+        return TasteProfile.of(
+                toTasteScore(alcoholIntensity),
+                toTasteScore(sweetness),
+                toTasteScore(sourness),
+                toTasteScore(refreshing),
+                toTasteScore(bitterness)
+        );
+    }
+
+    private BigDecimal toTasteScore(int displayScore) {
+        return MIN_SCORE.add(
+                BigDecimal.valueOf(displayScore)
+                        .multiply(TASTE_SCORE_RANGE)
+                        .divide(DISPLAY_SCORE_MAX)
+        );
+    }
+
+    // 반대로 1.0~5.0 변환을 다시 0~100 범위로 변환
+    public int calculateDisplayScore(
+            BigDecimal tasteScore
+    ) {
+        int displayScore = (int) Math.round(
+                tasteScore
+                        .subtract(MIN_SCORE)
+                        .divide(TASTE_SCORE_RANGE)
+                        .multiply(DISPLAY_SCORE_MAX)
+                        .doubleValue()
+        );
+
+        return Math.max(0, Math.min(100, displayScore));
     }
 }
