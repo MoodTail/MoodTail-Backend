@@ -50,6 +50,9 @@ public class User extends BaseEntity {
     @Column(length = 50)
     private String nickname;
 
+    @Column(name = "invite_code", length = 20)
+    private String inviteCode;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "representative_mood_type_id")
     private MoodType representativeMoodType;
@@ -107,6 +110,10 @@ public class User extends BaseEntity {
 
     public void updateRepresentativeMoodType(MoodType moodType) {
         representativeMoodType = moodType;
+    }
+
+    public void assignInviteCode(String inviteCode) {
+        this.inviteCode = inviteCode;
     }
 
     public boolean isGuest() {

@@ -68,7 +68,8 @@ public class SecurityConfig {
 								"/api/v1/auth/password-reset/**",
 								"/api/v1/auth/password",
 								"/api/v1/auth/reissue",
-								"/api/v1/auth/logout"
+								"/api/v1/auth/logout",
+								"/api/v1/weather/current"
 						).permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/terms").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
@@ -79,6 +80,7 @@ public class SecurityConfig {
 						.hasAnyRole("GUEST", "USER")
 						.requestMatchers("/api/v1/tests/results").permitAll()
 						.requestMatchers("/api/v1/cocktails/*", "/api/v1/cocktails").permitAll()
+						.requestMatchers("/api/v1//recommends/pair").permitAll()
 						.requestMatchers("/api/v1/history/**", "/api/v1/reports/**").hasRole("USER")
 						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().authenticated()

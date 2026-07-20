@@ -7,6 +7,9 @@ import java.math.RoundingMode;
 import java.util.EnumMap;
 import java.util.Map;
 
+import static java.math.RoundingMode.HALF_UP;
+
+
 public record TasteProfile(
         BigDecimal alcoholIntensity,
         BigDecimal sweetness,
@@ -14,6 +17,7 @@ public record TasteProfile(
         BigDecimal refreshing,
         BigDecimal bitterness
 ) {
+    private static final BigDecimal TWO = BigDecimal.valueOf(2);
 
     public static TasteProfile of(
             BigDecimal alcoholIntensity,
@@ -51,7 +55,21 @@ public record TasteProfile(
         return values;
     }
 
+    public TasteProfile average(TasteProfile other) {
+        return TasteProfile.of(
+                mean(this.alcoholIntensity, other.alcoholIntensity),
+                mean(this.sweetness, other.sweetness),
+                mean(this.sourness, other.sourness),
+                mean(this.refreshing, other.refreshing),
+                mean(this.bitterness, other.bitterness)
+        );
+    }
+
+    private static BigDecimal mean(BigDecimal a, BigDecimal b) {
+        return a.add(b).divide(TWO, 4, RoundingMode.HALF_UP);
+    }
+
     private static BigDecimal normalize(BigDecimal value) {
-        return value.setScale(1, RoundingMode.HALF_UP);
+        return value.setScale(1, HALF_UP);
     }
 }

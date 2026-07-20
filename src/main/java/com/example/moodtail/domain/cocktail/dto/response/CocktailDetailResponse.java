@@ -45,7 +45,7 @@ public record CocktailDetailResponse(
         List<IngredientDto> cocktailIngredients
 ) {
 
-    public static CocktailDetailResponse from(Cocktail cocktail, boolean isFavorite, String imageUrl) {
+    public static CocktailDetailResponse of(Cocktail cocktail, boolean isFavorite, String imageUrl) {
         return new CocktailDetailResponse(
                 cocktail.getId(),
                 cocktail.getNameKo(),

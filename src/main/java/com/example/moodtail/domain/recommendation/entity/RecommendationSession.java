@@ -53,16 +53,32 @@ public class RecommendationSession {
     private RecommendationSession(
             User user,
             RecommendationSessionType sessionType,
-            MoodTestResult moodTestResult
+            MoodTestResult moodTestResult,
+            MoodTestResult partnerMoodTestResult
     ) {
         this.user = user;
         this.sessionType = sessionType;
         this.moodTestResult = moodTestResult;
+        this.partnerMoodTestResult = partnerMoodTestResult;
     }
 
     public static RecommendationSession forTestResult(User user, MoodTestResult moodTestResult) {
-        return new RecommendationSession(user, RecommendationSessionType.TEST_RESULT, moodTestResult);
+        return new RecommendationSession(user, RecommendationSessionType.TEST_RESULT, moodTestResult, null);
     }
+
+    public static RecommendationSession forCompromise(
+            User user,
+            MoodTestResult moodTestResult,
+            MoodTestResult partnerMoodTestResult
+    ) {
+        return new RecommendationSession(
+                user,
+                RecommendationSessionType.COMPROMISE,
+                moodTestResult,
+                partnerMoodTestResult
+        );
+    }
+
 
     @PrePersist
     void prePersist() {
