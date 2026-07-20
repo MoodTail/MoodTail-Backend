@@ -49,6 +49,15 @@ public class UserUnlockedMoodType {
     @Column(name = "unlocked_at", nullable = false, updatable = false)
     private LocalDateTime unlockedAt;
 
+    private UserUnlockedMoodType(User user, MoodType moodType) {
+        this.user = user;
+        this.moodType = moodType;
+    }
+
+    public static UserUnlockedMoodType create(User user, MoodType moodType) {
+        return new UserUnlockedMoodType(user, moodType);
+    }
+
     @PrePersist
     void prePersist() {
         this.unlockedAt = LocalDateTime.now();

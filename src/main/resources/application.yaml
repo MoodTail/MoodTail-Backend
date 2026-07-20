@@ -15,6 +15,11 @@ spring:
       repositories:
         enabled: false
 
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
   mail:
     host: ${MAIL_HOST:localhost}
     port: ${MAIL_PORT:587}
@@ -59,6 +64,13 @@ logging:
   level:
     root: INFO
     org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
+
+aws:
+  s3:
+    bucket: ${AWS_S3_BUCKET:}
+    region: ${AWS_REGION:ap-northeast-2}
+    access-key: ${AWS_ACCESS_KEY_ID:}
+    secret-key: ${AWS_SECRET_ACCESS_KEY:}
 
 jwt:
   secret: ${JWT_SECRET}
@@ -136,5 +148,14 @@ cors:
   max-age: ${CORS_MAX_AGE:3600}
 
 app:
+  share:
+    base-url: ${SHARE_BASE_URL:http://localhost:8080}
+    frontend-base-url: ${SHARE_FRONTEND_BASE_URL:http://localhost:5173}
   usage:
     timeout: ${USAGE_TIMEOUT:30}
+
+open-weather:
+  base-url: https://api.openweathermap.org
+  api-key: ${OPEN_WEATHER_API_KEY:}
+  connect-timeout-millis: 5000
+  read-timeout-millis: 5000

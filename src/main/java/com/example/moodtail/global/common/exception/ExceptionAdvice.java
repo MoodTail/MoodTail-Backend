@@ -15,11 +15,14 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
+
+import static com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.IMAGE_TOO_LARGE;
 
 @Slf4j
 @RestControllerAdvice(annotations = {RestController.class})
@@ -46,6 +49,19 @@ public class ExceptionAdvice extends ResponseEntityExceptionHandler {
             MethodArgumentTypeMismatchException e
     ) {
         return handleExceptionInternal(GlobalErrorStatus._METHOD_ARGUMENT_ERROR.getCode());
+    }
+
+    @Override
+    protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+            MaxUploadSizeExceededException e,
+            HttpHeaders headers,
+            HttpStatusCode statusCode,
+            WebRequest request
+    ) {
+        BaseCodeDto errorCode = IMAGE_TOO_LARGE.getCode();
+        return ResponseEntity
+                .status(errorCode.getHttpStatus().value())
+                .body(BaseResponse.onFailure(errorCode.getCode(), errorCode.getMessage(), null));
     }
 
     @Override
