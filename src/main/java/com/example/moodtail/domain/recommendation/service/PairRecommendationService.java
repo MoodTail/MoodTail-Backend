@@ -26,7 +26,7 @@ import java.util.List;
 @Transactional
 public class PairRecommendationService {
 
-    private static final int RECOMMENDATION_LIMIT = 4;
+    private static final int RECOMMENDATION_LIMIT = 3;
 
     private final MoodTestResultRepository moodTestResultRepository;
     private final CocktailRepository cocktailRepository;
