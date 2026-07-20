@@ -8,9 +8,11 @@ import org.springframework.http.HttpStatus;
 
 @Getter
 @AllArgsConstructor
-public enum RecommendationErrorStatus implements BaseCodeInterface {
-    RECOMMENDATION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION422", "추천 결과를 산출할 수 없습니다."),
-    UNPROCESSABLE_ENTITY(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION422_1", "크기가 0인 맛 벡터는 계산할 수 없습니다.");
+public enum WeatherErrorStatus implements BaseCodeInterface {
+    WEATHER_CONFIGURATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "WEATHER500", "날씨 API 설정이 올바르지 않습니다."),
+    WEATHER_PROVIDER_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "WEATHER503", "날씨 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+    WEATHER_RATE_LIMIT_EXCEEDED(HttpStatus.SERVICE_UNAVAILABLE, "WEATHER503_1", "날씨 API 호출 한도를 초과했습니다. 잠시 후 다시 시도해 주세요."),
+    INVALID_WEATHER_RESPONSE(HttpStatus.BAD_GATEWAY, "WEATHER502", "날씨 서비스의 응답을 처리할 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;

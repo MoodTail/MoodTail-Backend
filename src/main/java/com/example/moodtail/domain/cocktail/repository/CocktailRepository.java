@@ -48,4 +48,7 @@ public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
             WHERE cocktail.id = :cocktailId
             """)
     Optional<Cocktail> findDetailWithRecipeStepsById(@Param("cocktailId") Long cocktailId);
+
+    @EntityGraph(attributePaths = "image")
+    List<Cocktail> findAllByOrderByIdAsc();
 }
