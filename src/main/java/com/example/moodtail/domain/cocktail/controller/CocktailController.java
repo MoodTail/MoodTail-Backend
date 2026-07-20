@@ -2,7 +2,6 @@ package com.example.moodtail.domain.cocktail.controller;
 
 import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
 import com.example.moodtail.domain.cocktail.dto.response.*;
-import com.example.moodtail.domain.cocktail.dto.response.*;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
 import com.example.moodtail.domain.cocktail.service.DailyCocktailService;
 import com.example.moodtail.domain.recommendation.service.CustomCocktailRecommendationService;
