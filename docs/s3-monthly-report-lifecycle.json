@@ -1,16 +1,16 @@
 {
   "Rules": [
     {
-      "ID": "expire-monthly-report-share-images-after-7-days",
+      "ID": "expire-monthly-report-share-images-after-30-days",
       "Status": "Enabled",
       "Filter": {
         "Prefix": "reports/monthly/"
       },
       "Expiration": {
-        "Days": 7
+        "Days": 30
       },
       "NoncurrentVersionExpiration": {
-        "NoncurrentDays": 7
+        "NoncurrentDays": 30
       }
     }
   ]
