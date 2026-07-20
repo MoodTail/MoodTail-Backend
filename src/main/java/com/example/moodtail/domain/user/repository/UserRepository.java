@@ -16,6 +16,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     Optional<User> findByGuestUuidAndRole(String guestUuid, UserRole role);
 
+    Optional<User> findByInviteCode(String inviteCode);
+
     @Override
     @EntityGraph(attributePaths = {"representativeMoodType", "representativeMoodType.characterImage"})
     Optional<User> findById(Long userId);
