@@ -1,13 +1,14 @@
 package com.example.moodtail.domain.cocktail.controller;
 
-import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
-import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteListResponse;
-import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
-import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
+import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
+import com.example.moodtail.domain.cocktail.dto.response.*;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
+import com.example.moodtail.domain.cocktail.service.DailyCocktailService;
+import com.example.moodtail.domain.recommendation.service.CustomCocktailRecommendationService;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,9 @@ import java.math.BigDecimal;
 public class CocktailController {
 
     private final CocktailService cocktailService; // 칵테일 서비스로 변경
+    private final DailyCocktailService dailyCocktailService;
+
+    private final CustomCocktailRecommendationService customCocktailRecommendationService;
 
     @GetMapping
     @Operation(
@@ -85,6 +89,33 @@ public class CocktailController {
             @AuthenticationPrincipal PrincipalDetails principalDetails
     ) {
         return BaseResponse.onSuccess(cocktailService.removeFavorite(cocktailId, principalDetails));
+    }
+
+    @PostMapping("/custom")
+    @Operation(
+            summary = "커스텀 칵테일 추천",
+            description = "사용자가 설정한 5가지 맛 지표와 유클리드 거리가 가장 가까운 칵테일 하나를 추천합니다. "
+    )
+    public BaseResponse<CustomCocktailRecommendationResponse>
+    recommendCustomCocktail(
+            @Valid @RequestBody CustomCocktailRecommendationRequest request
+    ) {
+        return BaseResponse.onSuccess(
+                customCocktailRecommendationService.recommend(request)
+        );
+    }
+
+
+    @GetMapping("/today")
+    @Operation(
+            summary = "오늘의 칵테일 조회",
+            description = "날씨를 기준으로 오늘의 칵테일을 추천합니다.\n" +
+                    "                      오늘 추천이 이미 생성된 경우 저장된 추천을 반환합니다."
+    )
+    public BaseResponse<DailyCocktailResponse> getDailyCocktail() {
+        return BaseResponse.onSuccess(
+                dailyCocktailService.getOrCreateTodayCocktail()
+        );
     }
 
 }

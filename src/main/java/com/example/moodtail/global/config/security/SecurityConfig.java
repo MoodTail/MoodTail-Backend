@@ -68,7 +68,8 @@ public class SecurityConfig {
 								"/api/v1/auth/password-reset/**",
 								"/api/v1/auth/password",
 								"/api/v1/auth/reissue",
-								"/api/v1/auth/logout"
+								"/api/v1/auth/logout",
+								"/api/v1/weather/current"
 						).permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/terms").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()

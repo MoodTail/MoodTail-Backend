@@ -153,3 +153,9 @@ app:
     frontend-base-url: ${SHARE_FRONTEND_BASE_URL:http://localhost:5173}
   usage:
     timeout: ${USAGE_TIMEOUT:30}
+
+open-weather:
+  base-url: https://api.openweathermap.org
+  api-key: ${OPEN_WEATHER_API_KEY:}
+  connect-timeout-millis: 5000
+  read-timeout-millis: 5000
