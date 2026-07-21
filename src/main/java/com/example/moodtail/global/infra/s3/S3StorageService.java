@@ -6,14 +6,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.core.exception.SdkException;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.S3Uri;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetUrlRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -28,6 +31,10 @@ import static com.example.moodtail.global.common.exception.code.status.ImageErro
 public class S3StorageService {
 
     private static final Pattern DIRECTORY_PATTERN = Pattern.compile("[A-Za-z0-9/_-]+");
+    private static final Pattern IMAGE_FILE_PATTERN = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
+                    + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(png|jpg|jpeg|webp)"
+    );
     private static final long MAX_IMAGE_SIZE = 5L * 1024 * 1024;
     private static final Map<String, Set<String>> ALLOWED_IMAGE_EXTENSIONS = Map.of(
             "image/png", Set.of("png"),
@@ -53,6 +60,18 @@ public class S3StorageService {
                     .toExternalForm();
         } catch (IOException | SdkException exception) {
             throw new S3StorageException("Failed to upload image to S3", exception);
+        }
+    }
+
+    public void deleteImage(String imageUrl) {
+        String objectKey = resolveObjectKey(imageUrl);
+        try {
+            s3Client.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(properties.bucket())
+                    .key(objectKey)
+                    .build());
+        } catch (SdkException exception) {
+            throw new S3StorageException("Failed to delete image from S3", exception);
         }
     }
 
@@ -121,5 +140,46 @@ public class S3StorageService {
             builder.contentType(contentType);
         }
         return builder.build();
+    }
+
+    private String resolveObjectKey(String imageUrl) {
+        if (!StringUtils.hasText(imageUrl) || !StringUtils.hasText(properties.bucket())) {
+            throw new S3StorageException("Invalid S3 image URL");
+        }
+
+        try {
+            URI imageUri = URI.create(imageUrl);
+            if (imageUri.getUserInfo() != null
+                    || imageUri.getRawQuery() != null
+                    || imageUri.getRawFragment() != null) {
+                throw new S3StorageException("Invalid S3 image URL");
+            }
+
+            S3Uri s3Uri = s3Client.utilities().parseUri(imageUri);
+            String bucket = s3Uri.bucket().orElse("");
+            String objectKey = s3Uri.key().orElse("");
+            if (!properties.bucket().equals(bucket) || !isGeneratedImageObjectKey(objectKey)) {
+                throw new S3StorageException("Image URL does not belong to a managed S3 image");
+            }
+            return objectKey;
+        } catch (IllegalArgumentException exception) {
+            throw new S3StorageException("Invalid S3 image URL", exception);
+        }
+    }
+
+    private boolean isGeneratedImageObjectKey(String objectKey) {
+        int filenameSeparator = objectKey.lastIndexOf('/');
+        if (filenameSeparator < 1 || filenameSeparator == objectKey.length() - 1) {
+            return false;
+        }
+
+        String directory = objectKey.substring(0, filenameSeparator);
+        String filename = objectKey.substring(filenameSeparator + 1);
+        try {
+            return directory.equals(normalizeDirectory(directory))
+                    && IMAGE_FILE_PATTERN.matcher(filename).matches();
+        } catch (S3StorageException exception) {
+            return false;
+        }
     }
 }
