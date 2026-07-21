@@ -40,37 +40,24 @@ class JwtProviderTest {
     @Test
     void generatedTokensAreValidatedByTokenType() {
         TokenInfo tokenInfo = jwtProvider.generateToken(1L, UserRole.USER);
-        Claims accessClaims = jwtProvider.getAccessTokenClaims(tokenInfo.accessToken());
         Claims refreshClaims = jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken());
-
-        when(redisRepository.isJtiBlocked(accessClaims.getId())).thenReturn(false);
-        when(redisRepository.isJtiBlocked(refreshClaims.getId())).thenReturn(false);
         when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of(refreshClaims.getId()));
 
-        assertThat(jwtProvider.validateAccessToken(tokenInfo.accessToken())).isTrue();
-        assertThat(jwtProvider.validateRefreshToken(tokenInfo.accessToken())).isFalse();
-        assertThat(jwtProvider.validateRefreshToken(tokenInfo.refreshToken())).isTrue();
-        assertThat(jwtProvider.validateAccessToken(tokenInfo.refreshToken())).isFalse();
+        Claims accessClaims = jwtProvider.validateAccessTokenAndGetClaims(tokenInfo.accessToken())
+                .orElseThrow();
+
+        assertThat(accessClaims.getSubject()).isEqualTo("1");
+        assertThat(accessClaims.get("role", String.class)).isEqualTo("USER");
+        assertThat(jwtProvider.validateAccessTokenAndGetClaims(tokenInfo.refreshToken())).isEmpty();
     }
 
     @Test
-    void blacklistedJtiInvalidatesAccessToken() {
-        String accessToken = jwtProvider.generateToken(1L, UserRole.USER, TokenType.ACCESS);
-        Claims claims = jwtProvider.getAccessTokenClaims(accessToken);
-
-        when(redisRepository.isJtiBlocked(claims.getId())).thenReturn(true);
-
-        assertThat(jwtProvider.validateAccessToken(accessToken)).isFalse();
-    }
-
-    @Test
-    void redisFailureDuringBlacklistCheckFailsClosedWithServiceUnavailable() {
-        String accessToken = jwtProvider.generateToken(1L, UserRole.USER, TokenType.ACCESS);
-        Claims claims = jwtProvider.getAccessTokenClaims(accessToken);
-        when(redisRepository.isJtiBlocked(claims.getId()))
+    void redisFailureDuringSessionCheckFailsClosedWithServiceUnavailable() {
+        String accessToken = jwtProvider.generateToken(1L, UserRole.USER).accessToken();
+        when(redisRepository.findRefreshJtiByUserId(1L))
                 .thenThrow(new RedisConnectionFailureException("redis unavailable"));
 
-        assertThatThrownBy(() -> jwtProvider.validateAccessToken(accessToken))
+        assertThatThrownBy(() -> jwtProvider.validateAccessTokenAndGetClaims(accessToken))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
                 );
@@ -79,19 +66,15 @@ class JwtProviderTest {
     @Test
     void accessTokenIsRejectedWhenStoredSessionChanges() {
         TokenInfo firstSession = jwtProvider.generateToken(1L, UserRole.USER);
-        Claims firstAccessClaims = jwtProvider.getAccessTokenClaims(firstSession.accessToken());
         Claims firstRefreshClaims = jwtProvider.getRefreshTokenClaims(firstSession.refreshToken());
         TokenInfo secondSession = jwtProvider.generateToken(1L, UserRole.USER);
-        Claims secondAccessClaims = jwtProvider.getAccessTokenClaims(secondSession.accessToken());
         Claims secondRefreshClaims = jwtProvider.getRefreshTokenClaims(secondSession.refreshToken());
 
-        when(redisRepository.isJtiBlocked(firstAccessClaims.getId())).thenReturn(false);
-        when(redisRepository.isJtiBlocked(secondAccessClaims.getId())).thenReturn(false);
         when(redisRepository.findRefreshJtiByUserId(1L))
                 .thenReturn(Optional.of(secondRefreshClaims.getId()));
 
-        assertThat(jwtProvider.validateAccessToken(firstSession.accessToken())).isFalse();
-        assertThat(jwtProvider.validateAccessToken(secondSession.accessToken())).isTrue();
+        assertThat(jwtProvider.validateAccessTokenAndGetClaims(firstSession.accessToken())).isEmpty();
+        assertThat(jwtProvider.validateAccessTokenAndGetClaims(secondSession.accessToken())).isPresent();
         assertThat(firstRefreshClaims.getId()).isNotEqualTo(secondRefreshClaims.getId());
     }
 

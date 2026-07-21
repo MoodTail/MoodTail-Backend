@@ -24,7 +24,6 @@ class LocalAuthPropertiesTest {
                 600_000L,
                 60_000L,
                 5,
-                "",
                 new AuthProperties.RateLimit(10, 600_000L)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("sender");
@@ -42,7 +41,6 @@ class LocalAuthPropertiesTest {
                 600_000L,
                 60_000L,
                 5,
-                "",
                 new AuthProperties.RateLimit(10, 600_000L)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("pepper");
@@ -60,7 +58,6 @@ class LocalAuthPropertiesTest {
                 600_000L,
                 60_000L,
                 5,
-                "",
                 new AuthProperties.RateLimit(10, 600_000L)
         );
     }
@@ -77,7 +74,6 @@ class LocalAuthPropertiesTest {
                 600_000L,
                 60_000L,
                 5,
-                "",
                 new AuthProperties.RateLimit(10, 600_000L)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("32 bytes");
@@ -95,7 +91,6 @@ class LocalAuthPropertiesTest {
                 600_000L,
                 60_000L,
                 5,
-                "",
                 new AuthProperties.RateLimit(10, 600_000L)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("invalid format");
@@ -113,7 +108,6 @@ class LocalAuthPropertiesTest {
                 600_000L,
                 60_000L,
                 5,
-                "",
                 new AuthProperties.RateLimit(10, 600_000L)
         )).isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("render the verification code");

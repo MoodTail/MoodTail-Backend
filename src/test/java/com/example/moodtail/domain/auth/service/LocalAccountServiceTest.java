@@ -10,7 +10,6 @@ import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import com.example.moodtail.support.auth.LocalAuthPropertiesFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -30,8 +29,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -51,9 +48,7 @@ class LocalAccountServiceTest {
     @Mock PlatformTransactionManager transactionManager;
     @Mock LocalAccountRepository localAccountRepository;
     @Mock UserRepository userRepository;
-    @Mock GuestDataMergeService guestDataMergeService;
     @Mock TermAgreementService termAgreementService;
-    @Mock IdentityLockManager identityLockManager;
     @Mock TokenSessionService tokenSessionService;
 
     private PasswordEncoder passwordEncoder;
@@ -66,18 +61,12 @@ class LocalAccountServiceTest {
                 transactionManager,
                 localAccountRepository,
                 userRepository,
-                guestDataMergeService,
                 termAgreementService,
-                identityLockManager,
                 passwordEncoder,
                 LocalAuthPropertiesFixtures.enabled(),
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        lenient().when(identityLockManager.executeForLocalEmail(anyString(), any()))
-                .thenAnswer(invocation -> get(invocation.getArgument(1)));
-        lenient().when(identityLockManager.executeForGuestUserId(any(), any()))
-                .thenAnswer(invocation -> get(invocation.getArgument(1)));
     }
 
     @Test
@@ -144,6 +133,26 @@ class LocalAccountServiceTest {
     }
 
     @Test
+    void lockedAccountReturnsTheSameGenericCredentialError() {
+        User user = member(9L);
+        LocalAccount account = LocalAccount.create(
+                user,
+                "user@example.com",
+                passwordEncoder.encode("correct-password"),
+                LocalDateTime.now()
+        );
+        account.registerFailedLogin(1, LocalDateTime.now().plusMinutes(10));
+        when(localAccountRepository.findByEmailForUpdate("user@example.com"))
+                .thenReturn(Optional.of(account));
+
+        assertThatThrownBy(() -> service.login(
+                "user@example.com", "correct-password", null
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
+        );
+    }
+
+    @Test
     void loginRejectsPasswordOverBcryptByteLimitAsGenericCredentialError() {
         String oversizedUtf8Password = "가".repeat(25);
 
@@ -176,8 +185,7 @@ class LocalAccountServiceTest {
     }
 
     @Test
-    void loginMergesCurrentGuestIntoExistingLocalUser() {
-        AtomicBoolean identityLockHeld = new AtomicBoolean();
+    void loginKeepsGuestDataSeparateAndReplacesOnlyItsSession() {
         User user = member(9L);
         LocalAccount account = LocalAccount.create(
                 user,
@@ -187,21 +195,12 @@ class LocalAccountServiceTest {
         );
         when(localAccountRepository.findByEmailForUpdate("user@example.com"))
                 .thenReturn(Optional.of(account));
-        when(identityLockManager.executeForLocalEmail(eq("user@example.com"), any()))
-                .thenAnswer(invocation -> executeWhileLocked(
-                        identityLockHeld,
-                        invocation.getArgument(1)
-                ));
         when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
-                .thenAnswer(invocation -> {
-                    assertThat(identityLockHeld.get()).isFalse();
-                    return new TokenInfo("access", "refresh");
-                });
+                .thenReturn(new TokenInfo("access", "refresh"));
 
         LocalAuthUser result = service.login("user@example.com", "correct-password", 2L).user();
 
         assertThat(result.userId()).isEqualTo(9L);
-        verify(guestDataMergeService).mergeIntoExistingUser(2L, 9L);
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).issueSessionReplacingGuest(9L, UserRole.USER, 2L);
@@ -218,10 +217,10 @@ class LocalAccountServiceTest {
         );
         when(localAccountRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(account));
 
-        service.changePassword(3L, 0, "new-password", "new-password");
+        service.changePassword(3L, 0, "new-password1", "new-password1");
 
         assertThat(account.getPasswordVersion()).isEqualTo(1);
-        assertThat(passwordEncoder.matches("new-password", account.getPasswordHash())).isTrue();
+        assertThat(passwordEncoder.matches("new-password1", account.getPasswordHash())).isTrue();
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).revokeSession(9L);
@@ -241,14 +240,16 @@ class LocalAccountServiceTest {
                 .doNothing()
                 .when(tokenSessionService).revokeSession(9L);
 
-        assertThatThrownBy(() -> service.changePassword(3L, 0, "new-password", "new-password"))
-                .isInstanceOf(RedisConnectionFailureException.class);
+        assertThatThrownBy(() -> service.changePassword(3L, 0, "new-password1", "new-password1"))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH042")
+                );
 
         assertThat(account.getPasswordVersion()).isEqualTo(1);
-        service.changePassword(3L, 0, "new-password", "new-password");
+        service.changePassword(3L, 0, "new-password1", "new-password1");
 
         assertThat(account.getPasswordVersion()).isEqualTo(1);
-        assertThat(passwordEncoder.matches("new-password", account.getPasswordHash())).isTrue();
+        assertThat(passwordEncoder.matches("new-password1", account.getPasswordHash())).isTrue();
         verify(tokenSessionService, times(2)).revokeSession(9L);
     }
 
@@ -264,16 +265,4 @@ class LocalAccountServiceTest {
         return user;
     }
 
-    private <T> T get(Supplier<T> supplier) {
-        return supplier.get();
-    }
-
-    private <T> T executeWhileLocked(AtomicBoolean lockHeld, Supplier<T> supplier) {
-        lockHeld.set(true);
-        try {
-            return supplier.get();
-        } finally {
-            lockHeld.set(false);
-        }
-    }
 }

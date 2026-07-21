@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.auth.service.impl;
+package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.request.GuestLoginRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
@@ -6,33 +6,26 @@ import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.OAuthStateResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
+import com.example.moodtail.domain.auth.model.AuthResult;
 import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
 import com.example.moodtail.domain.auth.model.GuestLoginUser;
 import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.model.OAuthState;
 import com.example.moodtail.domain.auth.model.SocialLoginUser;
-import com.example.moodtail.domain.auth.service.GuestUserRegistrationService;
-import com.example.moodtail.domain.auth.service.LocalAccountService;
-import com.example.moodtail.domain.auth.service.OAuthStateService;
-import com.example.moodtail.domain.auth.service.PasswordResetService;
-import com.example.moodtail.domain.auth.service.SocialAccountService;
-import com.example.moodtail.domain.auth.service.TokenSessionService;
-import com.example.moodtail.domain.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.domain.auth.validator.GuestLoginRateLimiter;
+import com.example.moodtail.domain.auth.validator.LocalAuthRateLimiter;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
-import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.client.OAuthClient;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
+import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
-import com.example.moodtail.support.auth.AuthPropertiesFixtures;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
-import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -40,9 +33,6 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.http.HttpHeaders;
-import org.springframework.mock.web.MockHttpServletRequest;
-import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
@@ -64,9 +54,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-class AuthServiceImplTest {
+class AuthServiceTest {
 
-    private static final long REFRESH_EXPIRATION_MILLIS = 1_209_600_000L;
     private static final UUID GUEST_UUID = UUID.fromString("b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d");
     private static final String PKCE_VERIFIER =
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_";
@@ -93,7 +82,7 @@ class AuthServiceImplTest {
     private SocialAccountService socialAccountService;
 
     @Mock
-    private GuestUserRegistrationService guestUserRegistrationService;
+    private GuestUserService guestUserService;
 
     @Mock
     private OAuthStateService oAuthStateService;
@@ -102,17 +91,17 @@ class AuthServiceImplTest {
     private GuestLoginRateLimiter guestLoginRateLimiter;
 
     @Mock
+    private LocalAuthRateLimiter localAuthRateLimiter;
+
+    @Mock
     private LocalAccountService localAccountService;
 
     @Mock
     private PasswordResetService passwordResetService;
 
-    @Mock
-    private AuthRequestOriginValidator authRequestOriginValidator;
-
     private TokenSessionService tokenSessionService;
 
-    private AuthServiceImpl authService;
+    private AuthService authService;
 
     @BeforeEach
     void setUp() {
@@ -126,21 +115,15 @@ class AuthServiceImplTest {
                 userRepository,
                 transactionManager,
                 jwtProvider,
-                redisRepository,
-                authRequestOriginValidator,
-                AuthPropertiesFixtures.defaults()
+                redisRepository
         );
-        ReflectionTestUtils.setField(
-                tokenSessionService,
-                "jwtRefreshExpirationMillis",
-                REFRESH_EXPIRATION_MILLIS
-        );
-        authService = new AuthServiceImpl(
+        authService = new AuthService(
                 List.of(kakaoOAuthClient, googleOAuthClient),
                 socialAccountService,
-                guestUserRegistrationService,
+                guestUserService,
                 oAuthStateService,
                 guestLoginRateLimiter,
+                localAuthRateLimiter,
                 localAccountService,
                 passwordResetService,
                 tokenSessionService
@@ -153,26 +136,27 @@ class AuthServiceImplTest {
         TokenInfo tokenInfo = new TokenInfo("guest-access-token", "guest-refresh-token");
         Claims refreshClaims = refreshClaims("2", "guest-refresh-jti");
 
-        when(guestUserRegistrationService.findOrCreate(GUEST_UUID)).thenReturn(guest);
+        when(guestUserService.findOrCreate(GUEST_UUID)).thenReturn(guest);
         when(jwtProvider.generateToken(2L, UserRole.GUEST)).thenReturn(tokenInfo);
         when(jwtProvider.getRefreshTokenClaims("guest-refresh-token")).thenReturn(refreshClaims);
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        GuestLoginResponse result = authService.guestLogin(new GuestLoginRequest(GUEST_UUID), request, response);
+        AuthResult<GuestLoginResponse> result = authService.guestLogin(
+                new GuestLoginRequest(GUEST_UUID),
+                "203.0.113.7"
+        );
 
-        assertThat(result.userId()).isEqualTo(2L);
-        assertThat(result.guestUuid()).isEqualTo(GUEST_UUID.toString());
-        assertThat(result.isNewUser()).isTrue();
-        assertThat(result.accessToken()).isEqualTo("guest-access-token");
-        assertRefreshCookie(response, "guest-refresh-token", 1_209_600);
-        verify(guestLoginRateLimiter).check(GUEST_UUID, request);
+        assertThat(result.response().userId()).isEqualTo(2L);
+        assertThat(result.response().guestUuid()).isEqualTo(GUEST_UUID.toString());
+        assertThat(result.response().isNewUser()).isTrue();
+        assertThat(result.response().accessToken()).isEqualTo("guest-access-token");
+        assertThat(result.refreshToken()).isEqualTo("guest-refresh-token");
+        verify(guestLoginRateLimiter).check(GUEST_UUID, "203.0.113.7");
         verify(redisRepository).saveRefreshJti(2L, "guest-refresh-jti");
     }
 
     @Test
     void createOAuthStateBindsProviderAndGuestUser() {
-        OAuthState state = new OAuthState("state-value", 300L);
+        OAuthState state = new OAuthState("state-value", "challenge", "S256", 300L);
         when(oAuthStateService.issue(2L, SocialProvider.KAKAO)).thenReturn(state);
 
         OAuthStateResponse result = authService.createOAuthState("kakao", 2L);
@@ -191,8 +175,7 @@ class AuthServiceImplTest {
                 );
         assertThatThrownBy(() -> authService.socialLogin(
                 "google",
-                new SocialLoginRequest("google-code", null, "google-state"),
-                new MockHttpServletResponse()
+                new SocialLoginRequest("google-code", null, "google-state")
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH017")
         );
@@ -202,11 +185,11 @@ class AuthServiceImplTest {
     }
 
     @Test
-    void socialLoginConsumesStateAndLogsInExistingAccountWithoutEmail() {
+    void socialLoginConsumesStateAndLogsInExistingAccount() {
         SocialUserProfile profile = new SocialUserProfile(
                 SocialProvider.KAKAO,
                 "12345",
-                null,
+                "kakao@example.com",
                 "카카오유저"
         );
         SocialLoginUser socialUser = new SocialLoginUser(
@@ -214,7 +197,7 @@ class AuthServiceImplTest {
                 UserRole.USER,
                 "카카오유저",
                 SocialProvider.KAKAO,
-                null,
+                "kakao@example.com",
                 false
         );
         TokenInfo tokenInfo = new TokenInfo("service-access-token", "service-refresh-token");
@@ -225,17 +208,16 @@ class AuthServiceImplTest {
         when(socialAccountService.authenticate(eq(profile), eq(2L), any()))
                 .thenReturn(new SocialAuthenticationResult(socialUser, tokenInfo));
 
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        SocialLoginResponse result = authService.socialLogin(
+        AuthResult<SocialLoginResponse> result = authService.socialLogin(
                 "kakao",
-                new SocialLoginRequest("kakao-code", null, "state-value"),
-                response
+                new SocialLoginRequest("kakao-code", null, "state-value")
         );
 
-        assertThat(result.userId()).isEqualTo(99L);
-        assertThat(result.email()).isNull();
-        assertThat(result.provider()).isEqualTo(SocialProvider.KAKAO);
-        assertThat(result.isNewUser()).isFalse();
+        assertThat(result.response().userId()).isEqualTo(99L);
+        assertThat(result.response().email()).isEqualTo("kakao@example.com");
+        assertThat(result.response().provider()).isEqualTo(SocialProvider.KAKAO);
+        assertThat(result.response().isNewUser()).isFalse();
+        assertThat(result.refreshToken()).isEqualTo("service-refresh-token");
         verify(socialAccountService).authenticate(eq(profile), eq(2L), any());
     }
 
@@ -257,7 +239,7 @@ class AuthServiceImplTest {
         when(socialAccountService.authenticate(eq(profile), eq(2L), anyList()))
                 .thenReturn(new SocialAuthenticationResult(newUser, tokenInfo));
 
-        SocialLoginResponse result = authService.socialLogin(
+        AuthResult<SocialLoginResponse> result = authService.socialLogin(
                 "google",
                 new SocialLoginRequest(
                         "google-code",
@@ -265,13 +247,12 @@ class AuthServiceImplTest {
                         "state-value",
                         "신규사용자",
                         List.of(new com.example.moodtail.domain.auth.dto.request.TermAgreementRequest(1L, true))
-                ),
-                new MockHttpServletResponse()
+                )
         );
 
-        assertThat(result.userId()).isEqualTo(2L);
-        assertThat(result.isNewUser()).isTrue();
-        assertThat(result.accessToken()).isEqualTo("new-access");
+        assertThat(result.response().userId()).isEqualTo(2L);
+        assertThat(result.response().isNewUser()).isTrue();
+        assertThat(result.response().accessToken()).isEqualTo("new-access");
     }
 
     @Test
@@ -302,14 +283,13 @@ class AuthServiceImplTest {
         when(socialAccountService.authenticate(eq(profile), eq(2L), any()))
                 .thenReturn(new SocialAuthenticationResult(existingUser, tokenInfo));
 
-        SocialLoginResponse result = authService.socialLogin(
+        AuthResult<SocialLoginResponse> result = authService.socialLogin(
                 "google",
-                new SocialLoginRequest("google-code", "http://frontend/callback", "state-value"),
-                new MockHttpServletResponse()
+                new SocialLoginRequest("google-code", "http://frontend/callback", "state-value")
         );
 
-        assertThat(result.userId()).isEqualTo(99L);
-        assertThat(result.isNewUser()).isFalse();
+        assertThat(result.response().userId()).isEqualTo(99L);
+        assertThat(result.response().isNewUser()).isFalse();
         verify(socialAccountService).authenticate(eq(profile), eq(2L), any());
     }
 
@@ -328,8 +308,30 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> authService.socialLogin(
                 "kakao",
-                new SocialLoginRequest("kakao-code", null, "state-value"),
-                new MockHttpServletResponse()
+                new SocialLoginRequest("kakao-code", null, "state-value")
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
+        );
+
+        verify(socialAccountService, never()).authenticate(any(), any(), any());
+    }
+
+    @Test
+    void socialLoginRejectsProfileWithoutRequiredEmail() {
+        SocialUserProfile invalidProfile = new SocialUserProfile(
+                SocialProvider.KAKAO,
+                "12345",
+                null,
+                "카카오유저"
+        );
+        when(oAuthStateService.consumeForAuthentication("state-value", SocialProvider.KAKAO))
+                .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
+        when(kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
+                .thenReturn(invalidProfile);
+
+        assertThatThrownBy(() -> authService.socialLogin(
+                "kakao",
+                new SocialLoginRequest("kakao-code", null, "state-value")
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
         );
@@ -341,21 +343,88 @@ class AuthServiceImplTest {
     void socialLoginRejectsUnsupportedProviderBeforeConsumingState() {
         assertThatThrownBy(() -> authService.socialLogin(
                 "unsupported",
-                new SocialLoginRequest("code", null, "state-value"),
-                new MockHttpServletResponse()
+                new SocialLoginRequest("code", null, "state-value")
         )).isInstanceOf(RestApiException.class);
 
         verify(oAuthStateService, never()).consumeForAuthentication(any(), any());
     }
 
     @Test
+    void invalidOAuthRequestDoesNotConsumeTheOneTimeState() {
+        org.mockito.Mockito.doThrow(new RestApiException(
+                        com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.INVALID_SOCIAL_LOGIN
+                ))
+                .when(kakaoOAuthClient)
+                .validateAuthorizationRequest("invalid-code", "https://app.example/callback");
+
+        assertThatThrownBy(() -> authService.socialLogin(
+                "kakao",
+                new SocialLoginRequest(
+                        "invalid-code",
+                        "https://app.example/callback",
+                        "state-value"
+                )
+        )).isInstanceOf(RestApiException.class);
+
+        verify(oAuthStateService, never()).consumeForAuthentication(any(), any());
+        verify(kakaoOAuthClient, never()).requestUserProfile(any(), any(), any());
+    }
+
+    @Test
+    void existingSocialLoginLeavesSignupOnlyNicknameValidationToTheAccountService() {
+        SocialUserProfile providerProfile = new SocialUserProfile(
+                SocialProvider.KAKAO,
+                "12345",
+                "user@example.com",
+                "제공자닉네임"
+        );
+        SocialUserProfile requestedProfile = new SocialUserProfile(
+                SocialProvider.KAKAO,
+                "12345",
+                "user@example.com",
+                "x"
+        );
+        SocialLoginUser existingUser = new SocialLoginUser(
+                99L,
+                UserRole.USER,
+                "기존회원",
+                SocialProvider.KAKAO,
+                "user@example.com",
+                false
+        );
+        TokenInfo tokenInfo = new TokenInfo("access", "refresh");
+        when(oAuthStateService.consumeForAuthentication("state-value", SocialProvider.KAKAO))
+                .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
+        when(kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
+                .thenReturn(providerProfile);
+        when(socialAccountService.authenticate(eq(requestedProfile), eq(2L), anyList()))
+                .thenReturn(new SocialAuthenticationResult(existingUser, tokenInfo));
+
+        AuthResult<SocialLoginResponse> result = authService.socialLogin(
+                "kakao",
+                new SocialLoginRequest(
+                        "kakao-code",
+                        null,
+                        "state-value",
+                        "x",
+                        List.of()
+                )
+        );
+
+        assertThat(result.response().userId()).isEqualTo(99L);
+        assertThat(result.response().isNewUser()).isFalse();
+        verify(socialAccountService).authenticate(eq(requestedProfile), eq(2L), anyList());
+    }
+
+    @Test
     void oauthClientRegistryRejectsDuplicateProviderAdapters() {
-        AuthServiceImpl invalidService = new AuthServiceImpl(
+        AuthService invalidService = new AuthService(
                 List.of(kakaoOAuthClient, kakaoOAuthClient, googleOAuthClient),
                 socialAccountService,
-                guestUserRegistrationService,
+                guestUserService,
                 oAuthStateService,
                 guestLoginRateLimiter,
+                localAuthRateLimiter,
                 localAccountService,
                 passwordResetService,
                 tokenSessionService
@@ -368,12 +437,13 @@ class AuthServiceImplTest {
 
     @Test
     void oauthClientRegistryRejectsMissingProviderAdapter() {
-        AuthServiceImpl invalidService = new AuthServiceImpl(
+        AuthService invalidService = new AuthService(
                 List.of(kakaoOAuthClient),
                 socialAccountService,
-                guestUserRegistrationService,
+                guestUserService,
                 oAuthStateService,
                 guestLoginRateLimiter,
+                localAuthRateLimiter,
                 localAccountService,
                 passwordResetService,
                 tokenSessionService
@@ -393,19 +463,15 @@ class AuthServiceImplTest {
 
         when(jwtProvider.getRefreshTokenClaims("old-refresh-token")).thenReturn(oldRefreshClaims);
         when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of("old-refresh-jti"));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.findAuthUserById(1L)).thenReturn(Optional.of(user));
         when(jwtProvider.generateToken(1L, UserRole.USER)).thenReturn(newTokenInfo);
         when(jwtProvider.getRefreshTokenClaims("new-refresh-token")).thenReturn(newRefreshClaims);
         when(redisRepository.replaceRefreshJti(1L, "old-refresh-jti", "new-refresh-jti")).thenReturn(true);
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "old-refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
+        AuthResult<TokenResponse> result = authService.reissue("old-refresh-token");
 
-        TokenResponse result = authService.reissue(request, response);
-
-        assertThat(result.accessToken()).isEqualTo("new-access-token");
-        assertRefreshCookie(response, "new-refresh-token", 1_209_600);
+        assertThat(result.response().accessToken()).isEqualTo("new-access-token");
+        assertThat(result.refreshToken()).isEqualTo("new-refresh-token");
         InOrder order = inOrder(redisRepository, transactionManager);
         order.verify(redisRepository).findRefreshJtiByUserId(1L);
         order.verify(transactionManager).commit(any());
@@ -418,13 +484,8 @@ class AuthServiceImplTest {
         when(jwtProvider.getRefreshTokenClaims("old-refresh-token")).thenReturn(oldRefreshClaims);
         when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of("different-jti"));
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "old-refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        assertThatThrownBy(() -> authService.reissue(request, response))
+        assertThatThrownBy(() -> authService.reissue("old-refresh-token"))
                 .isInstanceOf(RestApiException.class);
-        assertClearedRefreshCookie(response);
     }
 
     @Test
@@ -434,34 +495,25 @@ class AuthServiceImplTest {
         Claims oldRefreshClaims = refreshClaims("1", "old-refresh-jti");
         when(jwtProvider.getRefreshTokenClaims("old-refresh-token")).thenReturn(oldRefreshClaims);
         when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of("old-refresh-jti"));
-        when(userRepository.findById(1L)).thenReturn(Optional.of(deletedUser));
+        when(userRepository.findAuthUserById(1L)).thenReturn(Optional.of(deletedUser));
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "old-refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        assertThatThrownBy(() -> authService.reissue(request, response))
+        assertThatThrownBy(() -> authService.reissue("old-refresh-token"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
                 );
 
         verify(redisRepository).deleteRefreshJti(1L);
         verify(jwtProvider, never()).generateToken(any(), any());
-        assertClearedRefreshCookie(response);
     }
 
     @Test
-    void logoutBlocksAccessTokenAndDeletesRefreshJti() {
+    void logoutDeletesRefreshSessionResolvedFromAccessToken() {
         Claims accessClaims = accessClaims("1", "access-jti");
-        when(jwtProvider.resolveToken(any())).thenReturn("access-token");
-        when(jwtProvider.validateAccessToken("access-token")).thenReturn(true);
-        when(jwtProvider.getAccessTokenClaims("access-token")).thenReturn(accessClaims);
+        when(jwtProvider.validateAccessTokenAndGetClaims("access-token"))
+                .thenReturn(Optional.of(accessClaims));
 
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        authService.logout(new MockHttpServletRequest(), response);
+        authService.logout("access-token", null);
 
-        assertClearedRefreshCookie(response);
-        verify(redisRepository).blockAccessToken(accessClaims);
         verify(redisRepository).deleteRefreshJti(1L);
     }
 
@@ -471,36 +523,24 @@ class AuthServiceImplTest {
         when(jwtProvider.getRefreshTokenClaims("refresh-token")).thenReturn(refreshClaims);
         when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of("current-refresh-jti"));
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        authService.logout(request, response);
+        authService.logout(null, "refresh-token");
 
         verify(redisRepository).deleteRefreshJti(1L);
-        assertClearedRefreshCookie(response);
     }
 
     @Test
     void logoutRevokesAccessAndRefreshSessionsEvenWhenTheyBelongToDifferentUsers() {
         Claims accessClaims = accessClaims("1", "access-jti");
         Claims refreshClaims = refreshClaims("2", "refresh-jti");
-        when(jwtProvider.resolveToken(any())).thenReturn("access-token");
-        when(jwtProvider.validateAccessToken("access-token")).thenReturn(true);
-        when(jwtProvider.getAccessTokenClaims("access-token")).thenReturn(accessClaims);
+        when(jwtProvider.validateAccessTokenAndGetClaims("access-token"))
+                .thenReturn(Optional.of(accessClaims));
         when(jwtProvider.getRefreshTokenClaims("refresh-token")).thenReturn(refreshClaims);
         when(redisRepository.findRefreshJtiByUserId(2L)).thenReturn(Optional.of("refresh-jti"));
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
+        authService.logout("access-token", "refresh-token");
 
-        authService.logout(request, response);
-
-        verify(redisRepository).blockAccessToken(accessClaims);
         verify(redisRepository).deleteRefreshJti(1L);
         verify(redisRepository).deleteRefreshJti(2L);
-        assertClearedRefreshCookie(response);
     }
 
     @Test
@@ -509,43 +549,31 @@ class AuthServiceImplTest {
         when(jwtProvider.getRefreshTokenClaims("stale-refresh-token")).thenReturn(refreshClaims);
         when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of("current-refresh-jti"));
 
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "stale-refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        authService.logout(request, response);
+        authService.logout(null, "stale-refresh-token");
 
         verify(redisRepository, never()).deleteRefreshJti(any());
-        assertClearedRefreshCookie(response);
     }
 
     @Test
     void logoutWithoutTokensIsIdempotent() {
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        authService.logout(new MockHttpServletRequest(), response);
+        authService.logout(null, null);
 
         verify(redisRepository, never()).deleteRefreshJti(any());
-        assertClearedRefreshCookie(response);
     }
 
     @Test
-    void logoutKeepsCookieForRetryWhenRevocationCannotBeStored() {
+    void logoutReportsInfrastructureFailureWhenRevocationCannotBeStored() {
         Claims accessClaims = accessClaims("1", "access-jti");
-        when(jwtProvider.resolveToken(any())).thenReturn("access-token");
-        when(jwtProvider.validateAccessToken("access-token")).thenReturn(true);
-        when(jwtProvider.getAccessTokenClaims("access-token")).thenReturn(accessClaims);
+        when(jwtProvider.validateAccessTokenAndGetClaims("access-token"))
+                .thenReturn(Optional.of(accessClaims));
         org.mockito.Mockito.doThrow(new RedisConnectionFailureException("redis unavailable"))
                 .when(redisRepository)
-                .blockAccessToken(accessClaims);
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        assertThatThrownBy(() -> authService.logout(new MockHttpServletRequest(), response))
+                .deleteRefreshJti(1L);
+        assertThatThrownBy(() -> authService.logout("access-token", null))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
                 );
 
-        assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).isNull();
     }
 
     @Test
@@ -554,16 +582,11 @@ class AuthServiceImplTest {
         when(jwtProvider.getRefreshTokenClaims("old-refresh-token")).thenReturn(oldRefreshClaims);
         when(redisRepository.findRefreshJtiByUserId(1L))
                 .thenThrow(new RedisConnectionFailureException("redis unavailable"));
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setCookies(new Cookie("refreshToken", "old-refresh-token"));
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        assertThatThrownBy(() -> authService.reissue(request, response))
+        assertThatThrownBy(() -> authService.reissue("old-refresh-token"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
                 );
 
-        assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).isNull();
     }
 
     private User socialUserWithId(Long id) {
@@ -587,18 +610,4 @@ class AuthServiceImplTest {
         return claims;
     }
 
-    private void assertRefreshCookie(MockHttpServletResponse response, String value, int maxAge) {
-        assertThat(response.getHeader(HttpHeaders.SET_COOKIE)).contains(
-                "refreshToken=" + value,
-                "Path=/",
-                "Max-Age=" + maxAge,
-                "HttpOnly",
-                "SameSite=Lax"
-        );
-    }
-
-    private void assertClearedRefreshCookie(MockHttpServletResponse response) {
-        assertThat(response.getHeader(HttpHeaders.SET_COOKIE))
-                .contains("refreshToken=", "Path=/", "Max-Age=0", "HttpOnly", "SameSite=Lax");
-    }
 }

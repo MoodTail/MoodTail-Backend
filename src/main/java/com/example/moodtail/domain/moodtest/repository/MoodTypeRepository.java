@@ -11,6 +11,8 @@ import java.util.Optional;
 
 public interface MoodTypeRepository extends JpaRepository<MoodType, Long> {
 
+    boolean existsByCharacterImageId(Long imageId);
+
     @EntityGraph(attributePaths = "characterImage")
     List<MoodType> findAllByOrderBySortOrderAscIdAsc();
 

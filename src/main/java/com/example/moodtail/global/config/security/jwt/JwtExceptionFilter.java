@@ -11,10 +11,15 @@ import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
 public class JwtExceptionFilter extends OncePerRequestFilter {
 
-	//JwtExceptionFilter는 발생하는
-	//RestApiException을 처리하여 JSON 형식으로 에러 응답을 반환
+	private final ObjectMapper objectMapper;
+
+	public JwtExceptionFilter(ObjectMapper objectMapper) {
+		this.objectMapper = objectMapper;
+	}
 
 	@Override
 	protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -28,11 +33,10 @@ public class JwtExceptionFilter extends OncePerRequestFilter {
 
 	private void setErrorResponse(HttpServletResponse response, RestApiException exception) throws IOException {
 		response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+		response.setCharacterEncoding(StandardCharsets.UTF_8.name());
 		response.setStatus(exception.getErrorCode().getHttpStatus().value());
 
-		ObjectMapper mapper = new ObjectMapper();
-		mapper.findAndRegisterModules();
-		mapper.writeValue(
+		objectMapper.writeValue(
 				response.getOutputStream(),
 				BaseResponse.onFailure(
 						exception.getErrorCode().getCode(),

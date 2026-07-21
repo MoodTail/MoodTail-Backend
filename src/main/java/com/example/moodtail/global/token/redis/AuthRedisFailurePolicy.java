@@ -18,8 +18,7 @@ public final class AuthRedisFailurePolicy {
         try {
             return action.get();
         } catch (DataAccessException e) {
-            log.error("Required Redis operation failed: {} ({})", operation, e.getClass().getSimpleName());
-            log.debug("Required Redis failure details", e);
+            log.error("Required Redis operation failed: {}", operation, e);
             throw new RestApiException(AUTH_INFRASTRUCTURE_UNAVAILABLE);
         }
     }
@@ -34,9 +33,8 @@ public final class AuthRedisFailurePolicy {
     public static void bestEffort(String operation, Runnable action) {
         try {
             action.run();
-        } catch (DataAccessException e) {
-            log.warn("Non-critical Redis operation failed: {} ({})", operation, e.getClass().getSimpleName());
-            log.debug("Non-critical Redis failure details", e);
+        } catch (RuntimeException e) {
+            log.error("Non-critical Redis operation failed: {}", operation, e);
         }
     }
 }

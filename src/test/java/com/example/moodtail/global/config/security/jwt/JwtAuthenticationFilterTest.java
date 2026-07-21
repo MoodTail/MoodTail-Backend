@@ -5,7 +5,6 @@ import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
-import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import jakarta.servlet.FilterChain;
@@ -14,9 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.dao.DataRetrievalFailureException;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -37,9 +37,6 @@ class JwtAuthenticationFilterTest {
     private JwtProvider jwtProvider;
 
     @Mock
-    private RedisRepository redisRepository;
-
-    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -54,13 +51,12 @@ class JwtAuthenticationFilterTest {
     void authenticatesStoredGuestWithGuestAuthority() throws Exception {
         User guest = guestWithId(7L);
         Claims claims = accessClaims("7", UserRole.GUEST);
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/auth/oauth-states/kakao");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer guest-access-token");
         MockHttpServletResponse response = new MockHttpServletResponse();
-        when(jwtProvider.resolveToken(request)).thenReturn("guest-access-token");
-        when(jwtProvider.validateAccessToken("guest-access-token")).thenReturn(true);
-        when(jwtProvider.getAccessTokenClaims("guest-access-token")).thenReturn(claims);
-        when(userRepository.findById(7L)).thenReturn(Optional.of(guest));
+        when(jwtProvider.validateAccessTokenAndGetClaims("guest-access-token")).thenReturn(Optional.of(claims));
+        when(userRepository.findAuthUserById(7L)).thenReturn(Optional.of(guest));
 
         filter.doFilterInternal(request, response, filterChain);
 
@@ -70,7 +66,6 @@ class JwtAuthenticationFilterTest {
         assertThat(authentication.getAuthorities())
                 .extracting("authority")
                 .containsExactly("ROLE_GUEST");
-        verify(redisRepository).extendUserTimer(7L);
         verify(filterChain).doFilter(request, response);
     }
 
@@ -79,12 +74,11 @@ class JwtAuthenticationFilterTest {
         User upgradedUser = guestWithId(7L);
         upgradedUser.upgradeToUser("회원", LocalDateTime.now());
         Claims claims = accessClaims("7", UserRole.GUEST);
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/history");
-        when(jwtProvider.resolveToken(request)).thenReturn("old-guest-token");
-        when(jwtProvider.validateAccessToken("old-guest-token")).thenReturn(true);
-        when(jwtProvider.getAccessTokenClaims("old-guest-token")).thenReturn(claims);
-        when(userRepository.findById(7L)).thenReturn(Optional.of(upgradedUser));
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer old-guest-token");
+        when(jwtProvider.validateAccessTokenAndGetClaims("old-guest-token")).thenReturn(Optional.of(claims));
+        when(userRepository.findAuthUserById(7L)).thenReturn(Optional.of(upgradedUser));
 
         assertThatThrownBy(() -> filter.doFilterInternal(
                 request,
@@ -96,35 +90,35 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void reportsAuthenticationInfrastructureFailureWhenUserLookupFails() {
+        Claims claims = accessClaims("7", UserRole.GUEST);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/history");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer guest-access-token");
+        when(jwtProvider.validateAccessTokenAndGetClaims("guest-access-token"))
+                .thenReturn(Optional.of(claims));
+        when(userRepository.findAuthUserById(7L))
+                .thenThrow(new DataRetrievalFailureException("database unavailable"));
+
+        assertThatThrownBy(() -> filter.doFilterInternal(
+                request,
+                new MockHttpServletResponse(),
+                filterChain
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
+        );
+    }
+
+    @Test
     void logoutSkipsAuthenticationSoExpiredSessionsCanClearCookie() throws Exception {
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
         MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/v1/auth/logout");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilterInternal(request, response, filterChain);
 
         verify(filterChain).doFilter(request, response);
-        verifyNoInteractions(jwtProvider, redisRepository, userRepository);
-    }
-
-    @Test
-    void activityTimerRedisFailureDoesNotBlockAuthenticatedRequest() throws Exception {
-        User guest = guestWithId(7L);
-        Claims claims = accessClaims("7", UserRole.GUEST);
-        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository);
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/history");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-        when(jwtProvider.resolveToken(request)).thenReturn("guest-access-token");
-        when(jwtProvider.validateAccessToken("guest-access-token")).thenReturn(true);
-        when(jwtProvider.getAccessTokenClaims("guest-access-token")).thenReturn(claims);
-        when(userRepository.findById(7L)).thenReturn(Optional.of(guest));
-        org.mockito.Mockito.doThrow(new RedisConnectionFailureException("redis unavailable"))
-                .when(redisRepository).extendUserTimer(7L);
-
-        filter.doFilterInternal(request, response, filterChain);
-
-        verify(filterChain).doFilter(request, response);
-        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        verifyNoInteractions(jwtProvider, userRepository);
     }
 
     private User guestWithId(Long id) {

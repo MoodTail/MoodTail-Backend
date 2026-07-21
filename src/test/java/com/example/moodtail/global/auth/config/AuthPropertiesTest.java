@@ -10,7 +10,6 @@ class AuthPropertiesTest {
     void rejectsInsecureSameSiteNoneCookie() {
         assertThatThrownBy(() -> new AuthProperties.RefreshCookie(
                 "refreshToken",
-                "/",
                 null,
                 false,
                 "None"

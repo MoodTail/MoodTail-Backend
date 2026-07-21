@@ -7,17 +7,15 @@ public record LocalAuthUser(
         Long userId,
         UserRole role,
         String email,
-        String nickname,
-        boolean newUser
+        String nickname
 ) {
 
-    public static LocalAuthUser from(LocalAccount account, boolean newUser) {
+    public static LocalAuthUser from(LocalAccount account) {
         return new LocalAuthUser(
                 account.getUser().getId(),
                 account.getUser().getRole(),
                 account.getEmail(),
-                account.getUser().getNickname(),
-                newUser
+                account.getUser().getNickname()
         );
     }
 }

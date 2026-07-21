@@ -22,7 +22,6 @@ public final class LocalAuthPropertiesFixtures {
                         600_000L,
                         60_000L,
                         5,
-                        "",
                         new AuthProperties.RateLimit(10, 600_000L)
                 )
         );

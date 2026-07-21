@@ -1,12 +1,10 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
-import com.example.moodtail.support.auth.AuthPropertiesFixtures;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.AfterEach;
@@ -16,7 +14,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -41,9 +38,6 @@ class TokenSessionServiceTest {
     @Mock
     private RedisRepository redisRepository;
 
-    @Mock
-    private AuthRequestOriginValidator authRequestOriginValidator;
-
     private TokenSessionService service;
 
     @BeforeEach
@@ -52,11 +46,8 @@ class TokenSessionServiceTest {
                 userRepository,
                 transactionManager,
                 jwtProvider,
-                redisRepository,
-                authRequestOriginValidator,
-                AuthPropertiesFixtures.defaults()
+                redisRepository
         );
-        ReflectionTestUtils.setField(service, "jwtRefreshExpirationMillis", 1_209_600_000L);
     }
 
     @AfterEach
