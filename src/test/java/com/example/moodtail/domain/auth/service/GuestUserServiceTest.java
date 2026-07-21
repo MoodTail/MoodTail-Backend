@@ -102,14 +102,25 @@ class GuestUserServiceTest {
     }
 
     @Test
-    void rejectsSoftDeletedGuestInsteadOfRestoringSession() {
+    void replacesSoftDeletedGuestWithNewGuestUsingSameUuid() {
         User deletedGuest = User.createGuest(GUEST_UUID.toString(), "게스트", LocalDateTime.now());
+        ReflectionTestUtils.setField(deletedGuest, "id", 11L);
         deletedGuest.delete();
         when(userRepository.findByGuestUuidAndRole(GUEST_UUID.toString(), UserRole.GUEST))
                 .thenReturn(Optional.of(deletedGuest));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User newGuest = invocation.getArgument(0);
+            ReflectionTestUtils.setField(newGuest, "id", 12L);
+            return newGuest;
+        });
 
-        assertThatThrownBy(() -> service.findOrCreate(GUEST_UUID))
-                .isInstanceOf(com.example.moodtail.global.common.exception.RestApiException.class);
+        GuestLoginUser result = service.findOrCreate(GUEST_UUID);
+
+        assertThat(result.userId()).isEqualTo(12L);
+        assertThat(result.guestUuid()).isEqualTo(GUEST_UUID.toString());
+        assertThat(result.isNewUser()).isTrue();
+        verify(userRepository).delete(deletedGuest);
+        verify(userRepository).flush();
     }
 
 }

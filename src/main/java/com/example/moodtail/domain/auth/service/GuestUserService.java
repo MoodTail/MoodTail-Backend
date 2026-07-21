@@ -39,7 +39,7 @@ public class GuestUserService {
         } catch (DataIntegrityViolationException exception) {
             GuestLoginUser existingGuest = requiresNewTransactionTemplate().execute(
                     status -> userRepository.findByGuestUuidAndRole(normalizedGuestUuid, UserRole.GUEST)
-                            .map(this::restoreGuest)
+                            .map(this::reuseOrReplaceGuest)
                             .orElse(null)
             );
             if (existingGuest != null) {
@@ -57,16 +57,20 @@ public class GuestUserService {
 
     private GuestLoginUser findOrCreateInTransaction(String guestUuid) {
         return userRepository.findByGuestUuidAndRole(guestUuid, UserRole.GUEST)
-                .map(this::restoreGuest)
+                .map(this::reuseOrReplaceGuest)
                 .orElseGet(() -> GuestLoginUser.from(createGuestUser(guestUuid), true));
     }
 
-    private GuestLoginUser restoreGuest(User user) {
-        if (!user.isAvailableForAuthentication()) {
-            throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
+    private GuestLoginUser reuseOrReplaceGuest(User user) {
+        if (user.isAvailableForAuthentication()) {
+            user.updateLastAccessedAt(LocalDateTime.now());
+            return GuestLoginUser.from(user, false);
         }
-        user.updateLastAccessedAt(LocalDateTime.now());
-        return GuestLoginUser.from(user, false);
+
+        String guestUuid = user.getGuestUuid();
+        userRepository.delete(user);
+        userRepository.flush();
+        return GuestLoginUser.from(createGuestUser(guestUuid), true);
     }
 
     private User createGuestUser(String guestUuid) {
