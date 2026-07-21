@@ -17,6 +17,8 @@ public interface MoodTestResultRepository extends JpaRepository<MoodTestResult, 
 
     Optional<MoodTestResult> findByShareToken(String shareToken);
 
+    Optional<MoodTestResult> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
+
     @Modifying(flushAutomatically = true)
     @Query("delete from MoodTestResult result where result.user.id = :userId")
     int deleteAllByUserId(@Param("userId") Long userId);
