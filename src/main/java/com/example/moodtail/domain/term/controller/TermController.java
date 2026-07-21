@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.term.controller;
 
+import com.example.moodtail.domain.term.controller.docs.TermControllerDocs;
 import com.example.moodtail.domain.term.dto.response.TermsResponse;
 import com.example.moodtail.domain.term.service.TermService;
 import com.example.moodtail.global.common.base.BaseResponse;
@@ -12,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/terms")
-public class TermController {
+public class TermController implements TermControllerDocs {
 
     private final TermService termService;
 

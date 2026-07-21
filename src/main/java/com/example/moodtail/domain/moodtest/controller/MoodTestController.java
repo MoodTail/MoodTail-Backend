@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.moodtest.controller;
 
+import com.example.moodtail.domain.moodtest.controller.docs.MoodTestControllerDocs;
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultRequest;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestQuestionResponse;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultResponse;
@@ -17,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/tests")
-public class MoodTestController {
+public class MoodTestController implements MoodTestControllerDocs {
 
     private final MoodTestQuestionService moodTestQuestionService;
     private final MoodTestResultService moodTestResultService;

@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.moodtest.controller;
 
+import com.example.moodtail.domain.moodtest.controller.docs.MoodTestResultShareControllerDocs;
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultShareCreateRequest;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultShareCreateResponse;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultResponse;
@@ -24,7 +25,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/tests/results/share")
-public class MoodTestResultShareController {
+public class MoodTestResultShareController implements MoodTestResultShareControllerDocs {
 
     private final MoodTestResultShareService moodTestResultShareService;
 
@@ -35,7 +36,7 @@ public class MoodTestResultShareController {
         return BaseResponse.onSuccess(moodTestResultShareService.getSharedResult(shareToken));
     }
 
-    // 스웨거의 multipart 문제 때문에 SwaggerBody로 따로 지정해야함
+    // multipart의 request 파트를 Swagger에서 application/json으로 전송하기 위한 설정
     @SwaggerBody(content = @Content(
             encoding = @Encoding(
                     name = "request",
