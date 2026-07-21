@@ -2,12 +2,11 @@ package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
+import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
+import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository.OwnedImage;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
-import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
-import com.example.moodtail.domain.history.repository.HistoryPhotoRepository.OwnedImage;
-import com.example.moodtail.domain.history.repository.HistoryRepository;
 import com.example.moodtail.domain.image.repository.ImageRepository;
 import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.image.service.ImageService.StorageCleanupResult;
@@ -59,9 +58,7 @@ class AccountWithdrawalServiceTest {
     @Mock
     private RecommendationItemRepository recommendationItemRepository;
     @Mock
-    private HistoryPhotoRepository historyPhotoRepository;
-    @Mock
-    private HistoryRepository historyRepository;
+    private WithdrawalHistoryRepository withdrawalHistoryRepository;
     @Mock
     private ImageRepository imageRepository;
     @Mock
@@ -107,8 +104,8 @@ class AccountWithdrawalServiceTest {
         service.withdraw(7L);
 
         verify(recommendationSessionRepository).findAllIdsRelatedToUserId(7L);
-        verify(historyPhotoRepository).deleteAllByUserId(7L);
-        verify(historyRepository).deleteAllByUserId(7L);
+        verify(withdrawalHistoryRepository).deletePhotosByUserId(7L);
+        verify(withdrawalHistoryRepository).deleteRecordsByUserId(7L);
         verify(cocktailFavoriteRepository).deleteAllByUserId(7L);
         verify(userUnlockedMoodTypeRepository).deleteAllByUserId(7L);
         verify(inquiryRepository).anonymizeAllByUserId(7L);
@@ -197,7 +194,7 @@ class AccountWithdrawalServiceTest {
             List<String> sharedResultImages
     ) {
         when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(member(7L)));
-        when(historyPhotoRepository.findOwnedImagesByUserId(7L)).thenReturn(historyImages);
+        when(withdrawalHistoryRepository.findOwnedImagesByUserId(7L)).thenReturn(historyImages);
         when(sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(7L))
                 .thenReturn(sharedResultImages);
         when(recommendationSessionRepository.findAllIdsRelatedToUserId(7L)).thenReturn(List.of());

@@ -2,12 +2,11 @@ package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
+import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
+import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository.OwnedImage;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
-import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
-import com.example.moodtail.domain.history.repository.HistoryPhotoRepository.OwnedImage;
-import com.example.moodtail.domain.history.repository.HistoryRepository;
 import com.example.moodtail.domain.image.repository.ImageRepository;
 import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.image.service.ImageService.StorageCleanupResult;
@@ -43,8 +42,7 @@ public class AccountWithdrawalService {
     private final UserRepository userRepository;
     private final RecommendationSessionRepository recommendationSessionRepository;
     private final RecommendationItemRepository recommendationItemRepository;
-    private final HistoryPhotoRepository historyPhotoRepository;
-    private final HistoryRepository historyRepository;
+    private final WithdrawalHistoryRepository withdrawalHistoryRepository;
     private final ImageRepository imageRepository;
     private final CocktailRepository cocktailRepository;
     private final CocktailFavoriteRepository cocktailFavoriteRepository;
@@ -94,13 +92,13 @@ public class AccountWithdrawalService {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
 
-        List<OwnedImage> historyImages = historyPhotoRepository.findOwnedImagesByUserId(userId);
+        List<OwnedImage> historyImages = withdrawalHistoryRepository.findOwnedImagesByUserId(userId);
         List<String> sharedResultImages =
                 sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(userId);
 
         deleteRecommendations(userId);
-        historyPhotoRepository.deleteAllByUserId(userId);
-        historyRepository.deleteAllByUserId(userId);
+        withdrawalHistoryRepository.deletePhotosByUserId(userId);
+        withdrawalHistoryRepository.deleteRecordsByUserId(userId);
         List<String> storageCleanupCandidates = new ArrayList<>(deleteUnreferencedHistoryImages(historyImages));
         cocktailFavoriteRepository.deleteAllByUserId(userId);
         userUnlockedMoodTypeRepository.deleteAllByUserId(userId);
@@ -143,7 +141,7 @@ public class AccountWithdrawalService {
     }
 
     private boolean isImageReferenced(Long imageId) {
-        return historyPhotoRepository.existsByImageId(imageId)
+        return withdrawalHistoryRepository.existsPhotoByImageId(imageId)
                 || cocktailRepository.existsByImageId(imageId)
                 || moodTypeRepository.existsByCharacterImageId(imageId);
     }
