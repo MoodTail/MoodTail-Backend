@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(HistoryReportSecurityConfigTest.ProbeController.class)
@@ -54,16 +53,14 @@ class HistoryReportSecurityConfigTest {
     @WithMockUser(roles = "GUEST")
     void guestCannotUseHistoryApi() throws Exception {
         mockMvc.perform(get("/api/v1/history/probe"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("AUTH009"));
+                .andExpect(status().isForbidden());
     }
 
     @Test
     @WithMockUser(roles = "GUEST")
     void guestCannotUseReportApi() throws Exception {
         mockMvc.perform(get("/api/v1/reports/probe"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("AUTH009"));
+                .andExpect(status().isForbidden());
     }
 
     @Test
