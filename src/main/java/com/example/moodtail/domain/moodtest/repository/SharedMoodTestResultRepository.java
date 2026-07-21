@@ -17,6 +17,7 @@ public interface SharedMoodTestResultRepository extends JpaRepository<SharedMood
             select result.thumbnailImageUrl
               from SharedMoodTestResult result
              where result.user.id = :userId
+               and result.thumbnailImageUrl is not null
             """)
     List<String> findThumbnailImageUrlsByUserId(@Param("userId") Long userId);
 
