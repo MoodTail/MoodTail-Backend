@@ -3,11 +3,14 @@ package com.example.moodtail.global.config.security.jwt;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import io.jsonwebtoken.security.WeakKeyException;
 import jakarta.annotation.PostConstruct;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -16,9 +19,11 @@ import org.springframework.util.StringUtils;
 import javax.crypto.SecretKey;
 import java.util.Base64;
 import java.util.Date;
+import java.util.Optional;
 import java.util.UUID;
 
-import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.*;
+import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.EXPIRED_REFRESH_TOKEN;
+import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.INVALID_REFRESH_TOKEN;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
 @Component
@@ -56,10 +61,6 @@ public class JwtProvider {
 		} catch (IllegalArgumentException | WeakKeyException e) {
 			throw new IllegalStateException("JWT secret must be a valid Base64-encoded key of at least 256 bits", e);
 		}
-	}
-
-	public String generateToken(Long userId, UserRole role, TokenType tokenType) {
-		return generateToken(userId, role, tokenType, UUID.randomUUID().toString());
 	}
 
 	private String generateToken(Long userId, UserRole role, TokenType tokenType, String sessionId) {
@@ -100,42 +101,24 @@ public class JwtProvider {
 		return new Date(createdDate.getTime() + jwtExpiration);
 	}
 
-	// 토큰 정보를 검증하는 메서드
-	public boolean validateToken(String token) {
-		return validateToken(token, null);
+	public Optional<Claims> validateAccessTokenAndGetClaims(String token) {
+		return validateAccessTokenClaims(token);
 	}
 
-	public boolean validateAccessToken(String token) {
-		return validateToken(token, TokenType.ACCESS);
-	}
-
-	public boolean validateRefreshToken(String token) {
-		return validateToken(token, TokenType.REFRESH);
-	}
-
-	private boolean validateToken(String token, TokenType expectedTokenType) {
+	private Optional<Claims> validateAccessTokenClaims(String token) {
 		try {
 			Claims claims = parseClaims(token);
-			String jti = claims.getId();
-			if (!StringUtils.hasText(jti) || Boolean.TRUE.equals(required(
-					"check access-token blacklist",
-					() -> redisRepository.isJtiBlocked(jti)
-			))) {
-				return false;
-			}
-
 			TokenType actualTokenType = resolveTokenType(claims);
-			if (actualTokenType == null
-					|| (expectedTokenType != null && !expectedTokenType.equals(actualTokenType))) {
-				return false;
+			if (!TokenType.ACCESS.equals(actualTokenType)) {
+				return Optional.empty();
 			}
-			if (TokenType.ACCESS.equals(actualTokenType)) {
-				return isCurrentSession(claims);
+			if (!StringUtils.hasText(claims.getId()) || !isCurrentSession(claims)) {
+				return Optional.empty();
 			}
-			return true;
+			return Optional.of(claims);
 
 		} catch (JwtException | IllegalArgumentException e) {
-			return false;
+			return Optional.empty();
 		}
 	}
 
@@ -154,22 +137,6 @@ public class JwtProvider {
 				"validate current access-token session",
 				() -> redisRepository.findRefreshJtiByUserId(userId)
 		).filter(sessionId::equals).isPresent();
-	}
-
-	public Claims getAccessTokenClaims(String token) {
-		try {
-			Claims claims = parseClaims(token);
-			if (!TokenType.ACCESS.equals(resolveTokenType(claims))) {
-				throw new RestApiException(INVALID_ACCESS_TOKEN);
-			}
-			return claims;
-		} catch (ExpiredJwtException e) {
-			throw new RestApiException(EXPIRED_USER_JWT);
-		} catch (RestApiException e) {
-			throw e;
-		} catch (JwtException | IllegalArgumentException e) {
-			throw new RestApiException(INVALID_ACCESS_TOKEN);
-		}
 	}
 
 	public Claims getRefreshTokenClaims(String token) {
@@ -208,12 +175,4 @@ public class JwtProvider {
 		}
 	}
 
-	// Request Header에서 토큰 정보 추출
-	public String resolveToken(HttpServletRequest request) {
-		String token = request.getHeader("Authorization");
-		if (StringUtils.hasText(token) && token.startsWith("Bearer ")) {
-			return token.substring(7);
-		}
-		return null;
-	}
 }

@@ -106,13 +106,13 @@ class PairRecommendationServiceTest {
         assertThat(response.compromiseProfile()).isEqualTo(CompromiseProfileResponse.from(compromise));
 
         List<RecommendedCocktailResponse> recommendations = response.recommendations();
-        assertThat(recommendations).hasSize(4);
+        assertThat(recommendations).hasSize(3);
         assertThat(recommendations)
                 .extracting(RecommendedCocktailResponse::cocktailId)
-                .containsExactly(101L, 102L, 103L, 104L);
+                .containsExactly(101L, 102L, 103L);
         assertThat(recommendations)
                 .extracting(RecommendedCocktailResponse::ranking)
-                .containsExactly(1, 2, 3, 4);
+                .containsExactly(1, 2, 3);
         assertThat(recommendations)
                 .extracting(RecommendedCocktailResponse::matchScore)
                 .isSortedAccordingTo((a, b) -> b - a);
@@ -213,7 +213,7 @@ class PairRecommendationServiceTest {
 
     @Test
     void returnsOnlyAvailableCocktailsWhenFewerThanRecommendationLimitExist() {
-        // TODO: 추천 후보 칵테일이 4개 미만일 때의 정책은 아직 정해지지 않았다. 현재 구현은 있는 만큼만
+        // TODO: 추천 후보 칵테일이 3개 미만일 때의 정책은 아직 정해지지 않았다. 현재 구현은 있는 만큼만
         // 반환하고 그대로 저장을 시도하며, 실제 개수 검증(4개 고정)은 PairRecommendationPersistenceService
         // 쪽 책임으로 넘어가 있다(여기서는 mock이라 실패하지 않음). 정책이 정해지면 이 테스트를 갱신할 것.
         User me = userWithId(1L);

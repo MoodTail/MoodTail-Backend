@@ -9,7 +9,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.RedisConnectionFailureException;
-import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.time.Duration;
 import java.util.List;
@@ -36,18 +35,14 @@ class GuestLoginRateLimiterTest {
     @Test
     void checksConfiguredClientAddressAndGuestUuidWithIndependentLimits() {
         AuthProperties properties = withGuestLogin(new AuthProperties.GuestLogin(
-                "X-Forwarded-For",
                 "게스트",
                 new AuthProperties.RateLimit(7, 30_000L),
                 new AuthProperties.RateLimit(40, 120_000L)
         ));
         GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, properties);
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRemoteAddr("10.0.0.10");
-        request.addHeader("X-Forwarded-For", "203.0.113.7, 10.0.0.10");
         when(redisRepository.acquireGuestLoginSlot(anyString(), anyInt(), any())).thenReturn(true);
 
-        limiter.check(GUEST_UUID, request);
+        limiter.check(GUEST_UUID, "203.0.113.7");
 
         ArgumentCaptor<String> fingerprintCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<Integer> attemptsCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -71,11 +66,9 @@ class GuestLoginRateLimiterTest {
     @Test
     void stopsBeforeUuidCheckWhenClientLimitIsExceeded() {
         GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, defaults());
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRemoteAddr("203.0.113.7");
         when(redisRepository.acquireGuestLoginSlot(anyString(), anyInt(), any())).thenReturn(false);
 
-        assertThatThrownBy(() -> limiter.check(GUEST_UUID, request))
+        assertThatThrownBy(() -> limiter.check(GUEST_UUID, "203.0.113.7"))
                 .isInstanceOf(RestApiException.class);
 
         verify(redisRepository).acquireGuestLoginSlot(anyString(), anyInt(), any());
@@ -89,12 +82,10 @@ class GuestLoginRateLimiterTest {
     @Test
     void redisFailureFailsClosedWithServiceUnavailable() {
         GuestLoginRateLimiter limiter = new GuestLoginRateLimiter(redisRepository, defaults());
-        MockHttpServletRequest request = new MockHttpServletRequest();
-        request.setRemoteAddr("203.0.113.7");
         when(redisRepository.acquireGuestLoginSlot(anyString(), anyInt(), any()))
                 .thenThrow(new RedisConnectionFailureException("redis unavailable"));
 
-        assertThatThrownBy(() -> limiter.check(GUEST_UUID, request))
+        assertThatThrownBy(() -> limiter.check(GUEST_UUID, "203.0.113.7"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
                 );
@@ -106,7 +97,6 @@ class GuestLoginRateLimiterTest {
                 properties.oauth(),
                 properties.refreshCookie(),
                 guestLogin,
-                properties.concurrency(),
                 properties.redis()
         );
     }

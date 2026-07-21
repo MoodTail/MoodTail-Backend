@@ -1,25 +1,15 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.dto.response.TokenResponse;
-import com.example.moodtail.domain.auth.validator.AuthRequestOriginValidator;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
-import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import io.jsonwebtoken.Claims;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -27,14 +17,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.StringUtils;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
@@ -46,24 +33,6 @@ public class TokenSessionService {
     private final PlatformTransactionManager transactionManager;
     private final JwtProvider jwtProvider;
     private final RedisRepository redisRepository;
-    private final AuthRequestOriginValidator authRequestOriginValidator;
-    private final AuthProperties authProperties;
-
-    @Value("${jwt.refreshExpiration}")
-    private long jwtRefreshExpirationMillis;
-
-    public TokenInfo issueAndSetCookie(Long userId, UserRole role, HttpServletResponse response) {
-        TokenInfo tokenInfo = issueSession(userId, role);
-        setRefreshTokenCookie(response, tokenInfo.refreshToken());
-        return tokenInfo;
-    }
-
-    public void setRefreshTokenCookie(HttpServletResponse response, String refreshToken) {
-        response.addHeader(
-                HttpHeaders.SET_COOKIE,
-                createRefreshTokenCookie(refreshToken, Duration.ofMillis(jwtRefreshExpirationMillis)).toString()
-        );
-    }
 
     public TokenInfo issueSession(Long userId, UserRole role) {
         requireNoActiveDatabaseTransaction("issue authentication session");
@@ -78,7 +47,7 @@ public class TokenSessionService {
 
         TokenInfo tokenInfo = createAndStoreSession(userId, role);
         bestEffort(
-                "delete merged guest refresh session",
+                "delete replaced guest refresh session",
                 () -> redisRepository.deleteRefreshJti(guestUserId)
         );
         return tokenInfo;
@@ -98,97 +67,75 @@ public class TokenSessionService {
         required("delete refresh session", () -> redisRepository.deleteRefreshJti(userId));
     }
 
-    public TokenResponse reissue(HttpServletRequest request, HttpServletResponse response) {
+    public TokenInfo reissue(String refreshToken) {
         requireNoActiveDatabaseTransaction("reissue authentication session");
-        authRequestOriginValidator.validateCookieAuthenticatedRequest(request);
-        try {
-            String refreshToken = resolveRefreshToken(request)
-                    .orElseThrow(() -> new RestApiException(AuthErrorStatus.EMPTY_JWT));
+        if (!StringUtils.hasText(refreshToken)) {
+            throw new RestApiException(AuthErrorStatus.EMPTY_JWT);
+        }
 
-            Claims refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken);
-            Long userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
-            String refreshJti = refreshClaims.getId();
-            String storedRefreshJti = required(
-                    "find refresh session",
-                    () -> redisRepository.findRefreshJtiByUserId(userId)
-            ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN));
+        Claims refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken);
+        Long userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
+        String refreshJti = refreshClaims.getId();
+        String storedRefreshJti = required(
+                "find refresh session",
+                () -> redisRepository.findRefreshJtiByUserId(userId)
+        ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN));
 
-            if (!StringUtils.hasText(refreshJti) || !storedRefreshJti.equals(refreshJti)) {
-                throw new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN);
-            }
+        if (!StringUtils.hasText(refreshJti) || !storedRefreshJti.equals(refreshJti)) {
+            throw new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN);
+        }
 
-            RefreshUser refreshUser = loadRefreshUser(userId);
-            TokenInfo tokenInfo = rotateRefreshToken(
-                    refreshUser.userId(),
-                    refreshUser.role(),
-                    refreshJti,
-                    response
+        RefreshUser refreshUser = loadRefreshUser(userId);
+        return rotateRefreshToken(
+                refreshUser.userId(),
+                refreshUser.role(),
+                refreshJti
+        );
+    }
+
+    public void logout(String accessToken, String refreshToken) {
+        Optional<Long> accessTokenUserId = resolveAccessTokenUser(accessToken);
+        Optional<Long> refreshTokenUserId = resolveCurrentRefreshSessionUser(refreshToken);
+        Set<Long> sessionUserIds = new LinkedHashSet<>();
+        accessTokenUserId.ifPresent(sessionUserIds::add);
+        refreshTokenUserId.ifPresent(sessionUserIds::add);
+        for (Long userId : sessionUserIds) {
+            required(
+                    "delete logout refresh session",
+                    () -> redisRepository.deleteRefreshJti(userId)
             );
-            return TokenResponse.from(tokenInfo);
-        } catch (RestApiException exception) {
-            if (!isAuthInfrastructureUnavailable(exception)) {
-                clearRefreshTokenCookie(response);
-            }
-            throw exception;
         }
     }
 
-    public void logout(HttpServletRequest request, HttpServletResponse response) {
-        authRequestOriginValidator.validateCookieAuthenticatedRequest(request);
-        boolean revocationCompleted = false;
-        try {
-            Optional<Long> accessTokenUserId = revokeAccessToken(request);
-            Optional<Long> refreshTokenUserId = resolveCurrentRefreshSessionUser(request);
-            Set<Long> sessionUserIds = new LinkedHashSet<>();
-            accessTokenUserId.ifPresent(sessionUserIds::add);
-            refreshTokenUserId.ifPresent(sessionUserIds::add);
-            for (Long userId : sessionUserIds) {
-                required(
-                        "delete logout refresh session",
-                        () -> redisRepository.deleteRefreshJti(userId)
-                );
-            }
-            revocationCompleted = true;
-        } finally {
-            if (revocationCompleted) {
-                clearRefreshTokenCookie(response);
-            }
-            SecurityContextHolder.clearContext();
-        }
-    }
-
-    private Optional<Long> revokeAccessToken(HttpServletRequest request) {
-        String accessToken = jwtProvider.resolveToken(request);
-        if (!StringUtils.hasText(accessToken) || !jwtProvider.validateAccessToken(accessToken)) {
+    private Optional<Long> resolveAccessTokenUser(String accessToken) {
+        if (!StringUtils.hasText(accessToken)) {
             return Optional.empty();
         }
 
-        Claims accessClaims;
+        Optional<Claims> accessClaimsOptional = jwtProvider.validateAccessTokenAndGetClaims(accessToken);
+        if (accessClaimsOptional.isEmpty()) {
+            return Optional.empty();
+        }
+        Claims accessClaims = accessClaimsOptional.get();
         Long userId;
         try {
-            accessClaims = jwtProvider.getAccessTokenClaims(accessToken);
             userId = parseUserId(accessClaims, AuthErrorStatus.INVALID_ACCESS_TOKEN);
         } catch (RestApiException ignored) {
             return Optional.empty();
         }
 
-        required(
-                "blacklist logout access token",
-                () -> redisRepository.blockAccessToken(accessClaims)
-        );
         return Optional.of(userId);
     }
 
-    private Optional<Long> resolveCurrentRefreshSessionUser(HttpServletRequest request) {
-        Optional<String> refreshToken = resolveRefreshToken(request);
-        if (refreshToken.isEmpty()) {
+    private Optional<Long> resolveCurrentRefreshSessionUser(String refreshToken) {
+        if (!StringUtils.hasText(refreshToken)) {
             return Optional.empty();
         }
 
         Claims refreshClaims;
         Long userId;
         try {
-            refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken.get());
+            refreshClaims = jwtProvider.getRefreshTokenClaims(refreshToken);
             userId = parseUserId(refreshClaims, AuthErrorStatus.INVALID_REFRESH_TOKEN);
         } catch (RestApiException ignored) {
             return Optional.empty();
@@ -208,12 +155,12 @@ public class TokenSessionService {
 
     private RefreshUser loadRefreshUser(Long userId) {
         RefreshUser refreshUser = requiresNewTransaction().execute(status -> {
-            Optional<User> userOptional = userRepository.findById(userId);
+            Optional<User> userOptional = userRepository.findAuthUserById(userId);
             if (userOptional.isEmpty()) {
                 return RefreshUser.failure(AuthErrorStatus.USER_NOT_FOUND);
             }
             User user = userOptional.get();
-            if (!user.isActive() || user.isDeleted()) {
+            if (!user.isAvailableForAuthentication()) {
                 return RefreshUser.failure(AuthErrorStatus.INACTIVE_USER);
             }
             user.updateLastAccessedAt(LocalDateTime.now());
@@ -232,8 +179,7 @@ public class TokenSessionService {
     private TokenInfo rotateRefreshToken(
             Long userId,
             UserRole role,
-            String expectedRefreshJti,
-            HttpServletResponse response
+            String expectedRefreshJti
     ) {
         TokenInfo tokenInfo = jwtProvider.generateToken(userId, role);
         Claims newRefreshClaims = jwtProvider.getRefreshTokenClaims(tokenInfo.refreshToken());
@@ -250,7 +196,6 @@ public class TokenSessionService {
         if (!rotated) {
             throw new RestApiException(AuthErrorStatus.INVALID_REFRESH_TOKEN);
         }
-        setRefreshTokenCookie(response, tokenInfo.refreshToken());
         return tokenInfo;
     }
 
@@ -264,19 +209,6 @@ public class TokenSessionService {
         TransactionTemplate template = new TransactionTemplate(transactionManager);
         template.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
         return template;
-    }
-
-    private Optional<String> resolveRefreshToken(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies == null) {
-            return Optional.empty();
-        }
-
-        return Arrays.stream(cookies)
-                .filter(cookie -> authProperties.refreshCookie().name().equals(cookie.getName()))
-                .map(Cookie::getValue)
-                .filter(StringUtils::hasText)
-                .findFirst();
     }
 
     private Long parseUserId(Claims claims, AuthErrorStatus errorStatus) {
@@ -293,32 +225,6 @@ public class TokenSessionService {
             throw new IllegalStateException("Generated refresh token must contain a JTI");
         }
         return refreshJti;
-    }
-
-    private boolean isAuthInfrastructureUnavailable(RestApiException exception) {
-        return AUTH_INFRASTRUCTURE_UNAVAILABLE.getCode().getCode()
-                .equals(exception.getErrorCode().getCode());
-    }
-
-    private void clearRefreshTokenCookie(HttpServletResponse response) {
-        response.addHeader(
-                HttpHeaders.SET_COOKIE,
-                createRefreshTokenCookie("", Duration.ZERO).toString()
-        );
-    }
-
-    private ResponseCookie createRefreshTokenCookie(String value, Duration maxAge) {
-        AuthProperties.RefreshCookie properties = authProperties.refreshCookie();
-        ResponseCookie.ResponseCookieBuilder cookieBuilder = ResponseCookie.from(properties.name(), value)
-                .httpOnly(true)
-                .secure(properties.secure())
-                .sameSite(properties.sameSite())
-                .path(properties.path())
-                .maxAge(maxAge);
-        if (StringUtils.hasText(properties.domain())) {
-            cookieBuilder.domain(properties.domain());
-        }
-        return cookieBuilder.build();
     }
 
     private record RefreshUser(Long userId, UserRole role, AuthErrorStatus errorStatus) {

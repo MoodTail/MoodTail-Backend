@@ -12,12 +12,11 @@ public record AuthProperties(
         OAuth oauth,
         RefreshCookie refreshCookie,
         GuestLogin guestLogin,
-        Concurrency concurrency,
         RedisKeys redis
 ) {
 
     public AuthProperties {
-        if (oauth == null || refreshCookie == null || guestLogin == null || concurrency == null || redis == null) {
+        if (oauth == null || refreshCookie == null || guestLogin == null || redis == null) {
             throw new IllegalArgumentException("All auth configuration groups are required");
         }
     }
@@ -65,14 +64,12 @@ public record AuthProperties(
 
     public record RefreshCookie(
             String name,
-            String path,
             String domain,
             boolean secure,
             String sameSite
     ) {
         public RefreshCookie {
             requireText(name, "Refresh-token cookie name");
-            requireText(path, "Refresh-token cookie path");
             requireText(sameSite, "Refresh-token cookie SameSite");
             if (!sameSite.equalsIgnoreCase("Lax")
                     && !sameSite.equalsIgnoreCase("Strict")
@@ -86,7 +83,6 @@ public record AuthProperties(
     }
 
     public record GuestLogin(
-            String clientIpHeader,
             String defaultNickname,
             RateLimit uuidRateLimit,
             RateLimit clientRateLimit
@@ -111,28 +107,6 @@ public record AuthProperties(
                 throw new IllegalArgumentException("Rate-limit max attempts must be positive");
             }
             requirePositive(windowMillis, "Rate-limit window");
-        }
-    }
-
-    public record Concurrency(
-            long lockTtlMillis,
-            long retryIntervalMillis,
-            long acquireTimeoutMillis,
-            int socialRegistrationMaxAttempts
-    ) {
-        public Concurrency {
-            requirePositive(lockTtlMillis, "Auth lock TTL");
-            requirePositive(retryIntervalMillis, "Auth lock retry interval");
-            requirePositive(acquireTimeoutMillis, "Auth lock acquire timeout");
-            if (socialRegistrationMaxAttempts < 1) {
-                throw new IllegalArgumentException("Social registration max attempts must be positive");
-            }
-            if (retryIntervalMillis >= acquireTimeoutMillis) {
-                throw new IllegalArgumentException("Auth lock retry interval must be shorter than acquire timeout");
-            }
-            if (lockTtlMillis <= acquireTimeoutMillis) {
-                throw new IllegalArgumentException("Auth lock TTL must be longer than acquire timeout");
-            }
         }
     }
 

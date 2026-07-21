@@ -6,8 +6,4 @@ public record OAuthState(
         String codeChallengeMethod,
         long expiresInSeconds
 ) {
-
-    public OAuthState(String value, long expiresInSeconds) {
-        this(value, null, null, expiresInSeconds);
-    }
 }

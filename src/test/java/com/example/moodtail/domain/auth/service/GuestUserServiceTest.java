@@ -5,7 +5,6 @@ import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.support.auth.AuthPropertiesFixtures;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,7 +18,6 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import java.time.LocalDateTime;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -27,10 +25,11 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 @SuppressWarnings("unchecked")
-class GuestUserRegistrationServiceTest {
+class GuestUserServiceTest {
 
     private static final UUID GUEST_UUID = UUID.fromString("b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d");
 
@@ -38,24 +37,18 @@ class GuestUserRegistrationServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private IdentityLockManager identityLockManager;
-
-    @Mock
     private PlatformTransactionManager transactionManager;
 
-    private GuestUserRegistrationService service;
+    private GuestUserService service;
 
     @BeforeEach
     void setUp() {
-        service = new GuestUserRegistrationService(
+        service = new GuestUserService(
                 userRepository,
-                identityLockManager,
                 transactionManager,
                 AuthPropertiesFixtures.defaults()
         );
-        when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        when(identityLockManager.executeForGuestUser(anyString(), any()))
-                .thenAnswer(invocation -> get(invocation.getArgument(1)));
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
     }
 
     @Test
@@ -98,18 +91,36 @@ class GuestUserRegistrationServiceTest {
     }
 
     @Test
-    void rejectsSoftDeletedGuestInsteadOfRestoringSession() {
+    void unrelatedGuestInsertIntegrityFailureIsNotHidden() {
+        DataIntegrityViolationException databaseFailure =
+                new DataIntegrityViolationException("unrelated foreign key failure");
+        when(userRepository.findByGuestUuidAndRole(GUEST_UUID.toString(), UserRole.GUEST))
+                .thenReturn(Optional.empty(), Optional.empty());
+        when(userRepository.save(any(User.class))).thenThrow(databaseFailure);
+
+        assertThatThrownBy(() -> service.findOrCreate(GUEST_UUID)).isSameAs(databaseFailure);
+    }
+
+    @Test
+    void replacesSoftDeletedGuestWithNewGuestUsingSameUuid() {
         User deletedGuest = User.createGuest(GUEST_UUID.toString(), "게스트", LocalDateTime.now());
+        ReflectionTestUtils.setField(deletedGuest, "id", 11L);
         deletedGuest.delete();
         when(userRepository.findByGuestUuidAndRole(GUEST_UUID.toString(), UserRole.GUEST))
                 .thenReturn(Optional.of(deletedGuest));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User newGuest = invocation.getArgument(0);
+            ReflectionTestUtils.setField(newGuest, "id", 12L);
+            return newGuest;
+        });
 
-        assertThatThrownBy(() -> service.findOrCreate(GUEST_UUID))
-                .isInstanceOf(com.example.moodtail.global.common.exception.RestApiException.class);
+        GuestLoginUser result = service.findOrCreate(GUEST_UUID);
+
+        assertThat(result.userId()).isEqualTo(12L);
+        assertThat(result.guestUuid()).isEqualTo(GUEST_UUID.toString());
+        assertThat(result.isNewUser()).isTrue();
+        verify(userRepository).delete(deletedGuest);
+        verify(userRepository).flush();
     }
 
-    @SuppressWarnings("unchecked")
-    private <T> T get(Object supplier) {
-        return ((Supplier<T>) supplier).get();
-    }
 }

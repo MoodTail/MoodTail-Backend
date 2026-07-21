@@ -32,9 +32,9 @@ spring:
           starttls:
             enable: ${MAIL_STARTTLS_ENABLED:true}
             required: ${MAIL_STARTTLS_REQUIRED:true}
-          connectiontimeout: ${MAIL_CONNECTION_TIMEOUT:3000}
-          timeout: ${MAIL_READ_TIMEOUT:5000}
-          writetimeout: ${MAIL_WRITE_TIMEOUT:5000}
+          connectiontimeout: 3000
+          timeout: 5000
+          writetimeout: 5000
 
   datasource:
     url: jdbc:mysql://${DATABASE_HOST:localhost}:3306/${DATABASE_NAME:moodtail}?serverTimezone=Asia/Seoul&characterEncoding=UTF-8
@@ -74,23 +74,22 @@ aws:
 
 jwt:
   secret: ${JWT_SECRET}
-  accessExpiration: ${JWT_ACCESS_EXPIRATION:900000}
-  refreshExpiration: ${JWT_REFRESH_EXPIRATION:1209600000}
+  accessExpiration: 900000
+  refreshExpiration: 1209600000
 
 auth:
   refresh-cookie:
     name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
-    path: ${JWT_REFRESH_COOKIE_PATH:/}
     domain: ${JWT_REFRESH_COOKIE_DOMAIN:}
     secure: ${JWT_COOKIE_SECURE:false}
     same-site: ${JWT_COOKIE_SAME_SITE:Lax}
   oauth:
-    state-expiration-millis: ${OAUTH_STATE_EXPIRATION:300000}
-    connect-timeout-millis: ${OAUTH_CONNECT_TIMEOUT:3000}
-    read-timeout-millis: ${OAUTH_READ_TIMEOUT:5000}
+    state-expiration-millis: 300000
+    connect-timeout-millis: 3000
+    read-timeout-millis: 5000
     state-rate-limit:
-      max-attempts: ${OAUTH_STATE_RATE_MAX_ATTEMPTS:10}
-      window-millis: ${OAUTH_STATE_RATE_WINDOW:60000}
+      max-attempts: 10
+      window-millis: 60000
     kakao:
       enabled: ${KAKAO_OAUTH_ENABLED:false}
       client-id: ${KAKAO_CLIENT_ID:}
@@ -106,46 +105,39 @@ auth:
       token-uri: ${GOOGLE_TOKEN_URI:https://oauth2.googleapis.com/token}
       user-info-uri: ${GOOGLE_USER_INFO_URI:https://openidconnect.googleapis.com/v1/userinfo}
   guest-login:
-    client-ip-header: ${GUEST_LOGIN_CLIENT_IP_HEADER:}
-    default-nickname: ${GUEST_DEFAULT_NICKNAME:게스트}
+    default-nickname: 게스트
     uuid-rate-limit:
-      max-attempts: ${GUEST_LOGIN_RATE_MAX_ATTEMPTS:10}
-      window-millis: ${GUEST_LOGIN_RATE_WINDOW:60000}
+      max-attempts: 10
+      window-millis: 60000
     client-rate-limit:
-      max-attempts: ${GUEST_LOGIN_CLIENT_RATE_MAX_ATTEMPTS:60}
-      window-millis: ${GUEST_LOGIN_CLIENT_RATE_WINDOW:60000}
-  concurrency:
-    lock-ttl-millis: ${AUTH_LOCK_TTL:10000}
-    retry-interval-millis: ${AUTH_LOCK_RETRY_INTERVAL:25}
-    acquire-timeout-millis: ${AUTH_LOCK_ACQUIRE_TIMEOUT:3000}
-    social-registration-max-attempts: ${SOCIAL_LOGIN_REGISTRATION_MAX_ATTEMPTS:3}
+      max-attempts: 60
+      window-millis: 60000
   redis:
     key-prefix: ${AUTH_REDIS_KEY_PREFIX:moodtail:local:auth:}
   local:
     password:
-      min-length: ${LOCAL_PASSWORD_MIN_LENGTH:8}
-      max-bytes: ${LOCAL_PASSWORD_MAX_BYTES:72}
+      min-length: 8
+      max-bytes: 72
     login:
-      max-failed-attempts: ${LOCAL_LOGIN_MAX_FAILED_ATTEMPTS:5}
-      lock-duration-millis: ${LOCAL_LOGIN_LOCK_DURATION:900000}
+      max-failed-attempts: 5
+      lock-duration-millis: 900000
     password-reset:
       enabled: ${PASSWORD_RESET_ENABLED:false}
       sender: ${MAIL_FROM:}
-      subject: ${PASSWORD_RESET_MAIL_SUBJECT:MoodTail password reset code}
-      body-template: ${PASSWORD_RESET_MAIL_BODY:Your MoodTail password reset code is %s.}
+      subject: MoodTail password reset code
+      body-template: Your MoodTail password reset code is %s.
       pepper: ${PASSWORD_RESET_PEPPER:}
-      code-expiration-millis: ${PASSWORD_RESET_CODE_EXPIRATION:300000}
-      token-expiration-millis: ${PASSWORD_RESET_TOKEN_EXPIRATION:600000}
-      resend-cooldown-millis: ${PASSWORD_RESET_RESEND_COOLDOWN:60000}
-      max-verification-attempts: ${PASSWORD_RESET_MAX_VERIFY_ATTEMPTS:5}
-      client-ip-header: ${PASSWORD_RESET_CLIENT_IP_HEADER:}
+      code-expiration-millis: 300000
+      token-expiration-millis: 600000
+      resend-cooldown-millis: 60000
+      max-verification-attempts: 5
       client-rate-limit:
-        max-attempts: ${PASSWORD_RESET_CLIENT_RATE_MAX_ATTEMPTS:10}
-        window-millis: ${PASSWORD_RESET_CLIENT_RATE_WINDOW:600000}
+        max-attempts: 10
+        window-millis: 600000
 
 cors:
   allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173}
-  max-age: ${CORS_MAX_AGE:3600}
+  max-age: 3600
 
 app:
   server-url: ${SERVER_URL:http://localhost:8080}

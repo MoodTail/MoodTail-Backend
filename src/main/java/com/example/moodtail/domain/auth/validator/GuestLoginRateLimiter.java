@@ -4,10 +4,8 @@ import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -22,32 +20,16 @@ import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.req
 @RequiredArgsConstructor
 public class GuestLoginRateLimiter {
 
-    private static final int MAX_CLIENT_ADDRESS_LENGTH = 128;
-
     private final RedisRepository redisRepository;
     private final AuthProperties authProperties;
 
-    public void check(UUID guestUuid, HttpServletRequest request) {
-        checkLimit("client", resolveClientAddress(request), authProperties.guestLogin().clientRateLimit());
+    public void check(UUID guestUuid, String clientAddress) {
+        checkLimit("client", clientAddress, authProperties.guestLogin().clientRateLimit());
         checkLimit("uuid", guestUuid.toString(), authProperties.guestLogin().uuidRateLimit());
     }
 
-    private String resolveClientAddress(HttpServletRequest request) {
-        String configuredHeader = authProperties.guestLogin().clientIpHeader();
-        if (StringUtils.hasText(configuredHeader)) {
-            String forwardedAddress = request.getHeader(configuredHeader);
-            if (StringUtils.hasText(forwardedAddress)) {
-                String firstAddress = forwardedAddress.split(",", 2)[0].trim();
-                if (StringUtils.hasText(firstAddress) && firstAddress.length() <= MAX_CLIENT_ADDRESS_LENGTH) {
-                    return firstAddress;
-                }
-            }
-        }
-        return request.getRemoteAddr();
-    }
-
     private void checkLimit(String scope, String identifier, AuthProperties.RateLimit rateLimit) {
-        if (!StringUtils.hasText(identifier)) {
+        if (identifier == null || identifier.isBlank()) {
             return;
         }
         boolean acquired = required(
