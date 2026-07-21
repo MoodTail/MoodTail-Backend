@@ -50,38 +50,65 @@ jobs:
       - name: Prepare Server
         uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
         with:
-            host: ${{ secrets.SERVER_HOST }}
-            username: ${{ secrets.SERVER_USER }}
-            key: ${{ secrets.SERVER_SSH_KEY }}
-            script: |
-              set -e
-              
-              mkdir -p ~/app
-              
-              if ! command -v docker >/dev/null 2>&1; then
-                echo "Docker is not installed. Installing Docker..."
-              
-                sudo apt-get update
-                sudo apt-get install -y ca-certificates curl gnupg
-              
-                sudo install -m 0755 -d /etc/apt/keyrings
-                curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-                sudo chmod a+r /etc/apt/keyrings/docker.gpg
-              
-                echo \
-                  "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-                  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
-                  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-              
-                sudo apt-get update
-                sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-              
-                sudo systemctl enable docker
-                sudo systemctl start docker
-              fi
-              
-              sudo docker --version
-              sudo docker compose version
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            set -e
+
+            mkdir -p ~/app
+
+            if ! command -v docker >/dev/null 2>&1; then
+              echo "Docker is not installed. Installing Docker..."
+
+              sudo apt-get update
+              sudo apt-get install -y ca-certificates curl gnupg
+
+              sudo install -m 0755 -d /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+              echo \
+                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+                $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | \
+                sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+              sudo apt-get update
+              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+              sudo systemctl enable docker
+              sudo systemctl start docker
+            fi
+
+            sudo docker --version
+            sudo docker compose version
+
+      - name: Debug - check all secrets for newlines
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+          DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+          DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+          DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
+          DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          SPRING_DATA_REDIS_HOST: ${{ secrets.SPRING_DATA_REDIS_HOST }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
+          AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          keys = ["IMAGE_TAG","DATABASE_HOST","DATABASE_NAME","DATABASE_USERNAME","DATABASE_PASSWORD",
+                  "DOCKERHUB_USERNAME","SERVER_URL","SPRING_DATA_REDIS_HOST","JWT_SECRET",
+                  "CORS_ALLOWED_ORIGINS","AWS_S3_BUCKET","AWS_ACCESS_KEY_ID","AWS_SECRET_ACCESS_KEY"]
+          for key in keys:
+              value = os.environ.get(key, "")
+              bad = ("\n" in value) or ("\r" in value) or ("\0" in value)
+              print(f"{key}: length={len(value)}, has_bad_char={bad}")
+          PY
 
       - name: Create deployment environment file
         env:
@@ -91,6 +118,10 @@ jobs:
           DATABASE_USERNAME: ${{ secrets.DATABASE_USERNAME }}
           DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
           DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          SERVER_URL: ${{ secrets.SERVER_URL }}
+          SHARE_BASE_URL: ${{ secrets.SHARE_BASE_URL || 'http://localhost:8080' }}
+          SHARE_FRONTEND_BASE_URL: ${{ secrets.SHARE_FRONTEND_BASE_URL || 'http://localhost:5173' }}
+          OPEN_WEATHER_API_KEY: ${{ secrets.OPEN_WEATHER_API_KEY }}
           SPRING_DATA_REDIS_HOST: ${{ secrets.SPRING_DATA_REDIS_HOST }}
           SPRING_DATA_REDIS_PORT: ${{ secrets.SPRING_DATA_REDIS_PORT || '6379' }}
           SPRING_DATA_REDIS_CONNECT_TIMEOUT: ${{ vars.SPRING_DATA_REDIS_CONNECT_TIMEOUT || '2s' }}
@@ -128,7 +159,8 @@ jobs:
           keys = tuple(key for key in os.environ if key not in {
               "CI", "HOME", "PATH", "PWD", "RUNNER_OS", "SHLVL"
           } and key in {
-              "IMAGE_TAG", "DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD",
+              "IMAGE_TAG", "DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD","SERVER_URL",
+              "SHARE_BASE_URL", "SHARE_FRONTEND_BASE_URL",
               "DOCKERHUB_USERNAME", "SPRING_DATA_REDIS_HOST", "SPRING_DATA_REDIS_PORT",
               "SPRING_DATA_REDIS_CONNECT_TIMEOUT", "SPRING_DATA_REDIS_TIMEOUT", "JWT_SECRET",
               "JWT_REFRESH_COOKIE_DOMAIN", "KAKAO_OAUTH_ENABLED", "KAKAO_CLIENT_ID",
@@ -138,12 +170,13 @@ jobs:
               "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM", "MAIL_SMTP_AUTH",
               "MAIL_STARTTLS_ENABLED", "MAIL_STARTTLS_REQUIRED",
               "CORS_ALLOWED_ORIGINS",
-              "AWS_S3_BUCKET", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"
+              "AWS_S3_BUCKET", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "OPEN_WEATHER_API_KEY", 
+              
           })
           required = {
               "IMAGE_TAG", "DATABASE_HOST", "DATABASE_NAME", "DATABASE_USERNAME", "DATABASE_PASSWORD",
               "DOCKERHUB_USERNAME", "SPRING_DATA_REDIS_HOST", "JWT_SECRET", "CORS_ALLOWED_ORIGINS",
-              "AWS_S3_BUCKET"
+              "AWS_S3_BUCKET", "OPEN_WEATHER_API_KEY", "SHARE_BASE_URL", "SHARE_FRONTEND_BASE_URL"
           }
           if os.environ.get("GOOGLE_OAUTH_ENABLED", "").lower() == "true":
               required.update({"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"})
@@ -171,7 +204,7 @@ jobs:
           content = "\n".join(f"{key}={dotenv_quote(os.environ.get(key, ''))}" for key in sorted(keys)) + "\n"
           Path("deploy.env").write_text(content, encoding="utf-8")
           PY
-          chmod 600 deploy.env
+          chmod 644 deploy.env
 
       - name: Copy deployment files to Server
         uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
