@@ -14,12 +14,11 @@ import java.util.List;
 public interface WithdrawalHistoryRepository extends Repository<DrinkingRecord, Long> {
 
     @Query(value = """
-            select distinct image.id as imageId, image.image_url as imageUrl
-              from images image
-              join history_photos photo on photo.image_id = image.id
+            select distinct photo.image_id
+              from history_photos photo
              where photo.user_id = :userId
             """, nativeQuery = true)
-    List<OwnedImage> findOwnedImagesByUserId(@Param("userId") Long userId);
+    List<Long> findOwnedImageIdsByUserId(@Param("userId") Long userId);
 
     @Modifying(flushAutomatically = true)
     @Query(value = "delete from history_photos where user_id = :userId", nativeQuery = true)
@@ -32,9 +31,4 @@ public interface WithdrawalHistoryRepository extends Repository<DrinkingRecord, 
     @Query(value = "select count(*) > 0 from history_photos where image_id = :imageId", nativeQuery = true)
     boolean existsPhotoByImageId(@Param("imageId") Long imageId);
 
-    interface OwnedImage {
-        Long getImageId();
-
-        String getImageUrl();
-    }
 }

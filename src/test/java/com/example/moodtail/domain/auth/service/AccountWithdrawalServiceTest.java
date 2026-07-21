@@ -3,10 +3,10 @@ package com.example.moodtail.domain.auth.service;
 import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
-import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository.OwnedImage;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
+import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.repository.ImageRepository;
 import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.image.service.ImageService.StorageCleanupResult;
@@ -167,8 +167,8 @@ class AccountWithdrawalServiceTest {
 
     @Test
     void cleansOnlyUnreferencedHistoryImagesAndSharedResultImages() {
-        OwnedImage deletedImage = ownedImage(21L, "https://cdn.example/history-deleted.png");
-        OwnedImage retainedImage = ownedImage(22L, "https://cdn.example/history-retained.png");
+        Image deletedImage = ownedImage(21L, "https://cdn.example/history-deleted.png");
+        Image retainedImage = ownedImage(22L, "https://cdn.example/history-retained.png");
         String sharedResultImage = "https://cdn.example/shared-result.png";
         stubSuccessfulDatabaseDeletion(List.of(deletedImage, retainedImage), List.of(sharedResultImage));
         when(cocktailRepository.existsByImageId(anyLong()))
@@ -190,19 +190,21 @@ class AccountWithdrawalServiceTest {
     }
 
     private void stubSuccessfulDatabaseDeletion(
-            List<OwnedImage> historyImages,
+            List<Image> historyImages,
             List<String> sharedResultImages
     ) {
         when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(member(7L)));
-        when(withdrawalHistoryRepository.findOwnedImagesByUserId(7L)).thenReturn(historyImages);
+        List<Long> historyImageIds = historyImages.stream().map(Image::getId).toList();
+        when(withdrawalHistoryRepository.findOwnedImageIdsByUserId(7L)).thenReturn(historyImageIds);
+        when(imageRepository.findAllById(historyImageIds)).thenReturn(historyImages);
         when(sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(7L))
                 .thenReturn(sharedResultImages);
         when(recommendationSessionRepository.findAllIdsRelatedToUserId(7L)).thenReturn(List.of());
     }
 
-    private OwnedImage ownedImage(Long imageId, String imageUrl) {
-        OwnedImage image = mock(OwnedImage.class);
-        when(image.getImageId()).thenReturn(imageId);
+    private Image ownedImage(Long imageId, String imageUrl) {
+        Image image = mock(Image.class);
+        when(image.getId()).thenReturn(imageId);
         lenient().when(image.getImageUrl()).thenReturn(imageUrl);
         return image;
     }

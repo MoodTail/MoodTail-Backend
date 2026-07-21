@@ -3,10 +3,10 @@ package com.example.moodtail.domain.auth.service;
 import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
-import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository.OwnedImage;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
+import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.repository.ImageRepository;
 import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.image.service.ImageService.StorageCleanupResult;
@@ -92,7 +92,8 @@ public class AccountWithdrawalService {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
 
-        List<OwnedImage> historyImages = withdrawalHistoryRepository.findOwnedImagesByUserId(userId);
+        List<Long> historyImageIds = withdrawalHistoryRepository.findOwnedImageIdsByUserId(userId);
+        List<Image> historyImages = imageRepository.findAllById(historyImageIds);
         List<String> sharedResultImages =
                 sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(userId);
 
@@ -127,13 +128,13 @@ public class AccountWithdrawalService {
         recommendationSessionRepository.deleteAllByIdIn(sessionIds);
     }
 
-    private List<String> deleteUnreferencedHistoryImages(List<OwnedImage> images) {
+    private List<String> deleteUnreferencedHistoryImages(List<Image> images) {
         List<String> storageCleanupCandidates = new ArrayList<>();
-        for (OwnedImage image : images) {
-            if (isImageReferenced(image.getImageId())) {
+        for (Image image : images) {
+            if (isImageReferenced(image.getId())) {
                 continue;
             }
-            if (imageRepository.deleteByImageId(image.getImageId()) == 1) {
+            if (imageRepository.deleteByImageId(image.getId()) == 1) {
                 storageCleanupCandidates.add(image.getImageUrl());
             }
         }
