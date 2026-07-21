@@ -148,6 +148,7 @@ cors:
   max-age: ${CORS_MAX_AGE:3600}
 
 app:
+  server-url: ${SERVER_URL:http://localhost:8080}
   share:
     base-url: ${SHARE_BASE_URL:http://localhost:8080}
     frontend-base-url: ${SHARE_FRONTEND_BASE_URL:http://localhost:5173}
