@@ -17,16 +17,30 @@ public record RecommendedCocktailResponse(
         @Schema(description = "칵테일 영문 이름", example = "French 75")
         String nameEn,
 
-        @Schema(description = "일치율. 0~100 점수입니다.", example = "93", minimum = "0", maximum = "100")
-        int matchScore
+        @Schema(description = "일치율. 두 사용자의 타협 프로필 기준입니다. 0~100 점수입니다.", example = "93", minimum = "0", maximum = "100")
+        int matchScore,
+
+        @Schema(description = "나의 개별 취향 프로필 기준 일치율. 0~100 점수입니다.", example = "90", minimum = "0", maximum = "100")
+        int myMatchScore,
+
+        @Schema(description = "상대방의 개별 취향 프로필 기준 일치율. 0~100 점수입니다.", example = "85", minimum = "0", maximum = "100")
+        int partnerMatchScore
 ){
-    public static RecommendedCocktailResponse of(Cocktail cocktail, int ranking, int matchScore) {
+    public static RecommendedCocktailResponse of(
+            Cocktail cocktail,
+            int ranking,
+            int matchScore,
+            int myMatchScore,
+            int partnerMatchScore
+    ) {
         return new RecommendedCocktailResponse(
                 ranking,
                 cocktail.getId(),
                 cocktail.getNameKo(),
                 cocktail.getNameEn(),
-                matchScore
+                matchScore,
+                myMatchScore,
+                partnerMatchScore
         );
 
     }
