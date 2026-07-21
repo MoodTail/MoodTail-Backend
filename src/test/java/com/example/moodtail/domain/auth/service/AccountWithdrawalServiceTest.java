@@ -32,6 +32,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.SimpleTransactionStatus;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
@@ -187,6 +188,21 @@ class AccountWithdrawalServiceTest {
                 deletedImage.getImageUrl(),
                 sharedResultImage
         ));
+    }
+
+    @Test
+    void excludesMissingSharedResultImageUrlsFromStorageCleanup() {
+        String sharedResultImage = "https://cdn.example/shared-result.png";
+        stubSuccessfulDatabaseDeletion(
+                List.of(),
+                Arrays.asList(null, " ", sharedResultImage)
+        );
+        when(imageService.deleteImagesFromStorage(List.of(sharedResultImage)))
+                .thenReturn(new StorageCleanupResult(1, 0));
+
+        service.withdraw(7L);
+
+        verify(imageService).deleteImagesFromStorage(List.of(sharedResultImage));
     }
 
     private void stubSuccessfulDatabaseDeletion(

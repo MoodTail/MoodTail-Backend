@@ -95,7 +95,9 @@ public class AccountWithdrawalService {
         List<Long> historyImageIds = withdrawalHistoryRepository.findOwnedImageIdsByUserId(userId);
         List<Image> historyImages = imageRepository.findAllById(historyImageIds);
         List<String> sharedResultImages =
-                sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(userId);
+                sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(userId).stream()
+                        .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
+                        .toList();
 
         deleteRecommendations(userId);
         withdrawalHistoryRepository.deletePhotosByUserId(userId);
