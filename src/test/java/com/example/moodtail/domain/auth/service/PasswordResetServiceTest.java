@@ -136,6 +136,22 @@ class PasswordResetServiceTest {
     }
 
     @Test
+    void appliesRateLimitToUnknownBucketWhenClientAddressIsMissing() {
+        when(localAccountService.findPasswordResetAccount("user@example.com"))
+                .thenReturn(Optional.empty());
+
+        service.requestCode("user@example.com", null);
+
+        ArgumentCaptor<String> fingerprint = ArgumentCaptor.forClass(String.class);
+        verify(redisRepository).acquirePasswordResetClientSlot(
+                fingerprint.capture(),
+                anyInt(),
+                any()
+        );
+        assertThat(fingerprint.getValue()).matches("[0-9a-f]{64}");
+    }
+
+    @Test
     void mailFailureReleasesCodeAndEmailCooldownForRetry() {
         when(localAccountService.findPasswordResetAccount("user@example.com"))
                 .thenReturn(Optional.of(new PasswordResetAccount(

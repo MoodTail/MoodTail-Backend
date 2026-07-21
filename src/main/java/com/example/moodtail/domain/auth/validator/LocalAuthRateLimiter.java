@@ -45,11 +45,12 @@ public class LocalAuthRateLimiter {
     }
 
     private void check(String purpose, String clientAddress, int maxAttempts, Duration window) {
+        String identifier = normalizeClientAddress(clientAddress);
         boolean allowed = required(
                 "acquire local-auth rate-limit slot",
                 () -> redisRepository.acquireLocalAuthSlot(
                         purpose,
-                        sha256(clientAddress),
+                        sha256(identifier),
                         maxAttempts,
                         window
                 )
@@ -57,6 +58,10 @@ public class LocalAuthRateLimiter {
         if (!allowed) {
             throw new RestApiException(AuthErrorStatus.TOO_MANY_LOCAL_AUTH_REQUESTS);
         }
+    }
+
+    private String normalizeClientAddress(String clientAddress) {
+        return clientAddress == null || clientAddress.isBlank() ? "unknown" : clientAddress;
     }
 
     private String sha256(String value) {

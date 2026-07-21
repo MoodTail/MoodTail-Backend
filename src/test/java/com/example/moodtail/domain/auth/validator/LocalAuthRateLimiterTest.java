@@ -80,4 +80,25 @@ class LocalAuthRateLimiterTest {
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
                 );
     }
+
+    @Test
+    void appliesRateLimitToSharedUnknownBucketWhenClientAddressIsMissing() {
+        LocalAuthRateLimiter limiter = new LocalAuthRateLimiter(redisRepository);
+        when(redisRepository.acquireLocalAuthSlot(anyString(), anyString(), anyInt(), any()))
+                .thenReturn(true);
+
+        limiter.checkLogin(null);
+        limiter.checkSignup(" ");
+
+        ArgumentCaptor<String> fingerprint = ArgumentCaptor.forClass(String.class);
+        verify(redisRepository, org.mockito.Mockito.times(2)).acquireLocalAuthSlot(
+                anyString(),
+                fingerprint.capture(),
+                anyInt(),
+                any()
+        );
+        assertThat(fingerprint.getAllValues())
+                .allMatch(value -> value.matches("[0-9a-f]{64}"))
+                .containsOnly(fingerprint.getAllValues().get(0));
+    }
 }

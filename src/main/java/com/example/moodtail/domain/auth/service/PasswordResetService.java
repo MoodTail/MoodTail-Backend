@@ -127,11 +127,12 @@ public class PasswordResetService {
             String clientAddress,
             LocalAuthProperties.PasswordReset reset
     ) {
+        String clientIdentifier = normalizeClientAddress(clientAddress);
         AuthProperties.RateLimit clientLimit = reset.clientRateLimit();
         boolean clientAllowed = required(
                 "acquire password-reset client rate-limit slot",
                 () -> redisRepository.acquirePasswordResetClientSlot(
-                        sha256(clientAddress),
+                        sha256(clientIdentifier),
                         clientLimit.maxAttempts(),
                         Duration.ofMillis(clientLimit.windowMillis())
                 )
@@ -149,6 +150,10 @@ public class PasswordResetService {
         if (!emailAllowed) {
             throw new RestApiException(AuthErrorStatus.TOO_MANY_PASSWORD_RESET_REQUESTS);
         }
+    }
+
+    private String normalizeClientAddress(String clientAddress) {
+        return clientAddress == null || clientAddress.isBlank() ? "unknown" : clientAddress;
     }
 
     private LocalAuthProperties.PasswordReset enabledPolicy() {
