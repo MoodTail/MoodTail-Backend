@@ -79,8 +79,14 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/v1/tests/results/share")
 						.hasAnyRole("GUEST", "USER")
 						.requestMatchers("/api/v1/tests/results").permitAll()
-						.requestMatchers("/api/v1/cocktails/*", "/api/v1/cocktails").permitAll()
-						.requestMatchers("/api/v1//recommends/pair").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/cocktails/favorites")
+								.hasAnyRole("USER", "ADMIN")
+						.requestMatchers(
+								HttpMethod.GET,
+								"/api/v1/cocktails",
+								"/api/v1/cocktails/*"
+						).permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/v1/cocktails/recommends/pair").permitAll()
 						.requestMatchers("/api/v1/history/**", "/api/v1/reports/**").hasRole("USER")
 						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().authenticated()
