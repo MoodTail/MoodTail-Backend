@@ -3,6 +3,7 @@ package com.example.moodtail.domain.cocktail.repository;
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.entity.CocktailFavorite;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -53,4 +54,8 @@ public interface CocktailFavoriteRepository extends JpaRepository<CocktailFavori
             @Param("userId") Long userId,
             @Param("cocktailId") Long cocktailId
     );
+
+    @Modifying(flushAutomatically = true)
+    @Query("delete from CocktailFavorite favorite where favorite.user.id = :userId")
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

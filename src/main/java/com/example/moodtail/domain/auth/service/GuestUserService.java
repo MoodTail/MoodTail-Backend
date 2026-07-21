@@ -7,8 +7,6 @@ import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.example.moodtail.global.common.exception.code.status.GlobalErrorStatus;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -21,10 +19,9 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class GuestUserRegistrationService {
+public class GuestUserService {
 
     private final UserRepository userRepository;
-    private final IdentityLockManager identityLockManager;
     private final PlatformTransactionManager transactionManager;
     private final AuthProperties authProperties;
 
@@ -32,22 +29,23 @@ public class GuestUserRegistrationService {
         String normalizedGuestUuid = guestUuid.toString();
 
         try {
-            return identityLockManager.executeForGuestUser(
-                    normalizedGuestUuid,
-                    () -> requiresNewTransactionTemplate().execute(
-                            status -> findOrCreateInTransaction(normalizedGuestUuid)
-                    )
+            GuestLoginUser guest = requiresNewTransactionTemplate().execute(
+                    status -> findOrCreateInTransaction(normalizedGuestUuid)
             );
-        } catch (DataIntegrityViolationException e) {
+            if (guest == null) {
+                throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+            }
+            return guest;
+        } catch (DataIntegrityViolationException exception) {
             GuestLoginUser existingGuest = requiresNewTransactionTemplate().execute(
                     status -> userRepository.findByGuestUuidAndRole(normalizedGuestUuid, UserRole.GUEST)
-                            .map(this::restoreGuest)
+                            .map(this::reuseOrReplaceGuest)
                             .orElse(null)
             );
             if (existingGuest != null) {
                 return existingGuest;
             }
-            throw new RestApiException(GlobalErrorStatus._INTERNAL_SERVER_ERROR);
+            throw exception;
         }
     }
 
@@ -59,16 +57,20 @@ public class GuestUserRegistrationService {
 
     private GuestLoginUser findOrCreateInTransaction(String guestUuid) {
         return userRepository.findByGuestUuidAndRole(guestUuid, UserRole.GUEST)
-                .map(user -> restoreGuest(user))
+                .map(this::reuseOrReplaceGuest)
                 .orElseGet(() -> GuestLoginUser.from(createGuestUser(guestUuid), true));
     }
 
-    private GuestLoginUser restoreGuest(User user) {
-        if (!user.isActive() || user.isDeleted()) {
-            throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
+    private GuestLoginUser reuseOrReplaceGuest(User user) {
+        if (user.isAvailableForAuthentication()) {
+            user.updateLastAccessedAt(LocalDateTime.now());
+            return GuestLoginUser.from(user, false);
         }
-        user.updateLastAccessedAt(LocalDateTime.now());
-        return GuestLoginUser.from(user, false);
+
+        String guestUuid = user.getGuestUuid();
+        userRepository.delete(user);
+        userRepository.flush();
+        return GuestLoginUser.from(createGuestUser(guestUuid), true);
     }
 
     private User createGuestUser(String guestUuid) {

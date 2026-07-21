@@ -124,6 +124,10 @@ public class User extends BaseEntity {
         return status == UserStatus.ACTIVE;
     }
 
+    public boolean isAvailableForAuthentication() {
+        return status == UserStatus.ACTIVE && !isDeleted();
+    }
+
     private static String truncateNickname(String value) {
         int codePointCount = value.codePointCount(0, value.length());
         if (codePointCount <= MAX_NICKNAME_CODE_POINTS) {

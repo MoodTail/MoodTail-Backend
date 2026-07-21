@@ -195,12 +195,8 @@ class AuthFlowIntegrationTest {
         try (RedisConnection connection = redisConnectionFactory.getConnection();
              Cursor<byte[]> cursor = connection.keyCommands().scan(
                      ScanOptions.scanOptions().match(REDIS_KEY_PREFIX + "*").count(1_000).build()
-             )) {
+            )) {
             cursor.forEachRemaining(keys::add);
-            jdbcTemplate.queryForList("select id from users", Long.class).forEach(userId -> {
-                keys.add(("usage:in:" + userId).getBytes(StandardCharsets.UTF_8));
-                keys.add(("usage:trigger:" + userId).getBytes(StandardCharsets.UTF_8));
-            });
             if (!keys.isEmpty()) {
                 connection.keyCommands().del(keys.toArray(byte[][]::new));
             }
@@ -217,7 +213,7 @@ class AuthFlowIntegrationTest {
 
         ResponseEntity<String> obsoleteStateResponse = exchangeJson(
                 HttpMethod.POST,
-                "/api/v1/auth/login/google",
+                "/api/v1/auth/google",
                 Map.of(
                         "authorizationCode", "obsolete-google-code",
                         "state", obsoleteState.path("state").asText()
@@ -230,7 +226,7 @@ class AuthFlowIntegrationTest {
 
         ResponseEntity<String> signupResponse = exchangeJson(
                 HttpMethod.POST,
-                "/api/v1/auth/login/google",
+                "/api/v1/auth/google",
                 Map.of(
                         "authorizationCode", "first-google-code",
                         "state", state,
@@ -250,7 +246,7 @@ class AuthFlowIntegrationTest {
         String secondGuestToken = guestLogin(UUID.randomUUID());
         JsonNode secondState = issueState(secondGuestToken);
         JsonNode existingLogin = postJson(
-                "/api/v1/auth/login/google",
+                "/api/v1/auth/google",
                 Map.of(
                         "authorizationCode", "second-google-code",
                         "state", secondState.path("state").asText()
@@ -267,7 +263,7 @@ class AuthFlowIntegrationTest {
                 Integer.class
         )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where role = 'GUEST' and deleted_at is not null",
+                "select count(*) from users where role = 'GUEST' and deleted_at is null",
                 Integer.class
         )).isEqualTo(1);
     }
@@ -282,7 +278,7 @@ class AuthFlowIntegrationTest {
 
         ResponseEntity<String> signupResponse = exchangeJson(
                 HttpMethod.POST,
-                "/api/v1/auth/login/google",
+                "/api/v1/auth/google",
                 Map.of(
                         "authorizationCode", "failure-google-code",
                         "state", state.path("state").asText(),
@@ -292,7 +288,7 @@ class AuthFlowIntegrationTest {
         );
 
         assertThat(signupResponse.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(objectMapper.readTree(signupResponse.getBody()).path("code").asText()).isEqualTo("AUTH028");
+        assertThat(objectMapper.readTree(signupResponse.getBody()).path("code").asText()).isEqualTo("AUTH041");
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'USER' and deleted_at is null",
                 Integer.class
@@ -303,7 +299,7 @@ class AuthFlowIntegrationTest {
         String retryGuestToken = guestLogin(UUID.randomUUID());
         JsonNode retryState = issueState(retryGuestToken);
         JsonNode recoveredLogin = postJson(
-                "/api/v1/auth/login/google",
+                "/api/v1/auth/google",
                 Map.of(
                         "authorizationCode", "retry-google-code",
                         "state", retryState.path("state").asText()
@@ -317,7 +313,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void localSignupAndLoginReuseTheSameGuestMergeAndTokenFlow() throws Exception {
+    void localSignupUpgradesItsGuestWhileExistingLoginKeepsTheSecondGuestSeparate() throws Exception {
         String signupGuestToken = guestLogin(UUID.randomUUID());
         JsonNode signup = postJson(
                 "/api/v1/auth/signup/local",
@@ -352,7 +348,7 @@ class AuthFlowIntegrationTest {
                 Integer.class
         )).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject(
-                "select count(*) from users where role = 'GUEST' and deleted_at is not null",
+                "select count(*) from users where role = 'GUEST' and deleted_at is null",
                 Integer.class
         )).isEqualTo(1);
     }
@@ -579,6 +575,11 @@ class AuthFlowIntegrationTest {
         @Override
         public boolean isEnabled() {
             return true;
+        }
+
+        @Override
+        public void validateAuthorizationRequest(String authorizationCode, String redirectUri) {
+            // The integration stub accepts every deterministic authorization request.
         }
 
         @Override

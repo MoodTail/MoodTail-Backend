@@ -8,9 +8,7 @@ import com.example.moodtail.global.auth.config.LocalAuthProperties;
 import com.example.moodtail.global.auth.mail.PasswordResetMailSender;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
-import com.example.moodtail.global.lock.IdentityLockManager;
 import com.example.moodtail.global.token.repository.redis.RedisRepository;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -38,14 +36,13 @@ public class PasswordResetService {
     private final LocalAccountService localAccountService;
     private final PasswordResetMailSender mailSender;
     private final RedisRepository redisRepository;
-    private final IdentityLockManager identityLockManager;
     private final LocalAuthProperties properties;
 
-    public PasswordResetCodeResponse requestCode(String email, HttpServletRequest request) {
+    public PasswordResetCodeResponse requestCode(String email, String clientAddress) {
         LocalAuthProperties.PasswordReset reset = enabledPolicy();
         String normalizedEmail = localAccountService.normalizeEmail(email);
         String emailFingerprint = sha256(normalizedEmail);
-        enforceRequestLimits(emailFingerprint, resolveClientAddress(request), reset);
+        enforceRequestLimits(emailFingerprint, clientAddress, reset);
 
         localAccountService.findPasswordResetAccount(normalizedEmail).ifPresent(account -> {
             String code = generateCode();
@@ -107,25 +104,22 @@ public class PasswordResetService {
             throw new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN);
         }
         localAccountService.validatePassword(password, passwordConfirm);
-        identityLockManager.executeForPasswordResetToken(resetToken, () -> {
-            String tokenHash = sha256(resetToken);
-            RedisRepository.PasswordResetTokenSession session = required(
-                    "find password-reset token",
-                    () -> redisRepository.findPasswordResetToken(tokenHash)
-            ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
+        String tokenHash = sha256(resetToken);
+        RedisRepository.PasswordResetTokenSession session = required(
+                "find password-reset token",
+                () -> redisRepository.findPasswordResetToken(tokenHash)
+        ).orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_PASSWORD_RESET_TOKEN));
 
-            localAccountService.changePassword(
-                    session.localAccountId(),
-                    session.passwordVersion(),
-                    password,
-                    passwordConfirm
-            );
-            bestEffort(
-                    "delete used password-reset token",
-                    () -> redisRepository.deletePasswordResetToken(tokenHash)
-            );
-            return null;
-        });
+        localAccountService.changePassword(
+                session.localAccountId(),
+                session.passwordVersion(),
+                password,
+                passwordConfirm
+        );
+        bestEffort(
+                "delete used password-reset token",
+                () -> redisRepository.deletePasswordResetToken(tokenHash)
+        );
     }
 
     private void enforceRequestLimits(
@@ -133,11 +127,12 @@ public class PasswordResetService {
             String clientAddress,
             LocalAuthProperties.PasswordReset reset
     ) {
+        String clientIdentifier = normalizeClientAddress(clientAddress);
         AuthProperties.RateLimit clientLimit = reset.clientRateLimit();
         boolean clientAllowed = required(
                 "acquire password-reset client rate-limit slot",
                 () -> redisRepository.acquirePasswordResetClientSlot(
-                        sha256(clientAddress),
+                        sha256(clientIdentifier),
                         clientLimit.maxAttempts(),
                         Duration.ofMillis(clientLimit.windowMillis())
                 )
@@ -157,30 +152,16 @@ public class PasswordResetService {
         }
     }
 
+    private String normalizeClientAddress(String clientAddress) {
+        return clientAddress == null || clientAddress.isBlank() ? "unknown" : clientAddress;
+    }
+
     private LocalAuthProperties.PasswordReset enabledPolicy() {
         LocalAuthProperties.PasswordReset reset = properties.passwordReset();
         if (!reset.enabled()) {
             throw new RestApiException(AuthErrorStatus.PASSWORD_RESET_DISABLED);
         }
         return reset;
-    }
-
-    private String resolveClientAddress(HttpServletRequest request) {
-        if (request == null) {
-            return "unknown";
-        }
-        String configuredHeader = properties.passwordReset().clientIpHeader();
-        if (StringUtils.hasText(configuredHeader)) {
-            String forwarded = request.getHeader(configuredHeader);
-            if (StringUtils.hasText(forwarded)) {
-                String firstAddress = forwarded.split(",", 2)[0].trim();
-                if (StringUtils.hasText(firstAddress) && firstAddress.length() <= 128) {
-                    return firstAddress;
-                }
-            }
-        }
-        String address = request.getRemoteAddr();
-        return StringUtils.hasText(address) ? address : "unknown";
     }
 
     private String generateCode() {

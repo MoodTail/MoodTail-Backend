@@ -15,9 +15,8 @@ import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.config.security.jwt.TokenInfo;
-import com.example.moodtail.global.lock.IdentityLockManager;
-import com.example.moodtail.support.auth.AuthPropertiesFixtures;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,8 +31,6 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -67,12 +64,6 @@ class SocialAccountServiceTest {
     private UserTermAgreementRepository userTermAgreementRepository;
 
     @Mock
-    private IdentityLockManager identityLockManager;
-
-    @Mock
-    private GuestDataMergeService guestDataMergeService;
-
-    @Mock
     private TokenSessionService tokenSessionService;
 
     private SocialAccountService service;
@@ -83,17 +74,10 @@ class SocialAccountServiceTest {
                 transactionManager,
                 userRepository,
                 socialAccountRepository,
-                identityLockManager,
-                guestDataMergeService,
                 new TermAgreementService(termRepository, userTermAgreementRepository),
-                AuthPropertiesFixtures.defaults(),
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        lenient().when(identityLockManager.executeForSocialLogin(any(), anyString(), any()))
-                .thenAnswer(invocation -> get(invocation.getArgument(2)));
-        lenient().when(identityLockManager.executeForGuestUserId(anyLong(), any()))
-                .thenAnswer(invocation -> get(invocation.getArgument(1)));
         lenient().when(tokenSessionService.issueSessionReplacingGuest(anyLong(), any(), anyLong()))
                 .thenReturn(new TokenInfo("access", "refresh"));
     }
@@ -139,8 +123,34 @@ class SocialAccountServiceTest {
     }
 
     @Test
-    void existingAuthenticationMergesGuestIntoExistingSocialAccount() {
-        AtomicBoolean identityLockHeld = new AtomicBoolean();
+    void newAuthenticationReportsCommittedAccountWhenSessionIssuanceFails() {
+        User guest = guestWithId(2L);
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokenSessionService.issueSessionReplacingGuest(2L, UserRole.USER, 2L))
+                .thenThrow(new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE));
+
+        assertThatThrownBy(() -> service.authenticate(
+                kakaoProfile(),
+                2L,
+                List.of(new Consent(1L, true))
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH041")
+        );
+
+        assertThat(guest.getRole()).isEqualTo(UserRole.USER);
+        InOrder order = inOrder(transactionManager, tokenSessionService);
+        order.verify(transactionManager).commit(any());
+        order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
+    }
+
+    @Test
+    void existingAuthenticationSwitchesToTheExistingSocialAccountWithoutMergingGuestData() {
         User existingUser = guestWithId(99L);
         existingUser.upgradeToUser("기존유저", LocalDateTime.now());
         SocialAccount account = SocialAccount.create(
@@ -153,20 +163,12 @@ class SocialAccountServiceTest {
                 SocialProvider.GOOGLE,
                 "google-id",
                 "user@example.com",
-                "ignored"
+                "provider-nickname-is-longer-than-signup-policy"
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.GOOGLE, "google-id"))
                 .thenReturn(Optional.of(account));
-        when(identityLockManager.executeForSocialLogin(eq(SocialProvider.GOOGLE), eq("google-id"), any()))
-                .thenAnswer(invocation -> executeWhileLocked(
-                        identityLockHeld,
-                        invocation.getArgument(2)
-                ));
         when(tokenSessionService.issueSessionReplacingGuest(99L, UserRole.USER, 2L))
-                .thenAnswer(invocation -> {
-                    assertThat(identityLockHeld.get()).isFalse();
-                    return new TokenInfo("access", "refresh");
-                });
+                .thenReturn(new TokenInfo("access", "refresh"));
 
         SocialLoginUser result = service.authenticate(
                 profile,
@@ -176,11 +178,34 @@ class SocialAccountServiceTest {
 
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();
-        verify(guestDataMergeService).mergeIntoExistingUser(2L, 99L);
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
         verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void newAuthenticationRejectsInvalidProviderNicknameBeforeUpgradingGuest() {
+        User guest = guestWithId(2L);
+        SocialUserProfile profile = new SocialUserProfile(
+                SocialProvider.KAKAO,
+                "12345",
+                "user@example.com",
+                "provider-nickname-is-longer-than-signup-policy"
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+
+        assertThatThrownBy(() -> service.authenticate(
+                profile,
+                2L,
+                List.of(new Consent(1L, true))
+        )).isInstanceOf(RestApiException.class);
+
+        assertThat(guest.isGuest()).isTrue();
+        verify(termRepository, never()).findByActiveTrueOrderByIdAsc();
+        verify(socialAccountRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -208,7 +233,7 @@ class SocialAccountServiceTest {
     }
 
     @Test
-    void authenticationRejectsMissingGuestBeforeAcquiringLocks() {
+    void authenticationRejectsMissingGuestBeforeQueryingAccounts() {
         assertThatThrownBy(() -> service.authenticate(
                 kakaoProfile(),
                 null,
@@ -217,7 +242,7 @@ class SocialAccountServiceTest {
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
         );
 
-        verify(identityLockManager, never()).executeForSocialLogin(any(), anyString(), any());
+        verify(socialAccountRepository, never()).findByProviderAndProviderUserId(any(), anyString());
     }
 
     @Test
@@ -240,7 +265,7 @@ class SocialAccountServiceTest {
     }
 
     @Test
-    void authenticationRetryReturnsAlreadyCommittedAccountForSameSignupGuest() {
+    void authenticationRecoversCommittedAccountForSameSignupGuest() {
         User initialGuest = guestWithId(2L);
         User committedGuest = guestWithId(2L);
         committedGuest.upgradeToUser("가입완료", LocalDateTime.now());
@@ -253,11 +278,8 @@ class SocialAccountServiceTest {
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty())
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(account));
-        when(userRepository.findByIdForUpdate(2L))
-                .thenReturn(Optional.of(initialGuest))
-                .thenReturn(Optional.of(committedGuest));
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
         when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
         when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
                 .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
@@ -288,7 +310,6 @@ class SocialAccountServiceTest {
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
                 .thenReturn(Optional.empty())
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(committedAccount));
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
         when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
@@ -303,12 +324,11 @@ class SocialAccountServiceTest {
 
         assertThat(result.userId()).isEqualTo(2L);
         assertThat(result.isNewUser()).isFalse();
-        verify(guestDataMergeService).mergeIntoExistingUser(2L, 2L);
         verify(userTermAgreementRepository, never()).saveAll(any());
     }
 
     @Test
-    void authenticationRetryUsesConcurrentlyCommittedAccountOwnedByExistingUser() {
+    void authenticationUsesConcurrentlyCommittedAccountOwnedByExistingUser() {
         User initialGuest = guestWithId(2L);
         User differentUser = guestWithId(99L);
         differentUser.upgradeToUser("다른회원", LocalDateTime.now());
@@ -320,7 +340,6 @@ class SocialAccountServiceTest {
                 null
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
                 .thenReturn(Optional.empty())
                 .thenReturn(Optional.of(committedAccount));
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
@@ -336,8 +355,28 @@ class SocialAccountServiceTest {
 
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();
-        verify(guestDataMergeService).mergeIntoExistingUser(2L, 99L);
         verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void unrelatedRegistrationIntegrityFailureIsNotHidden() {
+        User guest = guestWithId(2L);
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        DataIntegrityViolationException databaseFailure =
+                new DataIntegrityViolationException("unrelated foreign key failure");
+        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenThrow(databaseFailure);
+
+        assertThatThrownBy(() -> service.authenticate(
+                kakaoProfile(),
+                2L,
+                List.of(new Consent(1L, true))
+        )).isSameAs(databaseFailure);
     }
 
     @Test
@@ -414,16 +453,4 @@ class SocialAccountServiceTest {
         return user;
     }
 
-    private <T> T get(Supplier<T> supplier) {
-        return supplier.get();
-    }
-
-    private <T> T executeWhileLocked(AtomicBoolean lockHeld, Supplier<T> supplier) {
-        lockHeld.set(true);
-        try {
-            return supplier.get();
-        } finally {
-            lockHeld.set(false);
-        }
-    }
 }

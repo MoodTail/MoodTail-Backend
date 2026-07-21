@@ -2,8 +2,6 @@ package com.example.moodtail.global.token.repository.redis.impl;
 
 import com.example.moodtail.support.auth.AuthPropertiesFixtures;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,9 +12,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
-import java.util.Date;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,32 +56,6 @@ class RedisRepositoryImplTest {
     }
 
     @Test
-    void restoresRefreshJtiOnlyWhenNoNewerSessionExists() {
-        when(valueOperations.setIfAbsent(
-                "moodtail:auth:test:refresh:42",
-                "previous-jti",
-                Duration.ofDays(14)
-        )).thenReturn(true);
-
-        boolean restored = repository.saveRefreshJtiIfAbsent(42L, "previous-jti");
-
-        assertThat(restored).isTrue();
-    }
-
-    @Test
-    void deletesRefreshJtiOnlyWhenExpectedSessionStillOwnsTheKey() {
-        when(redisTemplate.execute(
-                any(),
-                eq(List.of("moodtail:auth:test:refresh:42")),
-                eq("issued-jti")
-        )).thenReturn(1L);
-
-        boolean deleted = repository.deleteRefreshJtiIfMatches(42L, "issued-jti");
-
-        assertThat(deleted).isTrue();
-    }
-
-    @Test
     void storesOAuthStateInsideConfiguredAuthNamespace() {
         repository.saveOAuthState(
                 "state-value",
@@ -105,21 +75,6 @@ class RedisRepositoryImplTest {
                 anyString(),
                 eq("300000"),
                 eq("state-value")
-        );
-    }
-
-    @Test
-    void storesAccessBlacklistInsideConfiguredAuthNamespace() {
-        Claims claims = Jwts.claims().setId("access-jti");
-        claims.setExpiration(new Date(System.currentTimeMillis() + 60_000L));
-
-        repository.blockAccessToken(claims);
-
-        verify(valueOperations).set(
-                org.mockito.ArgumentMatchers.eq("moodtail:auth:test:access-blacklist:access-jti"),
-                org.mockito.ArgumentMatchers.eq("blacklisted"),
-                org.mockito.ArgumentMatchers.longThat(ttl -> ttl > 0 && ttl <= 60_000L),
-                org.mockito.ArgumentMatchers.eq(TimeUnit.MILLISECONDS)
         );
     }
 
@@ -155,5 +110,24 @@ class RedisRepositoryImplTest {
                 "1",
                 Duration.ofMinutes(1)
         );
+    }
+
+    @Test
+    void rateLimitAllowsTheConfiguredBoundaryAndRejectsTheNextRequest() {
+        when(redisTemplate.execute(any(), any(), anyString()))
+                .thenReturn(20L, 21L);
+
+        assertThat(repository.acquireLocalAuthSlot(
+                "login",
+                "client-fingerprint",
+                20,
+                Duration.ofMinutes(1)
+        )).isTrue();
+        assertThat(repository.acquireLocalAuthSlot(
+                "login",
+                "client-fingerprint",
+                20,
+                Duration.ofMinutes(1)
+        )).isFalse();
     }
 }

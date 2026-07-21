@@ -47,7 +47,6 @@ public record LocalAuthProperties(
             long tokenExpirationMillis,
             long resendCooldownMillis,
             int maxVerificationAttempts,
-            String clientIpHeader,
             AuthProperties.RateLimit clientRateLimit
     ) {
         public PasswordReset {

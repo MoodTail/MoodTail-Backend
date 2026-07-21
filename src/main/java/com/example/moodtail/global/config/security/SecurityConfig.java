@@ -6,7 +6,7 @@ import com.example.moodtail.global.config.security.auth.CustomAuthenticationEntr
 import com.example.moodtail.global.config.security.jwt.JwtAuthenticationFilter;
 import com.example.moodtail.global.config.security.jwt.JwtExceptionFilter;
 import com.example.moodtail.global.config.security.jwt.JwtProvider;
-import com.example.moodtail.global.token.repository.redis.RedisRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -14,13 +14,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
@@ -32,15 +29,14 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity(prePostEnabled = true)
 @RequiredArgsConstructor
 public class SecurityConfig {
 
 	private final JwtProvider jwtProvider;
-	private final RedisRepository redisRepository;
 	private final CustomAccessDeniedHandler customAccessDeniedHandler;
 	private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
 	private final UserRepository userRepository;
+	private final ObjectMapper objectMapper;
 
 	@Value("${cors.allowed-origins}")
 	private List<String> allowedOrigins;
@@ -60,24 +56,29 @@ public class SecurityConfig {
 						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 						.requestMatchers("/error").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers("/api/v1/auth/oauth-states/**").hasRole("GUEST")
-						.requestMatchers(
+						.requestMatchers(HttpMethod.POST, "/api/v1/auth/oauth-states/*").hasRole("GUEST")
+						.requestMatchers(HttpMethod.DELETE, "/api/v1/auth").hasRole("USER")
+						.requestMatchers(HttpMethod.POST,
 								"/api/v1/auth/guest",
-								"/api/v1/auth/signup/**",
-								"/api/v1/auth/login/**",
-								"/api/v1/auth/password-reset/**",
-								"/api/v1/auth/password",
+								"/api/v1/auth/kakao",
+								"/api/v1/auth/google",
+								"/api/v1/auth/login/local",
+								"/api/v1/auth/signup/local",
+								"/api/v1/auth/password-reset/codes",
+								"/api/v1/auth/password-reset/codes/verify",
 								"/api/v1/auth/reissue",
 								"/api/v1/auth/logout",
 								"/api/v1/weather/current"
 						).permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/auth/signup/local/email-availability").permitAll()
+						.requestMatchers(HttpMethod.PATCH, "/api/v1/auth/password").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/terms").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 						.requestMatchers("/api/v1/tests/questions").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/tests/results/share/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/share/results/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/tests/results/share")
-						.hasAnyRole("GUEST", "USER")
+								.hasAnyRole("GUEST", "USER")
 						.requestMatchers("/api/v1/tests/results").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/cocktails/favorites")
 								.hasAnyRole("USER", "ADMIN")
@@ -89,23 +90,16 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/v1/cocktails/recommends/pair").permitAll()
 						.requestMatchers("/api/v1/history/**", "/api/v1/reports/**").hasRole("USER")
 						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
-						.anyRequest().authenticated()
+						.anyRequest().hasAnyRole("USER", "ADMIN")
 				)
 				.exceptionHandling(exceptionHandling -> exceptionHandling
 						.accessDeniedHandler(customAccessDeniedHandler)
 						.authenticationEntryPoint(customAuthenticationEntryPoint)
 				)
-				.addFilterBefore(new JwtExceptionFilter(), LogoutFilter.class)
-				.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, redisRepository, userRepository),
+				.addFilterBefore(new JwtExceptionFilter(objectMapper), LogoutFilter.class)
+				.addFilterBefore(new JwtAuthenticationFilter(jwtProvider, userRepository),
 						UsernamePasswordAuthenticationFilter.class)
 				.build();
-	}
-
-	@Bean
-	public UserDetailsService userDetailsService() {
-		return username -> {
-			throw new UsernameNotFoundException(username);
-		};
 	}
 
 	@Bean
