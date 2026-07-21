@@ -16,7 +16,8 @@ public enum CocktailErrorStatus implements BaseCodeInterface {
     RECIPE_NOT_FOUND(HttpStatus.NOT_FOUND, "RECIPE_404", "해당 레시피를 찾을 수 없습니다."),
     INGREDIENT_NOT_FOUND(HttpStatus.NOT_FOUND, "INGREDIENT_404", "해당 재료를 찾을 수 없습니다."),
     COCKTAIL_FAVORITE_ALREADY_EXISTS(HttpStatus.CONFLICT, "COCKTAIL409", "이미 즐겨찾기에 추가된 칵테일입니다."),
-    COCKTAIL_FAVORITE_NOT_FOUND(HttpStatus.NOT_FOUND, "FAVORITE_404", "즐겨찾기에 추가되지 않은 칵테일입니다.");
+    COCKTAIL_FAVORITE_NOT_FOUND(HttpStatus.NOT_FOUND, "FAVORITE_404", "즐겨찾기에 추가되지 않은 칵테일입니다."),
+    INVALID_TREND_PERIOD(HttpStatus.BAD_REQUEST, "TREND_400", "period 값이 올바르지 않습니다. DAILY, WEEKLY, MONTHLY 중 하나여야 합니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;
