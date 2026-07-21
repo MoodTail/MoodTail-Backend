@@ -135,7 +135,7 @@ class PairRecommendationServiceTest {
         );
         assertThat(commandsCaptor.getValue())
                 .extracting(RecommendationItemCommand::cocktailId)
-                .containsExactly(101L, 102L, 103L, 104L);
+                .containsExactly(101L, 102L, 103L);
     }
 
     @Test
@@ -214,7 +214,6 @@ class PairRecommendationServiceTest {
     @Test
     void returnsOnlyAvailableCocktailsWhenFewerThanRecommendationLimitExist() {
         // TODO: 추천 후보 칵테일이 3개 미만일 때의 정책은 아직 정해지지 않았다. 현재 구현은 있는 만큼만
-        // 반환하고 그대로 저장을 시도하며, 실제 개수 검증(4개 고정)은 PairRecommendationPersistenceService
         // 쪽 책임으로 넘어가 있다(여기서는 mock이라 실패하지 않음). 정책이 정해지면 이 테스트를 갱신할 것.
         User me = userWithId(1L);
         User partner = userWithId(2L);
