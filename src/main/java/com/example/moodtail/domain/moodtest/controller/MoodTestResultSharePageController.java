@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.moodtest.controller;
 
+import com.example.moodtail.domain.moodtest.controller.docs.MoodTestResultSharePageControllerDocs;
 import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultSharePageResponse;
 import com.example.moodtail.domain.moodtest.service.MoodTestResultShareService;
 import lombok.RequiredArgsConstructor;
@@ -16,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/share/results")
-public class MoodTestResultSharePageController {
+public class MoodTestResultSharePageController implements MoodTestResultSharePageControllerDocs {
 
     private static final String TITLE = "MoodTail 무드 테스트 결과";
     private static final String DESCRIPTION = "나의 취향에 어울리는 무드 타입과 칵테일을 확인해 보세요.";

@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.user.controller;
 
+import com.example.moodtail.domain.user.controller.docs.UserControllerDocs;
 import com.example.moodtail.domain.collection.dto.response.MoodTypesResponse;
 import com.example.moodtail.domain.collection.service.MoodTypeCollectionService;
 import com.example.moodtail.domain.user.dto.request.UserProfileUpdateRequest;
@@ -23,7 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/users")
-public class UserController {
+public class UserController implements UserControllerDocs {
 
     private final MyPageService myPageService;
     private final MoodTypeCollectionService moodTypeCollectionService;

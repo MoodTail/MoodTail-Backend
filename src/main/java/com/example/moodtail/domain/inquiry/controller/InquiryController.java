@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.inquiry.controller;
 
+import com.example.moodtail.domain.inquiry.controller.docs.InquiryControllerDocs;
 import com.example.moodtail.domain.inquiry.dto.request.InquiryCreateRequest;
 import com.example.moodtail.domain.inquiry.dto.response.InquiryCreateResponse;
 import com.example.moodtail.domain.inquiry.service.InquiryService;
@@ -15,7 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/inquiries")
-public class InquiryController {
+public class InquiryController implements InquiryControllerDocs {
 
     private final InquiryService inquiryService;
 
