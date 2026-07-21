@@ -10,8 +10,8 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -20,7 +20,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "drinking_records")
+@Table(
+        name = "drinking_records",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_drinking_record_user_date",
+                columnNames = {"user_id", "record_date"}
+        )
+)
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DrinkingRecord {
@@ -44,14 +50,32 @@ public class DrinkingRecord {
     @Column(name = "recorded_at", nullable = false, updatable = false)
     private LocalDateTime recordedAt;
 
-    @Column
-    private Integer satisfaction;
+    private DrinkingRecord(
+            User user,
+            Cocktail cocktail,
+            LocalDate recordDate,
+            LocalDateTime recordedAt
+    ) {
+        this.user = user;
+        this.cocktail = cocktail;
+        this.recordDate = recordDate;
+        this.recordedAt = recordedAt;
+    }
 
-    @Column(length = 255)
-    private String memo;
+    public static DrinkingRecord create(
+            User user,
+            Cocktail cocktail,
+            LocalDate recordDate,
+            LocalDateTime recordedAt
+    ) {
+        return new DrinkingRecord(user, cocktail, recordDate, recordedAt);
+    }
 
-    @PrePersist
-    void prePersist() {
-        this.recordedAt = LocalDateTime.now();
+    public void updateRecordDate(LocalDate recordDate) {
+        this.recordDate = recordDate;
+    }
+
+    public void updateCocktail(Cocktail cocktail) {
+        this.cocktail = cocktail;
     }
 }
