@@ -9,9 +9,14 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum RecommendationErrorStatus implements BaseCodeInterface {
-    RECOMMENDATION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION422", "추천 결과를 산출할 수 없습니다."),
-    UNPROCESSABLE_ENTITY(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION422_1", "크기가 0인 맛 벡터는 계산할 수 없습니다."),
-    RECOMMENDATION_INVALID_PARAMETER(HttpStatus.BAD_REQUEST, "RECOMMENDATION400", "추천 요청 파라미터가 올바르지 않습니다.");
+    RECOMMENDATION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION_422", "추천 결과를 산출할 수 없습니다."),
+    UNPROCESSABLE_ENTITY(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION_422_1", "크기가 0인 맛 벡터는 계산할 수 없습니다."),
+    RECOMMENDATION_INVALID_PARAMETER(HttpStatus.BAD_REQUEST, "RECOMMENDATION_400", "추천 요청 파라미터가 올바르지 않습니다."),
+    PAIR_SHARE_IMAGE_UNAVAILABLE(
+            HttpStatus.SERVICE_UNAVAILABLE,
+            "PAIR_IMAGE_503",
+            "페어 추천 공유 이미지를 일시적으로 저장할 수 없습니다."
+    );
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;

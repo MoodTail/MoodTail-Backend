@@ -39,10 +39,9 @@ public class PairRecommendationService {
     private final InviteCodeService inviteCodeService;
 
     public PairRecommendationResponse recommendPair(Long userId, String partnerInviteCode) {
-        MoodTestResult myResult = findLatestResult(userId);
-
-        User partner = inviteCodeService.findUserByInviteCode(partnerInviteCode);
-        MoodTestResult partnerResult = findLatestResult(partner.getId());
+        PairParticipants participants = validatePairRecommendationAvailable(userId, partnerInviteCode);
+        MoodTestResult myResult = participants.myResult();
+        MoodTestResult partnerResult = participants.partnerResult();
 
         TasteProfile myProfile = myResult.toTasteProfile();
         TasteProfile partnerProfile = partnerResult.toTasteProfile();
@@ -73,6 +72,14 @@ public class PairRecommendationService {
                 recommendations,
                 tasteContributions
         );
+    }
+
+    @Transactional(readOnly = true)
+    public PairParticipants validatePairRecommendationAvailable(Long userId, String partnerInviteCode) {
+        MoodTestResult myResult = findLatestResult(userId);
+        User partner = inviteCodeService.findUserByInviteCode(partnerInviteCode);
+        MoodTestResult partnerResult = findLatestResult(partner.getId());
+        return new PairParticipants(myResult, partner, partnerResult);
     }
 
     private MoodTestResult findLatestResult(Long userId) {
@@ -128,5 +135,8 @@ public class PairRecommendationService {
     }
 
     private record RecommendationResult(List<RecommendedCocktailResponse> responses, TasteProfile topCocktailProfile) {
+    }
+
+    public record PairParticipants(MoodTestResult myResult, User partner, MoodTestResult partnerResult) {
     }
 }
