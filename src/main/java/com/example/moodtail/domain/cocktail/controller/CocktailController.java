@@ -123,11 +123,8 @@ public class CocktailController implements CocktailTrendControllerDocs {
 
     @Override
     @GetMapping("/trend")
-    public BaseResponse<CocktailTrendResponse> getCocktailTrend(
-            @RequestParam(required = false) String period,
-            @RequestParam(required = false) Long moodTypeId
-    ) {
-        return BaseResponse.onSuccess(cocktailTrendService.getTrend(period, moodTypeId));
+    public BaseResponse<CocktailTrendResponse> getCocktailTrend() {
+        return BaseResponse.onSuccess(cocktailTrendService.getTrend());
     }
 
 }
