@@ -1,11 +1,9 @@
 package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.CocktailTrendResponse;
-import com.example.moodtail.domain.cocktail.enums.TrendPeriod;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.entity.RecommendationSessionType;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
-import com.example.moodtail.global.common.exception.RestApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,13 +11,13 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
+import java.time.DayOfWeek;
 import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.function.ToLongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
-import static com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus.INVALID_TREND_PERIOD;
 
 @Service
 @RequiredArgsConstructor
@@ -36,76 +34,46 @@ public class CocktailTrendService {
     private final Clock clock;
 
     @Transactional(readOnly = true)
-    public CocktailTrendResponse getTrend(String periodValue, Long moodTypeId) {
-        TrendPeriod period = parsePeriod(periodValue);
+    public CocktailTrendResponse getTrend() {
         LocalDate today = LocalDate.now(clock);
-        DateRange currentRange = currentRange(period, today);
-        DateRange previousRange = previousRange(period, today);
+        DateRange currentWeek = currentWeekRange(today);
+        DateRange previousWeek = previousWeekRange(today);
 
-        List<CocktailTrendResponse.PopularMoodType> popularMoodTypes = buildPopularMoodTypes(currentRange, previousRange);
-        CocktailTrendResponse.TasteProfile averageTasteProfile = buildAverageTasteProfile(currentRange);
+        List<CocktailTrendResponse.PopularMoodType> popularMoodTypes = buildPopularMoodTypes(currentWeek);
+        CocktailTrendResponse.TasteProfile averageTasteProfile = buildAverageTasteProfile();
         CocktailTrendResponse.DisplayTasteScores displayAverageTasteScores = toDisplayScores(averageTasteProfile);
 
-        List<CocktailTrendResponse.PopularCocktail> popularCocktails = buildPopularCocktails(currentRange, previousRange);
-        List<CocktailTrendResponse.RankChangeCocktail> rankChangeCocktails = buildRankChangeCocktails(popularCocktails);
-
-        List<CocktailTrendResponse.SameTypePopularCocktail> sameTypePopularCocktails = moodTypeId == null
-                ? null
-                : buildSameTypePopularCocktails(currentRange, moodTypeId);
+        List<WeeklyCocktailRankChange> weeklyRankChanges = buildWeeklyCocktailRankChanges(currentWeek, previousWeek);
+        List<CocktailTrendResponse.PopularCocktail> popularCocktails = buildPopularCocktails(weeklyRankChanges);
+        List<CocktailTrendResponse.RankChangeCocktail> rankChangeCocktails = buildRankChangeCocktails(weeklyRankChanges);
 
         return new CocktailTrendResponse(
-                period.name(),
                 popularMoodTypes,
                 averageTasteProfile,
                 displayAverageTasteScores,
                 popularCocktails,
-                rankChangeCocktails,
-                sameTypePopularCocktails
+                rankChangeCocktails
         );
     }
 
-    private TrendPeriod parsePeriod(String periodValue) {
-        if (periodValue == null || periodValue.isBlank()) {
-            return TrendPeriod.WEEKLY;
-        }
-        try {
-            return TrendPeriod.valueOf(periodValue);
-        } catch (IllegalArgumentException exception) {
-            throw new RestApiException(INVALID_TREND_PERIOD);
-        }
+    private DateRange currentWeekRange(LocalDate today) {
+        LocalDate monday = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        LocalDate sunday = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
+        return new DateRange(monday, sunday);
     }
 
-    private DateRange currentRange(TrendPeriod period, LocalDate today) {
-        return switch (period) {
-            case DAILY -> new DateRange(today, today);
-            case WEEKLY -> new DateRange(today.minusDays(6), today);
-            case MONTHLY -> new DateRange(today.minusDays(29), today);
-        };
+    private DateRange previousWeekRange(LocalDate today) {
+        DateRange currentWeek = currentWeekRange(today);
+        return new DateRange(currentWeek.startDate().minusWeeks(1), currentWeek.endDate().minusWeeks(1));
     }
 
-    private DateRange previousRange(TrendPeriod period, LocalDate today) {
-        return switch (period) {
-            case DAILY -> new DateRange(today.minusDays(1), today.minusDays(1));
-            case WEEKLY -> new DateRange(today.minusDays(13), today.minusDays(7));
-            case MONTHLY -> new DateRange(today.minusDays(59), today.minusDays(30));
-        };
-    }
-
-    private List<CocktailTrendResponse.PopularMoodType> buildPopularMoodTypes(
-            DateRange currentRange,
-            DateRange previousRange
-    ) {
+    private List<CocktailTrendResponse.PopularMoodType> buildPopularMoodTypes(DateRange currentWeek) {
         List<MoodTestResultRepository.MoodTypeTrendCount> currentCounts =
-                moodTestResultRepository.countMoodTypesByResultDateBetween(currentRange.startDate(), currentRange.endDate());
-        List<MoodTestResultRepository.MoodTypeTrendCount> previousCounts =
-                moodTestResultRepository.countMoodTypesByResultDateBetween(previousRange.startDate(), previousRange.endDate());
+                moodTestResultRepository.countMoodTypesByResultDateBetween(currentWeek.startDate(), currentWeek.endDate());
 
         long total = currentCounts.stream()
                 .mapToLong(MoodTestResultRepository.MoodTypeTrendCount::getResultCount)
                 .sum();
-        Map<Long, Integer> previousRanks = assignRanks(previousCounts, MoodTestResultRepository.MoodTypeTrendCount::getResultCount)
-                .stream()
-                .collect(Collectors.toMap(ranked -> ranked.item().getMoodTypeId(), RankedItem::rank));
 
         List<RankedItem<MoodTestResultRepository.MoodTypeTrendCount>> rankedCurrent =
                 assignRanks(currentCounts, MoodTestResultRepository.MoodTypeTrendCount::getResultCount);
@@ -114,23 +82,22 @@ public class CocktailTrendService {
         for (int index = 0; index < Math.min(rankedCurrent.size(), POPULAR_MOOD_TYPE_LIMIT); index++) {
             RankedItem<MoodTestResultRepository.MoodTypeTrendCount> ranked = rankedCurrent.get(index);
             MoodTestResultRepository.MoodTypeTrendCount count = ranked.item();
-            Integer previousRank = previousRanks.get(count.getMoodTypeId());
             popularMoodTypes.add(new CocktailTrendResponse.PopularMoodType(
                     ranked.rank(),
                     count.getMoodTypeId(),
                     count.getTypeCode(),
                     count.getName(),
                     count.getResultCount(),
-                    calculateRatio(count.getResultCount(), total),
-                    previousRank == null ? null : previousRank - ranked.rank()
+                    calculateRatio(count.getResultCount(), total)
             ));
         }
         return popularMoodTypes;
     }
 
-    private CocktailTrendResponse.TasteProfile buildAverageTasteProfile(DateRange range) {
+
+    private CocktailTrendResponse.TasteProfile buildAverageTasteProfile() {
         MoodTestResultRepository.AverageTasteProfile average =
-                moodTestResultRepository.averageTasteProfileByResultDateBetween(range.startDate(), range.endDate());
+                moodTestResultRepository.averageTasteProfileCumulative();
         return new CocktailTrendResponse.TasteProfile(
                 scaled(average.getAlcoholIntensity()),
                 scaled(average.getSweetness()),
@@ -162,20 +129,14 @@ public class CocktailTrendService {
         return Math.max(0, Math.min(100, value));
     }
 
-    private List<CocktailTrendResponse.PopularCocktail> buildPopularCocktails(
-            DateRange currentRange,
-            DateRange previousRange
-    ) {
+    private List<WeeklyCocktailRankChange> buildWeeklyCocktailRankChanges(DateRange currentWeek, DateRange previousWeek) {
         List<RecommendationItemRepository.PopularCocktailCount> currentCounts = recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, currentRange.startDate(), currentRange.endDate(), null
+                RecommendationSessionType.TEST_RESULT, currentWeek.startDate(), currentWeek.endDate()
         );
         List<RecommendationItemRepository.PopularCocktailCount> previousCounts = recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, previousRange.startDate(), previousRange.endDate(), null
+                RecommendationSessionType.TEST_RESULT, previousWeek.startDate(), previousWeek.endDate()
         );
 
-        long total = currentCounts.stream()
-                .mapToLong(RecommendationItemRepository.PopularCocktailCount::getRecordCount)
-                .sum();
         Map<Long, Integer> previousRanks = assignRanks(previousCounts, RecommendationItemRepository.PopularCocktailCount::getRecordCount)
                 .stream()
                 .collect(Collectors.toMap(ranked -> ranked.item().getCocktailId(), RankedItem::rank));
@@ -183,11 +144,37 @@ public class CocktailTrendService {
         List<RankedItem<RecommendationItemRepository.PopularCocktailCount>> rankedCurrent =
                 assignRanks(currentCounts, RecommendationItemRepository.PopularCocktailCount::getRecordCount);
 
+        List<WeeklyCocktailRankChange> weeklyRankChanges = new ArrayList<>();
+        for (RankedItem<RecommendationItemRepository.PopularCocktailCount> ranked : rankedCurrent) {
+            RecommendationItemRepository.PopularCocktailCount count = ranked.item();
+            Integer previousRank = previousRanks.get(count.getCocktailId());
+            Integer rankChange = previousRank == null ? null : previousRank - ranked.rank();
+            weeklyRankChanges.add(new WeeklyCocktailRankChange(count.getCocktailId(), count.getNameKo(), count.getNameEn(), rankChange));
+        }
+        return weeklyRankChanges;
+    }
+
+
+    private List<CocktailTrendResponse.PopularCocktail> buildPopularCocktails(List<WeeklyCocktailRankChange> weeklyRankChanges) {
+        List<RecommendationItemRepository.PopularCocktailCount> cumulativeCounts =
+                recommendationItemRepository.countPopularCocktailsCumulative(RecommendationSessionType.TEST_RESULT);
+
+        Map<Long, Integer> rankChangeByCocktailId = new HashMap<>();
+        for (WeeklyCocktailRankChange item : weeklyRankChanges) {
+            rankChangeByCocktailId.put(item.cocktailId(), item.rankChange());
+        }
+
+        long total = cumulativeCounts.stream()
+                .mapToLong(RecommendationItemRepository.PopularCocktailCount::getRecordCount)
+                .sum();
+
+        List<RankedItem<RecommendationItemRepository.PopularCocktailCount>> rankedCurrent =
+                assignRanks(cumulativeCounts, RecommendationItemRepository.PopularCocktailCount::getRecordCount);
+
         List<CocktailTrendResponse.PopularCocktail> popularCocktails = new ArrayList<>();
         for (int index = 0; index < Math.min(rankedCurrent.size(), POPULAR_COCKTAIL_LIMIT); index++) {
             RankedItem<RecommendationItemRepository.PopularCocktailCount> ranked = rankedCurrent.get(index);
             RecommendationItemRepository.PopularCocktailCount count = ranked.item();
-            Integer previousRank = previousRanks.get(count.getCocktailId());
             popularCocktails.add(new CocktailTrendResponse.PopularCocktail(
                     ranked.rank(),
                     count.getCocktailId(),
@@ -196,25 +183,23 @@ public class CocktailTrendService {
                     count.getShortDescription(),
                     calculateRatio(count.getRecordCount(), total),
                     count.getRecordCount(),
-                    previousRank == null ? null : previousRank - ranked.rank()
+                    rankChangeByCocktailId.get(count.getCocktailId())
             ));
         }
         return popularCocktails;
     }
 
-    private List<CocktailTrendResponse.RankChangeCocktail> buildRankChangeCocktails(
-            List<CocktailTrendResponse.PopularCocktail> popularCocktails
-    ) {
-        CocktailTrendResponse.RankChangeCocktail topRise = popularCocktails.stream()
-                .filter(cocktail -> cocktail.rankChange() != null && cocktail.rankChange() > 0)
-                .max(Comparator.comparingInt(CocktailTrendResponse.PopularCocktail::rankChange))
-                .map(cocktail -> toRankChangeCocktail(cocktail, CocktailTrendResponse.ChangeDirection.UP))
+    private List<CocktailTrendResponse.RankChangeCocktail> buildRankChangeCocktails(List<WeeklyCocktailRankChange> weeklyRankChanges) {
+        CocktailTrendResponse.RankChangeCocktail topRise = weeklyRankChanges.stream()
+                .filter(item -> item.rankChange() != null && item.rankChange() > 0)
+                .max(Comparator.comparingInt(WeeklyCocktailRankChange::rankChange))
+                .map(item -> toRankChangeCocktail(item, CocktailTrendResponse.ChangeDirection.UP))
                 .orElse(null);
 
-        CocktailTrendResponse.RankChangeCocktail topFall = popularCocktails.stream()
-                .filter(cocktail -> cocktail.rankChange() != null && cocktail.rankChange() < 0)
-                .min(Comparator.comparingInt(CocktailTrendResponse.PopularCocktail::rankChange))
-                .map(cocktail -> toRankChangeCocktail(cocktail, CocktailTrendResponse.ChangeDirection.DOWN))
+        CocktailTrendResponse.RankChangeCocktail topFall = weeklyRankChanges.stream()
+                .filter(item -> item.rankChange() != null && item.rankChange() < 0)
+                .min(Comparator.comparingInt(WeeklyCocktailRankChange::rankChange))
+                .map(item -> toRankChangeCocktail(item, CocktailTrendResponse.ChangeDirection.DOWN))
                 .orElse(null);
 
         return Stream.of(topRise, topFall)
@@ -223,39 +208,16 @@ public class CocktailTrendService {
     }
 
     private CocktailTrendResponse.RankChangeCocktail toRankChangeCocktail(
-            CocktailTrendResponse.PopularCocktail cocktail,
+            WeeklyCocktailRankChange item,
             CocktailTrendResponse.ChangeDirection direction
     ) {
         return new CocktailTrendResponse.RankChangeCocktail(
-                cocktail.cocktailId(),
-                cocktail.nameKo(),
-                cocktail.nameEn(),
-                Math.abs(cocktail.rankChange()),
+                item.cocktailId(),
+                item.nameKo(),
+                item.nameEn(),
+                Math.abs(item.rankChange()),
                 direction
         );
-    }
-
-    private List<CocktailTrendResponse.SameTypePopularCocktail> buildSameTypePopularCocktails(
-            DateRange currentRange,
-            Long moodTypeId
-    ) {
-        List<RecommendationItemRepository.PopularCocktailCount> counts = recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, currentRange.startDate(), currentRange.endDate(), moodTypeId
-        );
-        List<RankedItem<RecommendationItemRepository.PopularCocktailCount>> ranked =
-                assignRanks(counts, RecommendationItemRepository.PopularCocktailCount::getRecordCount);
-
-        List<CocktailTrendResponse.SameTypePopularCocktail> result = new ArrayList<>();
-        for (int index = 0; index < Math.min(ranked.size(), POPULAR_COCKTAIL_LIMIT); index++) {
-            RankedItem<RecommendationItemRepository.PopularCocktailCount> item = ranked.get(index);
-            result.add(new CocktailTrendResponse.SameTypePopularCocktail(
-                    item.rank(),
-                    item.item().getCocktailId(),
-                    item.item().getNameKo(),
-                    item.item().getRecordCount()
-            ));
-        }
-        return result;
     }
 
     private int calculateRatio(long count, long total) {
@@ -288,5 +250,8 @@ public class CocktailTrendService {
     }
 
     private record RankedItem<T>(T item, int rank) {
+    }
+
+    private record WeeklyCocktailRankChange(Long cocktailId, String nameKo, String nameEn, Integer rankChange) {
     }
 }
