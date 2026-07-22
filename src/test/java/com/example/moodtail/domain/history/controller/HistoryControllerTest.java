@@ -81,7 +81,23 @@ class HistoryControllerTest {
                 2026, 7, 0, 0, 5, false, List.of(), List.of()
         ));
         when(historyService.getByDate(USER_ID, "2026-07-05")).thenReturn(new HistoryDateResponse(
-                LocalDate.of(2026, 7, 5), null, null, List.of()
+                LocalDate.of(2026, 7, 5),
+                null,
+                List.of(
+                        new HistoryDateResponse.DrinkingRecordItem(
+                                31L,
+                                10L,
+                                "모히토",
+                                "https://cdn.example/mojito.jpg"
+                        ),
+                        new HistoryDateResponse.DrinkingRecordItem(
+                                32L,
+                                11L,
+                                "네그로니",
+                                "https://cdn.example/negroni.jpg"
+                        )
+                ),
+                List.of()
         ));
         when(historyService.getDetail(USER_ID, 31L)).thenReturn(new HistoryDetailResponse(
                 31L, 10L, "모히토", null, LocalDate.of(2026, 7, 5)
@@ -101,7 +117,11 @@ class HistoryControllerTest {
                 .andExpect(jsonPath("$.result.reportRequiredTestCount").value(5));
         mockMvc.perform(get("/api/v1/history/dates/2026-07-05"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.date").value("2026-07-05"));
+                .andExpect(jsonPath("$.result.date").value("2026-07-05"))
+                .andExpect(jsonPath("$.result.drinkingRecords.length()").value(2))
+                .andExpect(jsonPath("$.result.drinkingRecords[0].recordId").value(31))
+                .andExpect(jsonPath("$.result.drinkingRecords[1].recordId").value(32))
+                .andExpect(jsonPath("$.result.drinkingRecord").doesNotExist());
         mockMvc.perform(get("/api/v1/history/drinking-records/31"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.recordId").value(31));

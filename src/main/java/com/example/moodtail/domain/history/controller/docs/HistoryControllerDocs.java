@@ -36,7 +36,7 @@ public interface HistoryControllerDocs {
     @Operation(
             operationId = "getHistoryByDate",
             summary = "날짜별 히스토리 조회",
-            description = "선택한 날짜의 테스트 결과 요약, 음주 기록 1건과 날짜별 사진을 조회합니다."
+            description = "선택한 날짜의 테스트 결과 요약, 음주 기록 목록과 날짜별 사진을 조회합니다."
     )
     BaseResponse<HistoryDateResponse> getHistoryByDate(
             @Parameter(hidden = true) PrincipalDetails principal,
@@ -59,13 +59,21 @@ public interface HistoryControllerDocs {
             @Parameter(description = "음주 기록 ID", example = "31") Long recordId
     );
 
-    @Operation(operationId = "createHistory", summary = "음주 기록 생성")
+    @Operation(
+            operationId = "createHistory",
+            summary = "음주 기록 생성",
+            description = "같은 날짜에 서로 다른 칵테일을 기록할 수 있습니다. 동일한 칵테일이 이미 있으면 HISTORY_409를 반환합니다."
+    )
     BaseResponse<HistoryCreateResponse> createHistory(
             @Parameter(hidden = true) PrincipalDetails principal,
             HistoryCreateRequest request
     );
 
-    @Operation(operationId = "updateHistory", summary = "음주 기록 수정")
+    @Operation(
+            operationId = "updateHistory",
+            summary = "음주 기록 수정",
+            description = "변경 결과가 같은 날짜의 동일한 칵테일 기록과 중복되면 HISTORY_409를 반환합니다."
+    )
     BaseResponse<HistoryUpdateResponse> updateHistory(
             @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(description = "음주 기록 ID", example = "31") Long recordId,
