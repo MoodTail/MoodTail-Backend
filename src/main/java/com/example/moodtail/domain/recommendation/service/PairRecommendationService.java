@@ -4,12 +4,15 @@ import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
+import com.example.moodtail.domain.recommendation.calculator.TasteContributionCalculator;
 import com.example.moodtail.domain.recommendation.calculator.TasteSimilarityCalculator;
-import com.example.moodtail.domain.recommendation.dto.response.CompromiseProfileResponse;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationResponse;
 import com.example.moodtail.domain.recommendation.dto.response.RecommendedCocktailResponse;
 import com.example.moodtail.domain.recommendation.model.RecommendationItemCommand;
+import com.example.moodtail.domain.recommendation.model.TasteMetricContribution;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
+import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.service.InviteCodeService;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus;
 import com.example.moodtail.global.common.exception.code.status.RecommendationErrorStatus;
@@ -31,68 +34,53 @@ public class PairRecommendationService {
     private final MoodTestResultRepository moodTestResultRepository;
     private final CocktailRepository cocktailRepository;
     private final TasteSimilarityCalculator tasteSimilarityCalculator;
+    private final TasteContributionCalculator tasteContributionCalculator;
     private final PairRecommendationPersistenceService pairRecommendationPersistenceService;
+    private final InviteCodeService inviteCodeService;
 
-    public PairRecommendationResponse recommendPair(
-            Long userId,
-            Long resultId,
-            String resultShareToken,
-            String partnerShareToken
-    ) {
-        MoodTestResult myResult = findResult(resultId, resultShareToken, userId);
-        MoodTestResult partnerResult = findPartnerResult(partnerShareToken);
+    public PairRecommendationResponse recommendPair(Long userId, String partnerInviteCode) {
+        MoodTestResult myResult = findLatestResult(userId);
 
-        TasteProfile compromise = myResult.toTasteProfile()
-                .average(partnerResult.toTasteProfile());
+        User partner = inviteCodeService.findUserByInviteCode(partnerInviteCode);
+        MoodTestResult partnerResult = findLatestResult(partner.getId());
 
-        List<RecommendedCocktailResponse> recommendations = recommend(compromise);
+        TasteProfile myProfile = myResult.toTasteProfile();
+        TasteProfile partnerProfile = partnerResult.toTasteProfile();
+        TasteProfile compromise = myProfile.average(partnerProfile);
 
-        boolean saved = canSave(userId, resultId);
-        if (saved) {
-            pairRecommendationPersistenceService.saveCompromise(
-                    myResult.getUser(),
-                    myResult,
-                    partnerResult,
-                    toCommands(recommendations)
-            );
-        }
+        RecommendationResult recommendationResult = recommend(compromise, myProfile, partnerProfile);
+        List<RecommendedCocktailResponse> recommendations = recommendationResult.responses();
 
-        return new PairRecommendationResponse(
-                saved,
-                CompromiseProfileResponse.from(compromise),
-                recommendations
+        List<TasteMetricContribution> tasteContributions = tasteContributionCalculator.calculate(
+                myProfile,
+                partnerProfile,
+                recommendationResult.topCocktailProfile()
+        );
+
+        pairRecommendationPersistenceService.saveCompromise(
+                myResult.getUser(),
+                myResult,
+                partnerResult,
+                toCommands(recommendations)
+        );
+
+        return PairRecommendationResponse.of(
+                myResult.getUser().getNickname(),
+                partnerResult.getUser().getNickname(),
+                myProfile,
+                partnerProfile,
+                compromise,
+                recommendations,
+                tasteContributions
         );
     }
 
-    private MoodTestResult findResult(Long resultId, String shareToken, Long userId) {
-        if (resultId != null) {
-            MoodTestResult result = moodTestResultRepository.findById(resultId)
-                    .orElseThrow(() -> new RestApiException(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND));
-
-            if (userId == null || !result.getUser().getId().equals(userId)) {
-                throw new RestApiException(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND);
-            }
-            return result;
-        }
-
-        if (shareToken != null) {
-            return moodTestResultRepository.findByShareToken(shareToken)
-                    .orElseThrow(() -> new RestApiException(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND));
-        }
-
-        throw new RestApiException(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER);
-    }
-
-    private MoodTestResult findPartnerResult(String partnerShareToken) {
-        if (partnerShareToken == null) {
-            throw new RestApiException(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER);
-        }
-
-        return moodTestResultRepository.findByShareToken(partnerShareToken)
+    private MoodTestResult findLatestResult(Long userId) {
+        return moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(userId)
                 .orElseThrow(() -> new RestApiException(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND));
     }
 
-    private List<RecommendedCocktailResponse> recommend(TasteProfile compromise) {
+    private RecommendationResult recommend(TasteProfile compromise, TasteProfile myProfile, TasteProfile partnerProfile) {
         List<Cocktail> cocktails = cocktailRepository.findAll();
 
         if (cocktails.isEmpty()) {
@@ -111,14 +99,23 @@ public class PairRecommendationService {
         List<RecommendedCocktailResponse> responses = new ArrayList<>(scored.size());
         for (int i = 0; i < scored.size(); i++) {
             ScoredCocktail scoredCocktail = scored.get(i);
-            int matchScore = tasteSimilarityCalculator.calculateMatchScore(scoredCocktail.distance());
-            responses.add(RecommendedCocktailResponse.of(scoredCocktail.cocktail(), i + 1, matchScore));
-        }
-        return responses;
-    }
+            TasteProfile cocktailProfile = scoredCocktail.cocktail().toTasteProfile();
 
-    private boolean canSave(Long userId, Long resultId) {
-        return userId != null && resultId != null;
+            int matchScore = tasteSimilarityCalculator.calculateMatchScore(scoredCocktail.distance());
+            int myMatchScore = tasteSimilarityCalculator.calculateMatchScore(
+                    tasteSimilarityCalculator.calculateDistance(myProfile, cocktailProfile)
+            );
+            int partnerMatchScore = tasteSimilarityCalculator.calculateMatchScore(
+                    tasteSimilarityCalculator.calculateDistance(partnerProfile, cocktailProfile)
+            );
+
+            responses.add(RecommendedCocktailResponse.of(
+                    scoredCocktail.cocktail(), i + 1, matchScore, myMatchScore, partnerMatchScore
+            ));
+        }
+
+        TasteProfile topCocktailProfile = scored.get(0).cocktail().toTasteProfile();
+        return new RecommendationResult(responses, topCocktailProfile);
     }
 
     private List<RecommendationItemCommand> toCommands(List<RecommendedCocktailResponse> recommendations) {
@@ -128,5 +125,8 @@ public class PairRecommendationService {
     }
 
     private record ScoredCocktail(Cocktail cocktail, double distance) {
+    }
+
+    private record RecommendationResult(List<RecommendedCocktailResponse> responses, TasteProfile topCocktailProfile) {
     }
 }
