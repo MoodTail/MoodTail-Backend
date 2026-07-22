@@ -16,6 +16,17 @@ public interface HistoryPhotoRepository extends JpaRepository<HistoryPhoto, Long
     boolean existsByImageId(Long imageId);
 
     @Query("""
+            select count(photo)
+              from HistoryPhoto photo
+             where photo.user.id = :userId
+               and photo.recordDate = :recordDate
+            """)
+    long countByUserIdAndRecordDate(
+            @Param("userId") Long userId,
+            @Param("recordDate") LocalDate recordDate
+    );
+
+    @Query("""
             select photo
               from HistoryPhoto photo
               join fetch photo.image

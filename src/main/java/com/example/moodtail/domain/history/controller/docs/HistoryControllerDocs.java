@@ -78,7 +78,11 @@ public interface HistoryControllerDocs {
             @Parameter(description = "음주 기록 ID", example = "31") Long recordId
     );
 
-    @Operation(operationId = "addHistoryPhoto", summary = "히스토리 사진 추가")
+    @Operation(
+            operationId = "addHistoryPhoto",
+            summary = "히스토리 사진 추가",
+            description = "선택한 날짜에 사진을 추가합니다. 날짜별로 최대 5장까지 저장할 수 있습니다."
+    )
     BaseResponse<HistoryPhotoResponse> addHistoryPhoto(
             @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(description = "사진 기록 날짜(yyyy-MM-dd)", example = "2026-07-05") String date,

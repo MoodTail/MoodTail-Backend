@@ -37,6 +37,7 @@ import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -84,7 +85,7 @@ class HistoryPhotoServiceTest {
         MultipartFile file = mock(MultipartFile.class);
         String url = "https://cdn.example/history/photos/photo.png";
         when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
-        when(userRepository.getReferenceById(1L)).thenReturn(member());
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
         when(imageRepository.save(any(Image.class)))
                 .thenThrow(new IllegalStateException("database failure"));
 
@@ -100,7 +101,7 @@ class HistoryPhotoServiceTest {
         String url = "https://cdn.example/history/photos/photo.png";
         IllegalStateException databaseFailure = new IllegalStateException("database failure");
         when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
-        when(userRepository.getReferenceById(1L)).thenReturn(member());
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
         when(imageRepository.save(any(Image.class))).thenThrow(databaseFailure);
         org.mockito.Mockito.doThrow(new S3StorageException("storage failure"))
                 .when(storageService)
@@ -116,7 +117,7 @@ class HistoryPhotoServiceTest {
         String url = "https://cdn.example/history/photos/photo.png";
         User user = member();
         when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
-        when(userRepository.getReferenceById(1L)).thenReturn(user);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(imageRepository.save(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(historyPhotoRepository.save(any())).thenAnswer(invocation -> {
             HistoryPhoto photo = invocation.getArgument(0);
@@ -135,6 +136,51 @@ class HistoryPhotoServiceTest {
         verify(imageRepository).save(imageCaptor.capture());
         assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(url);
         assertThat(imageCaptor.getValue().getSourceType()).isEqualTo(ImageSourceType.CAMERA);
+        InOrder persistenceOrder = inOrder(historyPhotoRepository, storageService, userRepository);
+        persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
+        persistenceOrder.verify(storageService).uploadImage(file, "history/photos");
+        persistenceOrder.verify(userRepository).findByIdForUpdate(1L);
+        persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
+        verify(historyPhotoRepository, times(2)).countByUserIdAndRecordDate(1L, RECORD_DATE);
+    }
+
+    @Test
+    void rejectsSixthPhotoBeforeUploadingImage() {
+        MultipartFile file = mock(MultipartFile.class);
+        when(historyPhotoRepository.countByUserIdAndRecordDate(1L, RECORD_DATE)).thenReturn(5L);
+
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
+                .isInstanceOfSatisfying(
+                        RestApiException.class,
+                        exception -> assertThat(exception.getErrorCode().getCode())
+                                .isEqualTo("HISTORY_PHOTO_409")
+                );
+
+        verify(storageService, never()).uploadImage(any(), anyString());
+        verify(imageRepository, never()).save(any(Image.class));
+        verify(historyPhotoRepository, never()).save(any(HistoryPhoto.class));
+    }
+
+    @Test
+    void removesUploadedObjectWhenConcurrentRequestFillsTheFifthSlot() {
+        MultipartFile file = mock(MultipartFile.class);
+        String url = "https://cdn.example/history/photos/photo.png";
+        when(historyPhotoRepository.countByUserIdAndRecordDate(1L, RECORD_DATE))
+                .thenReturn(4L, 5L);
+        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
+
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "CAMERA"))
+                .isInstanceOfSatisfying(
+                        RestApiException.class,
+                        exception -> assertThat(exception.getErrorCode().getCode())
+                                .isEqualTo("HISTORY_PHOTO_409")
+                );
+
+        verify(userRepository).findByIdForUpdate(1L);
+        verify(storageService).deleteImage(url);
+        verify(imageRepository, never()).save(any(Image.class));
+        verify(historyPhotoRepository, never()).save(any(HistoryPhoto.class));
     }
 
     @Test
