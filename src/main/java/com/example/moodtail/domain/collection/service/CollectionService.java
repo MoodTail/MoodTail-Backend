@@ -2,7 +2,6 @@ package com.example.moodtail.domain.collection.service;
 
 import com.example.moodtail.domain.collection.dto.response.CollectionResponse;
 import com.example.moodtail.domain.collection.dto.response.RepresentativeMoodTypeUpdateResponse;
-import com.example.moodtail.domain.collection.entity.UserUnlockedMoodType;
 import com.example.moodtail.domain.collection.repository.CollectionProjection;
 import com.example.moodtail.domain.collection.repository.CollectionRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
@@ -21,7 +20,6 @@ import java.util.List;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.*;
 import static com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus.COCKTAIL_TYPE_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.CollectionErrorStatus.COLLECTION_REPRESENTATIVE_MOOD_TYPE_NOT_UNLOCKED;
-import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.REPRESENTATIVE_MOOD_TYPE_NOT_UNLOCKED;
 
 @Service
 @RequiredArgsConstructor
