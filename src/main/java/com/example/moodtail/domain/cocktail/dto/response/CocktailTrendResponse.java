@@ -1,25 +1,19 @@
 package com.example.moodtail.domain.cocktail.dto.response;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-
 import java.math.BigDecimal;
 import java.util.List;
 
 public record CocktailTrendResponse(
-        String period,
         List<PopularMoodType> popularMoodTypes,
         TasteProfile averageTasteProfile,
         DisplayTasteScores displayAverageTasteScores,
         List<PopularCocktail> popularCocktails,
-        List<RankChangeCocktail> rankChangeCocktails,
-        @JsonInclude(JsonInclude.Include.NON_NULL)
-        List<SameTypePopularCocktail> sameTypePopularCocktails
+        List<RankChangeCocktail> rankChangeCocktails
 ) {
     public CocktailTrendResponse {
         popularMoodTypes = List.copyOf(popularMoodTypes);
         popularCocktails = List.copyOf(popularCocktails);
         rankChangeCocktails = List.copyOf(rankChangeCocktails);
-        sameTypePopularCocktails = sameTypePopularCocktails == null ? null : List.copyOf(sameTypePopularCocktails);
     }
 
     public record PopularMoodType(
@@ -28,8 +22,7 @@ public record CocktailTrendResponse(
             String typeCode,
             String name,
             long resultCount,
-            int ratio,
-            Integer rankChange
+            int ratio
     ) {
     }
 
@@ -51,6 +44,7 @@ public record CocktailTrendResponse(
     ) {
     }
 
+    // ranking/ratio/recordCount는 누적 전체 기간, rankChange만 이번주 월~일 vs 지난주 월~일
     public record PopularCocktail(
             int ranking,
             Long cocktailId,
@@ -69,14 +63,6 @@ public record CocktailTrendResponse(
             String nameEn,
             int rankChange,
             ChangeDirection changeDirection
-    ) {
-    }
-
-    public record SameTypePopularCocktail(
-            int ranking,
-            Long cocktailId,
-            String nameKo,
-            long recordCount
     ) {
     }
 
