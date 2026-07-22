@@ -34,7 +34,7 @@ public record WeatherTasteVector(
         double magnitude = magnitude();
 
         if (magnitude == 0.0) {
-            throw new RestApiException(RecommendationErrorStatus.UNPROCESSABLE_ENTITY);
+            throw new RestApiException(RecommendationErrorStatus.RECOMMENDATION_UNAVAILABLE);
         }
 
         return new WeatherTasteVector(
