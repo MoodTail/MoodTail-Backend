@@ -43,12 +43,8 @@ public interface MoodTestResultRepository extends JpaRepository<MoodTestResult, 
                    avg(result.refreshing) as refreshing,
                    avg(result.bitterness) as bitterness
               from MoodTestResult result
-             where result.resultDate between :startDate and :endDate
             """)
-    AverageTasteProfile averageTasteProfileByResultDateBetween(
-            @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate
-    );
+    AverageTasteProfile averageTasteProfileCumulative();
 
     interface MoodTypeTrendCount {
         Long getMoodTypeId();

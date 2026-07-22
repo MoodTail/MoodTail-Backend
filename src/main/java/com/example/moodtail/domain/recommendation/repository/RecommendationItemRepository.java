@@ -33,15 +33,31 @@ public interface RecommendationItemRepository extends JpaRepository<Recommendati
              where session.sessionType = :sessionType
                and item.ranking = 1
                and result.resultDate between :startDate and :endDate
-               and (:moodTypeId is null or result.moodType.id = :moodTypeId)
              group by item.cocktail.id, cocktail.nameKo, cocktail.nameEn, cocktail.shortDescription
              order by count(item) desc, cocktail.nameKo asc, item.cocktail.id asc
             """)
     List<PopularCocktailCount> countPopularCocktails(
             @Param("sessionType") RecommendationSessionType sessionType,
             @Param("startDate") LocalDate startDate,
-            @Param("endDate") LocalDate endDate,
-            @Param("moodTypeId") Long moodTypeId
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
+            select item.cocktail.id as cocktailId,
+                   cocktail.nameKo as nameKo,
+                   cocktail.nameEn as nameEn,
+                   cocktail.shortDescription as shortDescription,
+                   count(item) as recordCount
+              from RecommendationItem item
+              join item.cocktail cocktail
+              join item.recommendationSession session
+             where session.sessionType = :sessionType
+               and item.ranking = 1
+             group by item.cocktail.id, cocktail.nameKo, cocktail.nameEn, cocktail.shortDescription
+             order by count(item) desc, cocktail.nameKo asc, item.cocktail.id asc
+            """)
+    List<PopularCocktailCount> countPopularCocktailsCumulative(
+            @Param("sessionType") RecommendationSessionType sessionType
     );
 
     interface PopularCocktailCount {
