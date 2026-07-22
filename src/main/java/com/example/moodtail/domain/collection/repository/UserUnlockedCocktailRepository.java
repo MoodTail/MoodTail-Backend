@@ -2,6 +2,7 @@ package com.example.moodtail.domain.collection.repository;
 
 import com.example.moodtail.domain.collection.entity.UserUnlockedCocktail;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -20,4 +21,10 @@ public interface UserUnlockedCocktailRepository extends JpaRepository<UserUnlock
             @Param("moodTypeId") Long moodTypeId
     );
 
+    @Modifying(flushAutomatically = true)
+    @Query("""
+         delete from UserUnlockedCocktail unlocked
+          where unlocked.user.id = :userId
+         """)
+    int deleteAllByUserId(@Param("userId") Long userId);
 }

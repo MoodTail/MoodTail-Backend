@@ -5,6 +5,8 @@ import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
+import com.example.moodtail.domain.collection.repository.CollectionShareRepository;
+import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.repository.ImageRepository;
@@ -56,6 +58,8 @@ public class AccountWithdrawalService {
     private final LocalAccountRepository localAccountRepository;
     private final TokenSessionService tokenSessionService;
     private final ImageService imageService;
+    private final UserUnlockedCocktailRepository userUnlockedCocktailRepository;
+    private final CollectionShareRepository collectionShareRepository;
 
     public void withdraw(Long userId) {
         WithdrawalResult result = deleteAccountData(userId);
@@ -99,12 +103,23 @@ public class AccountWithdrawalService {
                         .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
                         .toList();
 
+        String collectionShareImage =
+                collectionShareRepository.findThumbnailImageUrlByUserId(userId)
+                        .filter(imageUrl -> !imageUrl.isBlank())
+                        .orElse(null);
+
         deleteRecommendations(userId);
         withdrawalHistoryRepository.deletePhotosByUserId(userId);
         withdrawalHistoryRepository.deleteRecordsByUserId(userId);
         List<String> storageCleanupCandidates = new ArrayList<>(deleteUnreferencedHistoryImages(historyImages));
+        if (collectionShareImage != null) {
+            storageCleanupCandidates.add(collectionShareImage);
+        }
+
         cocktailFavoriteRepository.deleteAllByUserId(userId);
+        userUnlockedCocktailRepository.deleteAllByUserId(userId);
         userUnlockedMoodTypeRepository.deleteAllByUserId(userId);
+        collectionShareRepository.deleteByUserId(userId);
         inquiryRepository.anonymizeAllByUserId(userId);
         sharedMoodTestResultRepository.deleteAllByUserId(userId);
         storageCleanupCandidates.addAll(sharedResultImages);
