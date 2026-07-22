@@ -5,6 +5,8 @@ import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
+import com.example.moodtail.domain.collection.repository.CollectionShareRepository;
+import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.repository.ImageRepository;
@@ -67,7 +69,11 @@ class AccountWithdrawalServiceTest {
     @Mock
     private CocktailFavoriteRepository cocktailFavoriteRepository;
     @Mock
+    private UserUnlockedCocktailRepository userUnlockedCocktailRepository;
+    @Mock
     private UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
+    @Mock
+    private CollectionShareRepository collectionShareRepository;
     @Mock
     private InquiryRepository inquiryRepository;
     @Mock
@@ -116,6 +122,8 @@ class AccountWithdrawalServiceTest {
         verify(localAccountRepository).deleteAllByUserId(7L);
         verify(moodTestResultRepository).deleteAllByUserId(7L);
         verify(userRepository).delete(any(User.class));
+        verify(userUnlockedCocktailRepository).deleteAllByUserId(7L);
+        verify(collectionShareRepository).deleteByUserId(7L);
 
         InOrder order = inOrder(transactionManager, tokenSessionService, imageService);
         order.verify(transactionManager).commit(any());
@@ -215,6 +223,8 @@ class AccountWithdrawalServiceTest {
         when(imageRepository.findAllById(historyImageIds)).thenReturn(historyImages);
         when(sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(7L))
                 .thenReturn(sharedResultImages);
+        when(collectionShareRepository.findThumbnailImageUrlByUserId(7L))
+                .thenReturn(Optional.empty());
         when(recommendationSessionRepository.findAllIdsRelatedToUserId(7L)).thenReturn(List.of());
     }
 
