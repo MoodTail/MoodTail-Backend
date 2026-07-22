@@ -13,6 +13,7 @@ import com.example.moodtail.domain.history.service.HistoryService;
 import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.ExceptionAdvice;
+import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,9 +36,11 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
+import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_LIMIT_EXCEEDED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -169,6 +172,25 @@ class HistoryControllerTest {
         mockMvc.perform(delete("/api/v1/history/dates/2026-07-05/photos/3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"));
+    }
+
+    @Test
+    void returnsConflictWhenDailyPhotoLimitIsExceeded() throws Exception {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "history.jpg",
+                "image/jpeg",
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
+        );
+        doThrow(new RestApiException(PHOTO_LIMIT_EXCEEDED))
+                .when(historyPhotoService)
+                .add(eq(USER_ID), eq("2026-07-05"), any(), eq("GALLERY"));
+
+        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+                        .file(image)
+                        .param("sourceType", "GALLERY"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("HISTORY_PHOTO_409"));
     }
 
     @Test

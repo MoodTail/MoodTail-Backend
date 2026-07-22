@@ -17,6 +17,11 @@ public enum HistoryErrorStatus implements BaseCodeInterface {
     ),
     HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "HISTORY_404", "히스토리 기록을 찾을 수 없습니다."),
     TEST_RESULT_NOT_FOUND(HttpStatus.NOT_FOUND, "HISTORY_TEST_404", "저장된 테스트 결과를 찾을 수 없습니다."),
+    PHOTO_LIMIT_EXCEEDED(
+            HttpStatus.CONFLICT,
+            "HISTORY_PHOTO_409",
+            "날짜별 사진은 최대 5장까지 저장할 수 있습니다."
+    ),
     PHOTO_NOT_FOUND(HttpStatus.NOT_FOUND, "HISTORY_PHOTO_404", "히스토리 사진을 찾을 수 없습니다."),
     PHOTO_STORAGE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE,

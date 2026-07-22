@@ -21,7 +21,9 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Locale;
 
+import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.INVALID_REQUEST;
+import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_LIMIT_EXCEEDED;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_STORAGE_UNAVAILABLE;
 import static com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.INVALID_IMAGE;
@@ -32,6 +34,7 @@ import static com.example.moodtail.global.common.exception.code.status.ImageErro
 public class HistoryPhotoService {
 
     private static final String PHOTO_DIRECTORY = "history/photos";
+    private static final int MAX_PHOTOS_PER_DATE = 5;
 
     private final HistoryPhotoRepository historyPhotoRepository;
     private final ImageRepository imageRepository;
@@ -49,6 +52,7 @@ public class HistoryPhotoService {
         LocalDate recordDate = HistoryDatePolicy.parse(dateValue);
         HistoryDatePolicy.validateRecordDate(recordDate, LocalDate.now(clock));
         ImageSourceType sourceType = parseSourceType(sourceTypeValue);
+        validatePhotoLimit(userId, recordDate);
 
         String imageUrl;
         try {
@@ -89,10 +93,19 @@ public class HistoryPhotoService {
             String imageUrl,
             ImageSourceType sourceType
     ) {
-        User user = userRepository.getReferenceById(userId);
+        User user = userRepository.findByIdForUpdate(userId)
+                .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
+        validatePhotoLimit(userId, recordDate);
         Image image = imageRepository.save(Image.create(imageUrl, sourceType));
         HistoryPhoto photo = historyPhotoRepository.save(HistoryPhoto.create(user, recordDate, image));
         return new HistoryPhotoResponse(photo.getId(), recordDate, sourceType, imageUrl);
+    }
+
+    private void validatePhotoLimit(Long userId, LocalDate recordDate) {
+        if (historyPhotoRepository.countByUserIdAndRecordDate(userId, recordDate)
+                >= MAX_PHOTOS_PER_DATE) {
+            throw new RestApiException(PHOTO_LIMIT_EXCEEDED);
+        }
     }
 
     private DeletedImage deleteFromDatabase(Long userId, LocalDate recordDate, Long photoId) {
