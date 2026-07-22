@@ -4,7 +4,6 @@ import com.example.moodtail.domain.cocktail.dto.response.CocktailTrendResponse;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.entity.RecommendationSessionType;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
-import com.example.moodtail.global.common.exception.RestApiException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -19,21 +18,20 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class CocktailTrendServiceTest {
 
+    // 2026-07-22(수) 기준 이번주 월~일: 07-20~07-26, 지난주 월~일: 07-13~07-19
     private static final Clock CLOCK = Clock.fixed(
             Instant.parse("2026-07-22T03:30:00Z"),
             ZoneId.of("Asia/Seoul")
     );
-    private static final LocalDate CURRENT_START = LocalDate.of(2026, 7, 16);
-    private static final LocalDate CURRENT_END = LocalDate.of(2026, 7, 22);
-    private static final LocalDate PREVIOUS_START = LocalDate.of(2026, 7, 9);
-    private static final LocalDate PREVIOUS_END = LocalDate.of(2026, 7, 15);
+    private static final LocalDate CURRENT_WEEK_START = LocalDate.of(2026, 7, 20);
+    private static final LocalDate CURRENT_WEEK_END = LocalDate.of(2026, 7, 26);
+    private static final LocalDate PREVIOUS_WEEK_START = LocalDate.of(2026, 7, 13);
+    private static final LocalDate PREVIOUS_WEEK_END = LocalDate.of(2026, 7, 19);
 
     @Mock
     private MoodTestResultRepository moodTestResultRepository;
@@ -52,35 +50,37 @@ class CocktailTrendServiceTest {
     }
 
     @Test
-    void aggregatesWeeklyTrendWithRankChangesAgainstPreviousPeriod() {
-        when(moodTestResultRepository.countMoodTypesByResultDateBetween(CURRENT_START, CURRENT_END))
+    void aggregatesWeeklyMoodTypesAndCumulativeCocktailsWithWeeklyRankChange() {
+        when(moodTestResultRepository.countMoodTypesByResultDateBetween(CURRENT_WEEK_START, CURRENT_WEEK_END))
                 .thenReturn(List.of(
                         moodTypeCount(1L, "FRESH_SPARK", "상큼주의자", 10),
                         moodTypeCount(2L, "CALM_DEPTH", "차분주의자", 6),
                         moodTypeCount(3L, "BOLD_HEAT", "열정주의자", 4),
                         moodTypeCount(4L, "SOFT_MIST", "몽환주의자", 2)
                 ));
-        when(moodTestResultRepository.countMoodTypesByResultDateBetween(PREVIOUS_START, PREVIOUS_END))
-                .thenReturn(List.of(
-                        moodTypeCount(2L, "CALM_DEPTH", "차분주의자", 8),
-                        moodTypeCount(1L, "FRESH_SPARK", "상큼주의자", 5),
-                        moodTypeCount(3L, "BOLD_HEAT", "열정주의자", 3)
-                ));
-        when(moodTestResultRepository.averageTasteProfileByResultDateBetween(CURRENT_START, CURRENT_END))
+        when(moodTestResultRepository.averageTasteProfileCumulative())
                 .thenReturn(averageTasteProfile("2.20", "3.50", "2.90", "3.70", "1.50"));
 
+        when(recommendationItemRepository.countPopularCocktailsCumulative(RecommendationSessionType.TEST_RESULT))
+                .thenReturn(List.of(
+                        cocktailCount(7L, "피치 하이볼", "Peach Highball", "달콤하고 청량한 추천", 340),
+                        cocktailCount(8L, "선라이즈 소다", "Sunrise Soda", "과일향 중심의 추천", 290),
+                        cocktailCount(9L, "모히토", "Mojito", "상쾌한 민트 추천", 240),
+                        cocktailCount(15L, "진 토닉", "Gin Tonic", "깔끔한 쓴맛 추천", 190),
+                        cocktailCount(20L, "위스키 사워", "Whiskey Sour", "산미 있는 클래식", 140),
+                        cocktailCount(99L, "기타 칵테일", "Other Cocktail", "기타", 50)
+                ));
         when(recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, CURRENT_START, CURRENT_END, null
+                RecommendationSessionType.TEST_RESULT, CURRENT_WEEK_START, CURRENT_WEEK_END
         )).thenReturn(List.of(
                 cocktailCount(7L, "피치 하이볼", "Peach Highball", "달콤하고 청량한 추천", 34),
                 cocktailCount(8L, "선라이즈 소다", "Sunrise Soda", "과일향 중심의 추천", 29),
                 cocktailCount(9L, "모히토", "Mojito", "상쾌한 민트 추천", 24),
                 cocktailCount(15L, "진 토닉", "Gin Tonic", "깔끔한 쓴맛 추천", 19),
-                cocktailCount(20L, "위스키 사워", "Whiskey Sour", "산미 있는 클래식", 14),
-                cocktailCount(99L, "기타 칵테일", "Other Cocktail", "기타", 5)
+                cocktailCount(20L, "위스키 사워", "Whiskey Sour", "산미 있는 클래식", 14)
         ));
         when(recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, PREVIOUS_START, PREVIOUS_END, null
+                RecommendationSessionType.TEST_RESULT, PREVIOUS_WEEK_START, PREVIOUS_WEEK_END
         )).thenReturn(List.of(
                 cocktailCount(8L, "선라이즈 소다", "Sunrise Soda", "과일향 중심의 추천", 50),
                 cocktailCount(7L, "피치 하이볼", "Peach Highball", "달콤하고 청량한 추천", 45),
@@ -89,21 +89,18 @@ class CocktailTrendServiceTest {
                 cocktailCount(9L, "모히토", "Mojito", "상쾌한 민트 추천", 5)
         ));
 
-        CocktailTrendResponse response = cocktailTrendService.getTrend(null, null);
-
-        assertThat(response.period()).isEqualTo("WEEKLY");
+        CocktailTrendResponse response = cocktailTrendService.getTrend();
 
         assertThat(response.popularMoodTypes()).hasSize(3);
         assertThat(response.popularMoodTypes()).extracting(
                 CocktailTrendResponse.PopularMoodType::ranking,
                 CocktailTrendResponse.PopularMoodType::moodTypeId,
                 CocktailTrendResponse.PopularMoodType::resultCount,
-                CocktailTrendResponse.PopularMoodType::ratio,
-                CocktailTrendResponse.PopularMoodType::rankChange
+                CocktailTrendResponse.PopularMoodType::ratio
         ).containsExactly(
-                org.assertj.core.groups.Tuple.tuple(1, 1L, 10L, 45, 1),
-                org.assertj.core.groups.Tuple.tuple(2, 2L, 6L, 27, -1),
-                org.assertj.core.groups.Tuple.tuple(3, 3L, 4L, 18, 0)
+                org.assertj.core.groups.Tuple.tuple(1, 1L, 10L, 45),
+                org.assertj.core.groups.Tuple.tuple(2, 2L, 6L, 27),
+                org.assertj.core.groups.Tuple.tuple(3, 3L, 4L, 18)
         );
 
         assertThat(response.averageTasteProfile().alcoholIntensity()).isEqualByComparingTo("2.20");
@@ -111,19 +108,19 @@ class CocktailTrendServiceTest {
         assertThat(response.displayAverageTasteScores().sweetness()).isEqualTo(70);
         assertThat(response.displayAverageTasteScores().bitterness()).isEqualTo(30);
 
+        // ranking/ratio/recordCount는 누적 집계, rankChange는 주간(월~일) 비교값
         assertThat(response.popularCocktails()).hasSize(5);
         assertThat(response.popularCocktails()).extracting(
                 CocktailTrendResponse.PopularCocktail::ranking,
                 CocktailTrendResponse.PopularCocktail::cocktailId,
-                CocktailTrendResponse.PopularCocktail::ratio,
                 CocktailTrendResponse.PopularCocktail::recordCount,
                 CocktailTrendResponse.PopularCocktail::rankChange
         ).containsExactly(
-                org.assertj.core.groups.Tuple.tuple(1, 7L, 27, 34L, 1),
-                org.assertj.core.groups.Tuple.tuple(2, 8L, 23, 29L, -1),
-                org.assertj.core.groups.Tuple.tuple(3, 9L, 19, 24L, 2),
-                org.assertj.core.groups.Tuple.tuple(4, 15L, 15, 19L, -1),
-                org.assertj.core.groups.Tuple.tuple(5, 20L, 11, 14L, -1)
+                org.assertj.core.groups.Tuple.tuple(1, 7L, 340L, 1),
+                org.assertj.core.groups.Tuple.tuple(2, 8L, 290L, -1),
+                org.assertj.core.groups.Tuple.tuple(3, 9L, 240L, 2),
+                org.assertj.core.groups.Tuple.tuple(4, 15L, 190L, -1),
+                org.assertj.core.groups.Tuple.tuple(5, 20L, 140L, -1)
         );
 
         assertThat(response.rankChangeCocktails()).hasSize(2);
@@ -131,50 +128,39 @@ class CocktailTrendServiceTest {
         assertThat(response.rankChangeCocktails().get(0).rankChange()).isEqualTo(2);
         assertThat(response.rankChangeCocktails().get(0).changeDirection())
                 .isEqualTo(CocktailTrendResponse.ChangeDirection.UP);
-        assertThat(response.rankChangeCocktails().get(1).cocktailId()).isEqualTo(7L);
+        assertThat(response.rankChangeCocktails().get(1).cocktailId()).isEqualTo(8L);
         assertThat(response.rankChangeCocktails().get(1).rankChange()).isEqualTo(1);
         assertThat(response.rankChangeCocktails().get(1).changeDirection())
-                .isEqualTo(CocktailTrendResponse.ChangeDirection.UP);
-
-        assertThat(response.sameTypePopularCocktails()).isNull();
+                .isEqualTo(CocktailTrendResponse.ChangeDirection.DOWN);
     }
 
     @Test
-    void includesSameTypePopularCocktailsOnlyWhenMoodTypeIdProvided() {
-        when(moodTestResultRepository.countMoodTypesByResultDateBetween(CURRENT_START, CURRENT_END))
+    void rankChangeIsNullWhenCocktailHadNoRankLastWeek() {
+        when(moodTestResultRepository.countMoodTypesByResultDateBetween(CURRENT_WEEK_START, CURRENT_WEEK_END))
                 .thenReturn(List.of());
-        when(moodTestResultRepository.countMoodTypesByResultDateBetween(PREVIOUS_START, PREVIOUS_END))
-                .thenReturn(List.of());
-        when(moodTestResultRepository.averageTasteProfileByResultDateBetween(CURRENT_START, CURRENT_END))
+        when(moodTestResultRepository.averageTasteProfileCumulative())
                 .thenReturn(averageTasteProfile(null, null, null, null, null));
+        when(recommendationItemRepository.countPopularCocktailsCumulative(RecommendationSessionType.TEST_RESULT))
+                .thenReturn(List.of(
+                        cocktailCount(12L, "선샤인 피즈", "Sunshine Fizz", "설명", 12)
+                ));
         when(recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, CURRENT_START, CURRENT_END, null
-        )).thenReturn(List.of());
-        when(recommendationItemRepository.countPopularCocktails(
-                RecommendationSessionType.TEST_RESULT, PREVIOUS_START, PREVIOUS_END, null
-        )).thenReturn(List.of());
-        when(recommendationItemRepository.countPopularCocktails(
-                eq(RecommendationSessionType.TEST_RESULT), eq(CURRENT_START), eq(CURRENT_END), eq(3L)
+                RecommendationSessionType.TEST_RESULT, CURRENT_WEEK_START, CURRENT_WEEK_END
         )).thenReturn(List.of(
-                cocktailCount(12L, "선샤인 피즈", "Sunshine Fizz", "설명", 12)
+                cocktailCount(12L, "선샤인 피즈", "Sunshine Fizz", "설명", 3)
         ));
+        when(recommendationItemRepository.countPopularCocktails(
+                RecommendationSessionType.TEST_RESULT, PREVIOUS_WEEK_START, PREVIOUS_WEEK_END
+        )).thenReturn(List.of());
 
-        CocktailTrendResponse response = cocktailTrendService.getTrend("WEEKLY", 3L);
+        CocktailTrendResponse response = cocktailTrendService.getTrend();
 
-        assertThat(response.sameTypePopularCocktails()).hasSize(1);
-        assertThat(response.sameTypePopularCocktails().get(0).ranking()).isEqualTo(1);
-        assertThat(response.sameTypePopularCocktails().get(0).cocktailId()).isEqualTo(12L);
-        assertThat(response.sameTypePopularCocktails().get(0).recordCount()).isEqualTo(12L);
+        assertThat(response.popularCocktails()).hasSize(1);
+        assertThat(response.popularCocktails().get(0).cocktailId()).isEqualTo(12L);
+        assertThat(response.popularCocktails().get(0).rankChange()).isNull();
+        assertThat(response.rankChangeCocktails()).isEmpty();
         assertThat(response.averageTasteProfile().alcoholIntensity()).isEqualByComparingTo("0.00");
         assertThat(response.displayAverageTasteScores().alcoholIntensity()).isEqualTo(0);
-    }
-
-    @Test
-    void throwsRestApiExceptionWhenPeriodIsInvalid() {
-        assertThatThrownBy(() -> cocktailTrendService.getTrend("YEARLY", null))
-                .isInstanceOf(RestApiException.class)
-                .satisfies(exception ->
-                        assertThat(((RestApiException) exception).getErrorCode().getCode()).isEqualTo("TREND_400"));
     }
 
     private MoodTestResultRepository.MoodTypeTrendCount moodTypeCount(
