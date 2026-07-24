@@ -43,6 +43,7 @@ public class LocalAccountService {
     private final TermAgreementService termAgreementService;
     private final PasswordEncoder passwordEncoder;
     private final LocalAuthProperties properties;
+    private final GuestDataTransferService guestDataTransferService;
     private final TokenSessionService tokenSessionService;
 
     public LocalAuthenticationResult signup(
@@ -92,7 +93,7 @@ public class LocalAccountService {
     ) {
         String normalizedEmail = normalizeEmail(email);
         validateLoginPasswordInput(password);
-        LocalAuthUser authenticatedUser = loginInTransaction(normalizedEmail, password);
+        LocalAuthUser authenticatedUser = loginInTransaction(normalizedEmail, password, guestUserId);
         return completeAuthentication(authenticatedUser, guestUserId);
     }
 
@@ -146,7 +147,8 @@ public class LocalAccountService {
 
     private LocalAuthUser loginInTransaction(
             String normalizedEmail,
-            String password
+            String password,
+            Long guestUserId
     ) {
         LoginAttempt attempt = requiresNewTransaction().execute(status -> {
             Optional<LocalAccount> accountOptional = localAccountRepository.findByEmailForUpdate(normalizedEmail);
@@ -172,6 +174,9 @@ public class LocalAccountService {
             }
 
             account.clearLoginFailures();
+            if (guestUserId != null) {
+                guestDataTransferService.transferToExistingUser(guestUserId, user.getId());
+            }
             user.updateLastAccessedAt(now);
             LocalAuthUser authenticatedUser = LocalAuthUser.from(account);
             return LoginAttempt.success(authenticatedUser);

@@ -128,8 +128,9 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "localLogin",
             summary = "로컬 계정 로그인",
-            description = "이메일과 비밀번호로 로그인합니다. 게스트 Access Token이 있으면 게스트 세션을 "
-                    + "종료하고 회원 세션으로 교체합니다. 세션 발급에 실패하면 AUTH041을 반환합니다."
+            description = "이메일과 비밀번호로 로그인합니다. 게스트 Access Token이 있으면 게스트 데이터를 "
+                    + "기존 회원에게 승계한 뒤 게스트 세션을 회원 세션으로 교체합니다. "
+                    + "세션 발급에 실패하면 AUTH041을 반환합니다."
     )
     @SecurityRequirements
     BaseResponse<LocalAuthResponse> localLogin(
