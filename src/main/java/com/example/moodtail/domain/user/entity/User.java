@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -27,7 +28,17 @@ import java.time.LocalDateTime;
 @Entity
 @Table(
         name = "users",
-        uniqueConstraints = @UniqueConstraint(name = "uk_users_guest_uuid", columnNames = "guest_uuid")
+        uniqueConstraints = @UniqueConstraint(name = "uk_users_guest_uuid", columnNames = "guest_uuid"),
+        indexes = {
+                @Index(
+                        name = "idx_users_status_deleted",
+                        columnList = "status,deleted_at"
+                ),
+                @Index(
+                        name = "idx_users_mood_type_status_deleted",
+                        columnList = "representative_mood_type_id,status,deleted_at"
+                )
+        }
 )
 @Check(constraints = "(role = 'GUEST' and guest_uuid is not null) or "
         + "(role in ('USER', 'ADMIN') and guest_uuid is null)")
