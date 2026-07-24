@@ -25,6 +25,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -57,6 +58,9 @@ class UserControllerTest {
     void setUp() {
         MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter();
         converter.getObjectMapper().findAndRegisterModules();
+        converter.getObjectMapper().disable(
+                com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS
+        );
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new UserController(myPageService, moodTypeCollectionService, inviteCodeService)
                 )
@@ -93,13 +97,35 @@ class UserControllerTest {
 
     @Test
     void getMoodTypesReturnsLockedAndUnlockedTypes() throws Exception {
+        LocalDateTime unlockedAt = LocalDateTime.of(2026, 7, 20, 21, 15);
         when(moodTypeCollectionService.getMoodTypes(USER_ID, ROLE))
-                .thenReturn(new MoodTypesResponse(0, List.of()));
+                .thenReturn(new MoodTypesResponse(2, List.of(
+                        new MoodTypesResponse.MoodTypeResponse(
+                                2001L,
+                                "TYPE01",
+                                "몽글몽글 낭만파",
+                                "부드러운 달콤함 속에서 여유를 즐기는 타입",
+                                "https://cdn.example/type01.png",
+                                unlockedAt
+                        ),
+                        new MoodTypesResponse.MoodTypeResponse(
+                                2002L,
+                                "TYPE02",
+                                "반짝이는 모험가",
+                                "새로운 자극을 즐기는 타입",
+                                "https://cdn.example/type02.png",
+                                null
+                        )
+                )));
 
         mockMvc.perform(get("/api/v1/users/me/mood-types"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.totalCount").value(0))
-                .andExpect(jsonPath("$.result.moodTypes").isArray());
+                .andExpect(jsonPath("$.result.totalCount").value(2))
+                .andExpect(jsonPath("$.result.moodTypes[0].moodTypeId").value(2001))
+                .andExpect(jsonPath("$.result.moodTypes[0].unlockedAt")
+                        .value("2026-07-20T21:15:00"))
+                .andExpect(jsonPath("$.result.moodTypes[1].moodTypeId").value(2002))
+                .andExpect(jsonPath("$.result.moodTypes[1].unlockedAt").doesNotExist());
 
         verify(moodTypeCollectionService).getMoodTypes(USER_ID, ROLE);
     }
