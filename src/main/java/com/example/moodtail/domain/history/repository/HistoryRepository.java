@@ -14,9 +14,18 @@ import java.util.Optional;
 
 public interface HistoryRepository extends JpaRepository<DrinkingRecord, Long> {
 
-    boolean existsByUserIdAndRecordDate(Long userId, LocalDate recordDate);
+    boolean existsByUserIdAndRecordDateAndCocktailId(
+            Long userId,
+            LocalDate recordDate,
+            Long cocktailId
+    );
 
-    boolean existsByUserIdAndRecordDateAndIdNot(Long userId, LocalDate recordDate, Long recordId);
+    boolean existsByUserIdAndRecordDateAndCocktailIdAndIdNot(
+            Long userId,
+            LocalDate recordDate,
+            Long cocktailId,
+            Long recordId
+    );
 
     @Query("""
             select record.recordDate
@@ -66,8 +75,9 @@ public interface HistoryRepository extends JpaRepository<DrinkingRecord, Long> {
               left join fetch cocktail.image
              where record.user.id = :userId
                and record.recordDate = :recordDate
+             order by record.recordedAt, record.id
             """)
-    Optional<DrinkingRecord> findWithDetailsByUserIdAndRecordDate(
+    List<DrinkingRecord> findAllWithDetailsByUserIdAndRecordDate(
             @Param("userId") Long userId,
             @Param("recordDate") LocalDate recordDate
     );
