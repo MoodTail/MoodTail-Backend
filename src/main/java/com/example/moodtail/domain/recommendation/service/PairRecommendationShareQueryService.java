@@ -4,12 +4,14 @@ import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.recommendation.dto.response.CompromiseProfileResponse;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationShareResultResponse;
+import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationSharePageResponse;
 import com.example.moodtail.domain.recommendation.dto.response.SharedRecommendedCocktailResponse;
 import com.example.moodtail.domain.recommendation.entity.SharedPairRecommendation;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.recommendation.repository.SharedPairRecommendationRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,12 +28,19 @@ import static com.example.moodtail.global.common.exception.code.status.ShareErro
 @Transactional(readOnly = true)
 public class PairRecommendationShareQueryService {
 
+    private static final String SHARE_PATH = "/share/pair/";
+
     private final SharedPairRecommendationRepository sharedPairRecommendationRepository;
     private final CocktailRepository cocktailRepository;
 
+    @Value("${app.share.base-url}")
+    private String shareBaseUrl;
+
+    @Value("${app.share.frontend-base-url}")
+    private String shareFrontendBaseUrl;
+
     public PairRecommendationShareResultResponse getSharedResult(String shareToken) {
-        SharedPairRecommendation sharedPairRecommendation = sharedPairRecommendationRepository.findByShareToken(shareToken)
-                .orElseThrow(() -> new RestApiException(SHARE_TOKEN_NOT_FOUND));
+        SharedPairRecommendation sharedPairRecommendation = findSharedPairRecommendation(shareToken);
 
         List<Long> cocktailIds = List.of(
                 sharedPairRecommendation.getCocktailId1(),
@@ -76,5 +85,27 @@ public class PairRecommendationShareQueryService {
                 sharedPairRecommendation.getPartnerMatchScore(),
                 sharedPairRecommendation.getThumbnailImageUrl()
         );
+    }
+
+    public PairRecommendationSharePageResponse getSharePage(String shareToken) {
+        SharedPairRecommendation sharedPairRecommendation = findSharedPairRecommendation(shareToken);
+        String sharePath = SHARE_PATH + shareToken;
+
+        return new PairRecommendationSharePageResponse(
+                normalizeBaseUrl(shareBaseUrl) + sharePath,
+                normalizeBaseUrl(shareFrontendBaseUrl) + sharePath,
+                sharedPairRecommendation.getThumbnailImageUrl()
+        );
+    }
+
+    private SharedPairRecommendation findSharedPairRecommendation(String shareToken) {
+        return sharedPairRecommendationRepository.findByShareToken(shareToken)
+                .orElseThrow(() -> new RestApiException(SHARE_TOKEN_NOT_FOUND));
+    }
+
+    private String normalizeBaseUrl(String baseUrl) {
+        return baseUrl.endsWith("/")
+                ? baseUrl.substring(0, baseUrl.length() - 1)
+                : baseUrl;
     }
 }
