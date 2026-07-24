@@ -39,6 +39,21 @@ class UserTest {
     }
 
     @Test
+    void retiringGuestRevokesOriginalUuidAndSoftDeletesIt() {
+        User guest = User.createGuest(
+                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
+                "게스트",
+                LocalDateTime.now()
+        );
+
+        guest.retireGuest();
+
+        assertThat(guest.getGuestUuid()).isNotEqualTo("b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d");
+        assertThat(guest.isDeleted()).isTrue();
+        assertThat(guest.getRole()).isEqualTo(UserRole.GUEST);
+    }
+
+    @Test
     void userCannotBeUpgradedAsGuestAgain() {
         User guest = User.createGuest(
                 "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",

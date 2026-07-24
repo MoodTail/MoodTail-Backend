@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.moodtest.repository;
 
 import com.example.moodtail.domain.moodtest.entity.SharedMoodTestResult;
+import com.example.moodtail.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,6 +20,17 @@ public interface SharedMoodTestResultRepository extends JpaRepository<SharedMood
              where result.user.id = :userId
             """)
     List<String> findThumbnailImageUrlsByUserId(@Param("userId") Long userId);
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update SharedMoodTestResult result
+               set result.user = :targetUser
+             where result.user.id = :guestUserId
+            """)
+    int transferAllByUserId(
+            @Param("guestUserId") Long guestUserId,
+            @Param("targetUser") User targetUser
+    );
 
     @Modifying(flushAutomatically = true)
     @Query("delete from SharedMoodTestResult result where result.user.id = :userId")

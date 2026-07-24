@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.collection.repository;
 
 import com.example.moodtail.domain.collection.entity.CollectionShare;
+import com.example.moodtail.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -20,6 +21,17 @@ public interface CollectionShareRepository extends JpaRepository<CollectionShare
               """)
     Optional<String> findThumbnailImageUrlByUserId(
             @Param("userId") Long userId
+    );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+              update CollectionShare share
+                 set share.user = :targetUser
+               where share.user.id = :guestUserId
+              """)
+    int transferByUserId(
+            @Param("guestUserId") Long guestUserId,
+            @Param("targetUser") User targetUser
     );
 
     @Modifying(flushAutomatically = true)
