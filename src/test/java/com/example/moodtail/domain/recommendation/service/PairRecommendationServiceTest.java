@@ -9,7 +9,6 @@ import com.example.moodtail.domain.recommendation.calculator.TasteSimilarityCalc
 import com.example.moodtail.domain.recommendation.dto.response.CompromiseProfileResponse;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationResponse;
 import com.example.moodtail.domain.recommendation.dto.response.RecommendedCocktailResponse;
-import com.example.moodtail.domain.recommendation.model.RecommendationItemCommand;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.service.InviteCodeService;
@@ -19,7 +18,6 @@ import com.example.moodtail.global.common.exception.code.status.UserErrorStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -33,15 +31,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("unchecked")
 class PairRecommendationServiceTest {
 
     @Mock
@@ -49,9 +42,6 @@ class PairRecommendationServiceTest {
 
     @Mock
     private CocktailRepository cocktailRepository;
-
-    @Mock
-    private PairRecommendationPersistenceService pairRecommendationPersistenceService;
 
     @Mock
     private InviteCodeService inviteCodeService;
@@ -68,13 +58,12 @@ class PairRecommendationServiceTest {
                 cocktailRepository,
                 tasteSimilarityCalculator,
                 tasteContributionCalculator,
-                pairRecommendationPersistenceService,
                 inviteCodeService
         );
     }
 
     @Test
-    void recommendsPairByPartnerInviteCodeAndAlwaysSaves() {
+    void recommendsPairByPartnerInviteCode() {
         User me = userWithId(1L, "나닉네임");
         User partner = userWithId(2L, "상대닉네임");
         TasteProfile myProfile = TasteProfile.of(
@@ -129,14 +118,6 @@ class PairRecommendationServiceTest {
         assertThat(recommendations.get(0).matchScore()).isEqualTo(100);
 
         assertThat(response.tasteContributions()).hasSize(2);
-
-        ArgumentCaptor<List<RecommendationItemCommand>> commandsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(pairRecommendationPersistenceService).saveCompromise(
-                eq(me), eq(myResult), eq(partnerResult), commandsCaptor.capture()
-        );
-        assertThat(commandsCaptor.getValue())
-                .extracting(RecommendationItemCommand::cocktailId)
-                .containsExactly(101L, 102L, 103L);
     }
 
     @Test
@@ -149,8 +130,6 @@ class PairRecommendationServiceTest {
                                 .isEqualTo(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND.getCode().getCode())
                 );
         verifyNoInteractions(inviteCodeService);
-        verify(pairRecommendationPersistenceService, never())
-                .saveCompromise(any(), any(), any(), any());
     }
 
     @Test

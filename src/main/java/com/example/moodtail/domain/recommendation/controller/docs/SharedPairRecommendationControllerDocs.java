@@ -13,6 +13,6 @@ public interface SharedPairRecommendationControllerDocs {
             summary = "공유된 페어 추천 결과 조회"
     )
     BaseResponse<PairRecommendationShareResultResponse> getSharedPairRecommendation(
-            String token
+            String shareToken
     );
 }

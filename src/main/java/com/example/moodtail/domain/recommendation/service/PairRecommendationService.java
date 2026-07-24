@@ -8,7 +8,6 @@ import com.example.moodtail.domain.recommendation.calculator.TasteContributionCa
 import com.example.moodtail.domain.recommendation.calculator.TasteSimilarityCalculator;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationResponse;
 import com.example.moodtail.domain.recommendation.dto.response.RecommendedCocktailResponse;
-import com.example.moodtail.domain.recommendation.model.RecommendationItemCommand;
 import com.example.moodtail.domain.recommendation.model.TasteMetricContribution;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
@@ -26,7 +25,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(readOnly = true)
 public class PairRecommendationService {
 
     private static final int RECOMMENDATION_LIMIT = 3;
@@ -35,7 +34,6 @@ public class PairRecommendationService {
     private final CocktailRepository cocktailRepository;
     private final TasteSimilarityCalculator tasteSimilarityCalculator;
     private final TasteContributionCalculator tasteContributionCalculator;
-    private final PairRecommendationPersistenceService pairRecommendationPersistenceService;
     private final InviteCodeService inviteCodeService;
 
     public PairRecommendationResponse recommendPair(Long userId, String partnerInviteCode) {
@@ -54,13 +52,6 @@ public class PairRecommendationService {
                 myProfile,
                 partnerProfile,
                 recommendationResult.topCocktailProfile()
-        );
-
-        pairRecommendationPersistenceService.saveCompromise(
-                myResult.getUser(),
-                myResult,
-                partnerResult,
-                toCommands(recommendations)
         );
 
         return PairRecommendationResponse.of(
@@ -123,12 +114,6 @@ public class PairRecommendationService {
 
         TasteProfile topCocktailProfile = scored.get(0).cocktail().toTasteProfile();
         return new RecommendationResult(responses, topCocktailProfile);
-    }
-
-    private List<RecommendationItemCommand> toCommands(List<RecommendedCocktailResponse> recommendations) {
-        return recommendations.stream()
-                .map(r -> new RecommendationItemCommand(r.cocktailId(), r.matchScore()))
-                .toList();
     }
 
     private record ScoredCocktail(Cocktail cocktail, double distance) {

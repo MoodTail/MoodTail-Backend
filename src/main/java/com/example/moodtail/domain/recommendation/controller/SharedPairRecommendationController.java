@@ -17,11 +17,11 @@ public class SharedPairRecommendationController implements SharedPairRecommendat
 
     private final PairRecommendationShareQueryService pairRecommendationShareQueryService;
 
-    @GetMapping("/{token}")
+    @GetMapping("/{shareToken}")
     public BaseResponse<PairRecommendationShareResultResponse> getSharedPairRecommendation(
-            @PathVariable String token
+            @PathVariable String shareToken
     ) {
-        PairRecommendationShareResultResponse response = pairRecommendationShareQueryService.getSharedResult(token);
+        PairRecommendationShareResultResponse response = pairRecommendationShareQueryService.getSharedResult(shareToken);
         return BaseResponse.onSuccess(response);
     }
 }
