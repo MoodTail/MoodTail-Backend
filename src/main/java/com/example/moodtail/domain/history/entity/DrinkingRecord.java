@@ -23,8 +23,8 @@ import java.time.LocalDateTime;
 @Table(
         name = "drinking_records",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_drinking_record_user_date",
-                columnNames = {"user_id", "record_date"}
+                name = "uk_drinking_record_user_date_cocktail",
+                columnNames = {"user_id", "record_date", "cocktail_id"}
         )
 )
 @Getter

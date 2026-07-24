@@ -13,7 +13,7 @@ public enum HistoryErrorStatus implements BaseCodeInterface {
     DRINKING_RECORD_ALREADY_EXISTS(
             HttpStatus.CONFLICT,
             "HISTORY_409",
-            "해당 날짜에는 이미 음주 기록이 있습니다."
+            "해당 날짜에 같은 칵테일 음주 기록이 이미 있습니다."
     ),
     HISTORY_NOT_FOUND(HttpStatus.NOT_FOUND, "HISTORY_404", "히스토리 기록을 찾을 수 없습니다."),
     TEST_RESULT_NOT_FOUND(HttpStatus.NOT_FOUND, "HISTORY_TEST_404", "저장된 테스트 결과를 찾을 수 없습니다."),
