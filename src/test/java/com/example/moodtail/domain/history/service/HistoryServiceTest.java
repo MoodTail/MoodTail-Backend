@@ -116,6 +116,36 @@ class HistoryServiceTest {
     }
 
     @Test
+    void returnsMonthlyTestResultsInLatestFirstRepositoryOrder() {
+        MoodType moodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodTestResult latestResult = org.mockito.Mockito.mock(MoodTestResult.class);
+        MoodTestResult olderResult = org.mockito.Mockito.mock(MoodTestResult.class);
+        when(latestResult.getId()).thenReturn(23L);
+        when(latestResult.getResultDate()).thenReturn(LocalDate.of(2026, 7, 10));
+        when(latestResult.getMoodType()).thenReturn(moodType);
+        when(olderResult.getId()).thenReturn(18L);
+        when(olderResult.getResultDate()).thenReturn(LocalDate.of(2026, 7, 5));
+        when(olderResult.getMoodType()).thenReturn(moodType);
+        when(moodTestResultRepository.findAllWithMoodType(
+                USER_ID,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 11)
+        )).thenReturn(List.of(latestResult, olderResult));
+
+        var response = historyService.getCalendar(USER_ID, 2026, 7);
+
+        assertThat(response.testResults())
+                .extracting(result -> result.resultDate())
+                .containsExactly(
+                        LocalDate.of(2026, 7, 10),
+                        LocalDate.of(2026, 7, 5)
+                );
+        assertThat(response.testResults())
+                .extracting(result -> result.resultId())
+                .containsExactly(23L, 18L);
+    }
+
+    @Test
     void returnsAllDrinkingRecordsForDateInRepositoryOrder() {
         LocalDate recordDate = LocalDate.of(2026, 7, 10);
         Cocktail mojito = cocktail(7L, "모히토");
