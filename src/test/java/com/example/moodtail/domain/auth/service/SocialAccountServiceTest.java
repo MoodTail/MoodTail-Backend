@@ -66,6 +66,9 @@ class SocialAccountServiceTest {
     @Mock
     private TokenSessionService tokenSessionService;
 
+    @Mock
+    private GuestDataTransferService guestDataTransferService;
+
     private SocialAccountService service;
 
     @BeforeEach
@@ -75,6 +78,7 @@ class SocialAccountServiceTest {
                 userRepository,
                 socialAccountRepository,
                 new TermAgreementService(termRepository, userTermAgreementRepository),
+                guestDataTransferService,
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
@@ -150,7 +154,7 @@ class SocialAccountServiceTest {
     }
 
     @Test
-    void existingAuthenticationSwitchesToTheExistingSocialAccountWithoutMergingGuestData() {
+    void existingAuthenticationTransfersGuestDataBeforeReplacingTheSession() {
         User existingUser = guestWithId(99L);
         existingUser.upgradeToUser("기존유저", LocalDateTime.now());
         SocialAccount account = SocialAccount.create(
@@ -178,7 +182,8 @@ class SocialAccountServiceTest {
 
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();
-        InOrder order = inOrder(transactionManager, tokenSessionService);
+        InOrder order = inOrder(guestDataTransferService, transactionManager, tokenSessionService);
+        order.verify(guestDataTransferService).transferToExistingUser(2L, 99L);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
         verify(userTermAgreementRepository, never()).saveAll(any());
@@ -230,6 +235,7 @@ class SocialAccountServiceTest {
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
                 );
+        verify(guestDataTransferService, never()).transferToExistingUser(any(), any());
     }
 
     @Test

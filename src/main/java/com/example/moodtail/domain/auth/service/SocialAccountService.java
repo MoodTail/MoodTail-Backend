@@ -33,6 +33,7 @@ public class SocialAccountService {
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final TermAgreementService termAgreementService;
+    private final GuestDataTransferService guestDataTransferService;
     private final TokenSessionService tokenSessionService;
 
     public SocialAuthenticationResult authenticate(
@@ -58,7 +59,7 @@ public class SocialAccountService {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
         try {
             SocialLoginUser result = transactionTemplate.execute(status ->
-                    loginInTransaction(profile).orElseGet(
+                    loginInTransaction(profile, guestUserId).orElseGet(
                             () -> registerInTransaction(profile, guestUserId, consents)
                     )
             );
@@ -68,7 +69,7 @@ public class SocialAccountService {
             return result;
         } catch (DataIntegrityViolationException exception) {
             Optional<SocialLoginUser> committedAuthentication =
-                    recoverCommittedRegistration(transactionTemplate, profile);
+                    recoverCommittedRegistration(transactionTemplate, profile, guestUserId);
             if (committedAuthentication.isPresent()) {
                 return committedAuthentication.get();
             }
@@ -78,11 +79,12 @@ public class SocialAccountService {
 
     private Optional<SocialLoginUser> recoverCommittedRegistration(
             TransactionTemplate transactionTemplate,
-            SocialUserProfile profile
+            SocialUserProfile profile,
+            Long guestUserId
     ) {
         try {
             Optional<SocialLoginUser> result = transactionTemplate.execute(
-                    status -> loginInTransaction(profile)
+                    status -> loginInTransaction(profile, guestUserId)
             );
             return result == null ? Optional.empty() : result;
         } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
@@ -90,7 +92,10 @@ public class SocialAccountService {
         }
     }
 
-    private Optional<SocialLoginUser> loginInTransaction(SocialUserProfile profile) {
+    private Optional<SocialLoginUser> loginInTransaction(
+            SocialUserProfile profile,
+            Long guestUserId
+    ) {
         Optional<SocialAccount> socialAccountOptional = socialAccountRepository
                 .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
         if (socialAccountOptional.isEmpty()) {
@@ -99,6 +104,9 @@ public class SocialAccountService {
         SocialAccount socialAccount = socialAccountOptional.get();
         User user = socialAccount.getUser();
         validateActive(user);
+        if (guestUserId != null) {
+            guestDataTransferService.transferToExistingUser(guestUserId, user.getId());
+        }
         user.updateLastAccessedAt(LocalDateTime.now());
         return Optional.of(createSocialLoginUser(user, socialAccount, false));
     }
