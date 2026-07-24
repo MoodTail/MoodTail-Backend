@@ -1,9 +1,9 @@
 package com.example.moodtail.domain.recommendation.controller;
 
+import com.example.moodtail.domain.recommendation.controller.docs.SharedPairRecommendationControllerDocs;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationShareResultResponse;
 import com.example.moodtail.domain.recommendation.service.PairRecommendationShareQueryService;
 import com.example.moodtail.global.common.base.BaseResponse;
-import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,19 +13,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/share/pair-recommendations")
-public class SharedPairRecommendationController {
+public class SharedPairRecommendationController implements SharedPairRecommendationControllerDocs {
 
     private final PairRecommendationShareQueryService pairRecommendationShareQueryService;
 
-    @Operation(
-            operationId = "getSharedPairRecommendation",
-            summary = "공유된 페어 추천 결과 조회"
-    )
-    @GetMapping("/{token}")
+    @GetMapping("/{shareToken}")
     public BaseResponse<PairRecommendationShareResultResponse> getSharedPairRecommendation(
-            @PathVariable String token
+            @PathVariable String shareToken
     ) {
-        PairRecommendationShareResultResponse response = pairRecommendationShareQueryService.getSharedResult(token);
+        PairRecommendationShareResultResponse response = pairRecommendationShareQueryService.getSharedResult(shareToken);
         return BaseResponse.onSuccess(response);
     }
 }
