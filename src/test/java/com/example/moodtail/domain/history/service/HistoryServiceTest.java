@@ -93,18 +93,60 @@ class HistoryServiceTest {
                 USER_ID,
                 LocalDate.of(2026, 7, 1),
                 LocalDate.of(2026, 7, 11)
-        )).thenReturn(List.of(LocalDate.of(2026, 7, 5)));
+        )).thenReturn(List.of(
+                LocalDate.of(2026, 7, 5),
+                LocalDate.of(2026, 7, 5)
+        ));
+        when(historyRepository.countByUserIdAndRecordDateBetween(
+                USER_ID,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 11)
+        )).thenReturn(2L);
 
         var response = historyService.getCalendar(USER_ID, 2026, 7);
 
         assertThat(response.testResultCount()).isEqualTo(1);
-        assertThat(response.drinkingRecordCount()).isEqualTo(1);
+        assertThat(response.drinkingRecordCount()).isEqualTo(2);
         assertThat(response.reportRequiredTestCount()).isEqualTo(5);
         assertThat(response.reportAvailable()).isFalse();
         assertThat(response.days()).singleElement().satisfies(day -> {
             assertThat(day.hasTestResult()).isTrue();
             assertThat(day.hasDrinkingRecord()).isTrue();
         });
+    }
+
+    @Test
+    void returnsAllDrinkingRecordsForDateInRepositoryOrder() {
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        Cocktail mojito = cocktail(7L, "모히토");
+        Cocktail negroni = cocktail(8L, "네그로니");
+        DrinkingRecord first = DrinkingRecord.create(
+                User.createMember("회원", LocalDateTime.now(CLOCK)),
+                mojito,
+                recordDate,
+                LocalDateTime.of(2026, 7, 10, 18, 0)
+        );
+        DrinkingRecord second = DrinkingRecord.create(
+                User.createMember("회원", LocalDateTime.now(CLOCK)),
+                negroni,
+                recordDate,
+                LocalDateTime.of(2026, 7, 10, 19, 0)
+        );
+        ReflectionTestUtils.setField(first, "id", 31L);
+        ReflectionTestUtils.setField(second, "id", 32L);
+        when(historyRepository.findAllWithDetailsByUserIdAndRecordDate(USER_ID, recordDate))
+                .thenReturn(List.of(first, second));
+        when(historyPhotoRepository.findAllByUserIdAndRecordDate(USER_ID, recordDate))
+                .thenReturn(List.of());
+
+        var response = historyService.getByDate(USER_ID, "2026-07-10");
+
+        assertThat(response.drinkingRecords())
+                .extracting(item -> item.recordId(), item -> item.cocktailName())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(31L, "모히토"),
+                        org.assertj.core.groups.Tuple.tuple(32L, "네그로니")
+                );
     }
 
     @Test
@@ -117,9 +159,12 @@ class HistoryServiceTest {
     }
 
     @Test
-    void createsDrinkingRecord() {
+    void createsDifferentCocktailOnDateWithNoMatchingCocktailRecord() {
         User user = User.createMember("회원", LocalDateTime.now(CLOCK));
         Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        when(historyRepository.existsByUserIdAndRecordDateAndCocktailId(USER_ID, recordDate, 7L))
+                .thenReturn(false);
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(cocktailRepository.findById(7L)).thenReturn(Optional.of(cocktail));
         when(historyRepository.saveAndFlush(any(DrinkingRecord.class))).thenAnswer(invocation -> {
@@ -129,16 +174,17 @@ class HistoryServiceTest {
         });
         var response = historyService.create(
                 USER_ID,
-                new HistoryCreateRequest(7L, LocalDate.of(2026, 7, 10))
+                new HistoryCreateRequest(7L, recordDate)
         );
 
         assertThat(response.recordId()).isEqualTo(31L);
     }
 
     @Test
-    void rejectsSecondDrinkingRecordForTheSameUserAndDateBeforeLoadingEntities() {
+    void rejectsSameCocktailForTheSameUserAndDateBeforeLoadingEntities() {
         LocalDate recordDate = LocalDate.of(2026, 7, 10);
-        when(historyRepository.existsByUserIdAndRecordDate(USER_ID, recordDate)).thenReturn(true);
+        when(historyRepository.existsByUserIdAndRecordDateAndCocktailId(USER_ID, recordDate, 7L))
+                .thenReturn(true);
 
         assertThatThrownBy(() -> historyService.create(
                 USER_ID,
@@ -153,14 +199,14 @@ class HistoryServiceTest {
     }
 
     @Test
-    void translatesOnlyTheUserDateUniqueConstraintRaceToDuplicateRecord() {
+    void translatesOnlyTheUserDateCocktailUniqueConstraintRaceToDuplicateRecord() {
         User user = User.createMember("회원", LocalDateTime.now(CLOCK));
         Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
         when(cocktailRepository.findById(7L)).thenReturn(Optional.of(cocktail));
         when(historyRepository.saveAndFlush(any(DrinkingRecord.class)))
                 .thenThrow(new DataIntegrityViolationException(
-                        "Duplicate entry for key 'uk_drinking_record_user_date'"
+                        "Duplicate entry for key 'uk_drinking_record_user_date_cocktail'"
                 ));
 
         assertThatThrownBy(() -> historyService.create(
@@ -193,6 +239,7 @@ class HistoryServiceTest {
     void updatesOnlyProvidedCocktailAndDate() {
         Cocktail original = org.mockito.Mockito.mock(Cocktail.class);
         Cocktail replacement = org.mockito.Mockito.mock(Cocktail.class);
+        when(replacement.getId()).thenReturn(8L);
         DrinkingRecord record = DrinkingRecord.create(
                 User.createMember("회원", LocalDateTime.now(CLOCK)),
                 original,
@@ -211,6 +258,12 @@ class HistoryServiceTest {
 
         assertThat(record.getCocktail()).isSameAs(replacement);
         assertThat(record.getRecordDate()).isEqualTo(LocalDate.of(2026, 7, 10));
+        verify(historyRepository).existsByUserIdAndRecordDateAndCocktailIdAndIdNot(
+                USER_ID,
+                LocalDate.of(2026, 7, 10),
+                8L,
+                31L
+        );
     }
 
     @Test
@@ -226,17 +279,24 @@ class HistoryServiceTest {
     }
 
     @Test
-    void rejectsMovingARecordToADateThatAlreadyHasARecord() {
+    void rejectsMovingARecordToDateWithTheSameCocktail() {
+        Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+        when(cocktail.getId()).thenReturn(7L);
         DrinkingRecord record = DrinkingRecord.create(
                 User.createMember("회원", LocalDateTime.now(CLOCK)),
-                org.mockito.Mockito.mock(Cocktail.class),
+                cocktail,
                 LocalDate.of(2026, 7, 9),
                 LocalDateTime.now(CLOCK)
         );
         ReflectionTestUtils.setField(record, "id", 31L);
         LocalDate occupiedDate = LocalDate.of(2026, 7, 10);
         when(historyRepository.findOwnedForUpdate(31L, USER_ID)).thenReturn(Optional.of(record));
-        when(historyRepository.existsByUserIdAndRecordDateAndIdNot(USER_ID, occupiedDate, 31L))
+        when(historyRepository.existsByUserIdAndRecordDateAndCocktailIdAndIdNot(
+                USER_ID,
+                occupiedDate,
+                7L,
+                31L
+        ))
                 .thenReturn(true);
 
         assertThatThrownBy(() -> historyService.update(
@@ -248,6 +308,40 @@ class HistoryServiceTest {
         );
 
         assertThat(record.getRecordDate()).isEqualTo(LocalDate.of(2026, 7, 9));
+    }
+
+    @Test
+    void rejectsChangingToCocktailAlreadyRecordedOnTheSameDate() {
+        Cocktail original = org.mockito.Mockito.mock(Cocktail.class);
+        Cocktail duplicate = org.mockito.Mockito.mock(Cocktail.class);
+        when(duplicate.getId()).thenReturn(8L);
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        DrinkingRecord record = DrinkingRecord.create(
+                User.createMember("회원", LocalDateTime.now(CLOCK)),
+                original,
+                recordDate,
+                LocalDateTime.now(CLOCK)
+        );
+        ReflectionTestUtils.setField(record, "id", 31L);
+        when(historyRepository.findOwnedForUpdate(31L, USER_ID)).thenReturn(Optional.of(record));
+        when(cocktailRepository.findById(8L)).thenReturn(Optional.of(duplicate));
+        when(historyRepository.existsByUserIdAndRecordDateAndCocktailIdAndIdNot(
+                USER_ID,
+                recordDate,
+                8L,
+                31L
+        )).thenReturn(true);
+
+        assertThatThrownBy(() -> historyService.update(
+                USER_ID,
+                31L,
+                new HistoryUpdateRequest(8L, null)
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_409")
+        );
+
+        assertThat(record.getCocktail()).isSameAs(original);
+        assertThat(record.getRecordDate()).isEqualTo(recordDate);
     }
 
     @Test
@@ -283,5 +377,12 @@ class HistoryServiceTest {
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400"));
 
         verify(historyRepository, never()).findWithDetailsByIdAndUserId(any(), any());
+    }
+
+    private Cocktail cocktail(Long id, String name) {
+        Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+        when(cocktail.getId()).thenReturn(id);
+        when(cocktail.getNameKo()).thenReturn(name);
+        return cocktail;
     }
 }

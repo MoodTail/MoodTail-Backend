@@ -1,9 +1,11 @@
 package com.example.moodtail.domain.cocktail.controller;
 
 import com.example.moodtail.domain.cocktail.controller.docs.CocktailControllerDocs;
+import com.example.moodtail.domain.cocktail.controller.docs.CocktailTrendControllerDocs;
 import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
 import com.example.moodtail.domain.cocktail.dto.response.*;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
+import com.example.moodtail.domain.cocktail.service.CocktailTrendService;
 import com.example.moodtail.domain.cocktail.service.DailyCocktailService;
 import com.example.moodtail.domain.recommendation.service.CustomCocktailRecommendationService;
 import com.example.moodtail.global.common.base.BaseResponse;
@@ -19,10 +21,12 @@ import java.math.BigDecimal;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("api/v1/cocktails")
-public class CocktailController implements CocktailControllerDocs {
+public class CocktailController implements CocktailControllerDocs, CocktailTrendControllerDocs {
+
 
     private final CocktailService cocktailService; // 칵테일 서비스로 변경
     private final DailyCocktailService dailyCocktailService;
+    private final CocktailTrendService cocktailTrendService;
 
     private final CustomCocktailRecommendationService customCocktailRecommendationService;
 
@@ -106,6 +110,12 @@ public class CocktailController implements CocktailControllerDocs {
         return BaseResponse.onSuccess(
                 dailyCocktailService.getOrCreateTodayCocktail()
         );
+    }
+
+    @Override
+    @GetMapping("/trend")
+    public BaseResponse<CocktailTrendResponse> getCocktailTrend() {
+        return BaseResponse.onSuccess(cocktailTrendService.getTrend());
     }
 
 }

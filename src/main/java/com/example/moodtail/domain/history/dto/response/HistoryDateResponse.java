@@ -8,10 +8,11 @@ import java.util.List;
 public record HistoryDateResponse(
         LocalDate date,
         TestResult testResult,
-        DrinkingRecordItem drinkingRecord,
+        List<DrinkingRecordItem> drinkingRecords,
         List<Photo> photos
 ) {
     public HistoryDateResponse {
+        drinkingRecords = List.copyOf(drinkingRecords);
         photos = List.copyOf(photos);
     }
 
