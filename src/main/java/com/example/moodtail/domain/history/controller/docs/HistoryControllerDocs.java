@@ -25,7 +25,8 @@ public interface HistoryControllerDocs {
     @Operation(
             operationId = "getHistoryCalendar",
             summary = "월간 히스토리 조회",
-            description = "월 단위 테스트 결과와 음주 기록 존재 여부, 월간 리포트 열람 가능 여부를 조회합니다."
+            description = "월 단위 테스트 결과, 음주 기록 존재 여부, 날짜별 사진 개수와 월간 리포트 열람 가능 "
+                    + "여부를 조회합니다. 테스트 결과와 음주 기록 없이 사진만 있는 날짜도 days에 포함됩니다."
     )
     BaseResponse<HistoryCalendarResponse> getHistoryCalendar(
             @Parameter(hidden = true) PrincipalDetails principal,

@@ -29,6 +29,7 @@ public record HistoryCalendarResponse(
             LocalDate date,
             boolean hasTestResult,
             boolean hasDrinkingRecord,
+            long photoCount,
             MoodType moodType
     ) {
     }
