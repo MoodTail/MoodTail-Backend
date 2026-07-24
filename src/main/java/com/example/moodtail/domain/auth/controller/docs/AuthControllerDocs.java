@@ -20,6 +20,7 @@ import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -70,6 +71,16 @@ public interface AuthControllerDocs {
     String VOID_SUCCESS_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다."}
             """;
+    String REFRESH_COOKIE_ISSUED_DESCRIPTION = "Refresh Token 발급 또는 회전 쿠키입니다. 기본 이름은 "
+            + "refreshToken이고 Path=/api/v1/auth, HttpOnly가 적용됩니다. Max-Age는 Refresh Token "
+            + "유효기간을 따르며, Domain은 설정된 경우에만 포함되고 Secure와 SameSite는 배포 환경 "
+            + "설정을 따릅니다. 다른 출처의 프론트엔드는 credentials를 포함해 요청해야 합니다.";
+    String REFRESH_COOKIE_CLEARED_DESCRIPTION = "Refresh Token 삭제 쿠키입니다. 발급할 때와 동일한 이름, "
+            + "Path, Domain, Secure, SameSite 속성에 Max-Age=0을 적용합니다.";
+    String REFRESH_COOKIE_ISSUED_EXAMPLE = "refreshToken=<refresh-token>; Path=/api/v1/auth; "
+            + "Max-Age=1209600; HttpOnly; Secure; SameSite=Lax";
+    String REFRESH_COOKIE_CLEARED_EXAMPLE = "refreshToken=; Path=/api/v1/auth; "
+            + "Max-Age=0; HttpOnly; Secure; SameSite=Lax";
 
     String COMMON400_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON400","message":"잘못된 요청입니다."}
@@ -196,6 +207,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 게스트 로그인 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = GUEST_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = "COMMON402/COMMON406 - UUID 누락·형식 오류 또는 잘못된 JSON",
                     content = @Content(examples = {
@@ -277,6 +290,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 카카오 회원가입 또는 로그인 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = KAKAO_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
                     description = "COMMON402/COMMON406/AUTH024/AUTH026 - 요청 형식·필수 약관 동의 오류",
@@ -330,6 +345,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 구글 회원가입 또는 로그인 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = GOOGLE_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
                     description = "COMMON402/COMMON406/AUTH024/AUTH026 - 요청 형식·필수 약관 동의 오류",
@@ -381,6 +398,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 회원가입 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = LOCAL_SIGNUP_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
                     description = "COMMON402/COMMON406/AUTH024/AUTH026/AUTH035/AUTH036 - 요청·약관·비밀번호 오류",
@@ -464,6 +483,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 로그인 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = LOCAL_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = "COMMON402/COMMON406 - 이메일·비밀번호 또는 JSON 형식 오류",
                     content = @Content(examples = {
@@ -616,6 +637,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 토큰 재발급 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = TOKEN_REISSUE_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "AUTH001/AUTH005/AUTH007/AUTH010 - Refresh Token 또는 사용자 오류",
@@ -651,6 +674,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 회원 탈퇴 성공",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_CLEARED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_CLEARED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
@@ -687,6 +712,8 @@ public interface AuthControllerDocs {
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로그아웃 성공 또는 이미 로그아웃된 상태",
                     useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_CLEARED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_CLEARED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "403", description = "AUTH033 - 허용되지 않은 요청 출처",
                     content = @Content(examples = @ExampleObject(name = "AUTH033", value = AUTH033_EXAMPLE))),
