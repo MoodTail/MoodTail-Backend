@@ -102,7 +102,7 @@ public class User extends BaseEntity {
     }
 
     public void retireGuest() {
-        if (role != UserRole.GUEST || guestUuid == null || isDeleted()) {
+        if (role != UserRole.GUEST || guestUuid == null || !isAvailableForAuthentication()) {
             throw new IllegalStateException("활성 게스트 사용자만 종료할 수 있습니다.");
         }
         guestUuid = UUID.randomUUID().toString();
