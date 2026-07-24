@@ -68,8 +68,17 @@ public class GuestDataTransferService {
                 targetUser.getId()
         );
         if (!conflictingResultIds.isEmpty()) {
+            List<Long> transferUserIds = List.of(guestUserId, targetUser.getId());
+            recommendationSessionRepository.clearPartnerMoodTestResultForOtherOwners(
+                    transferUserIds,
+                    conflictingResultIds
+            );
             List<Long> conflictingSessionIds =
-                    recommendationSessionRepository.findAllIdsRelatedToMoodTestResultIdIn(conflictingResultIds);
+                    recommendationSessionRepository
+                            .findAllIdsOwnedByUserIdInAndRelatedToMoodTestResultIdIn(
+                                    transferUserIds,
+                                    conflictingResultIds
+                            );
             if (!conflictingSessionIds.isEmpty()) {
                 recommendationItemRepository.deleteAllByRecommendationSessionIdIn(conflictingSessionIds);
                 recommendationSessionRepository.deleteAllByIdIn(conflictingSessionIds);

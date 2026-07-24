@@ -29,6 +29,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -113,7 +114,11 @@ class GuestDataTransferServiceTest {
         when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(targetUser));
         when(moodTestResultRepository.findIdsConflictingWithUser(2L, 9L))
                 .thenReturn(List.of(101L));
-        when(recommendationSessionRepository.findAllIdsRelatedToMoodTestResultIdIn(List.of(101L)))
+        when(recommendationSessionRepository
+                .findAllIdsOwnedByUserIdInAndRelatedToMoodTestResultIdIn(
+                        List.of(2L, 9L),
+                        List.of(101L)
+                ))
                 .thenReturn(List.of(201L));
         when(userUnlockedMoodTypeRepository.findMoodTypeIdsByUserId(9L))
                 .thenReturn(List.of(11L));
@@ -138,6 +143,11 @@ class GuestDataTransferServiceTest {
                 recommendationSessionRepository,
                 moodTestResultRepository
         );
+        resultOrder.verify(recommendationSessionRepository)
+                .clearPartnerMoodTestResultForOtherOwners(
+                        List.of(2L, 9L),
+                        List.of(101L)
+                );
         resultOrder.verify(recommendationItemRepository)
                 .deleteAllByRecommendationSessionIdIn(List.of(201L));
         resultOrder.verify(recommendationSessionRepository).deleteAllByIdIn(List.of(201L));
@@ -151,6 +161,38 @@ class GuestDataTransferServiceTest {
                 "https://bucket.s3.ap-northeast-2.amazonaws.com/public/share/collections/image.png"
         ));
         assertThat(guestUser.isDeleted()).isTrue();
+    }
+
+    @Test
+    void preservesThirdPartySessionsWhileRemovingTheirGuestPartnerReference() {
+        User targetUser = member(9L);
+        User guestUser = guest(2L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guestUser));
+        when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(targetUser));
+        when(moodTestResultRepository.findIdsConflictingWithUser(2L, 9L))
+                .thenReturn(List.of(101L));
+        when(recommendationSessionRepository
+                .findAllIdsOwnedByUserIdInAndRelatedToMoodTestResultIdIn(
+                        List.of(2L, 9L),
+                        List.of(101L)
+                ))
+                .thenReturn(List.of());
+        when(userUnlockedMoodTypeRepository.findMoodTypeIdsByUserId(9L)).thenReturn(List.of());
+        when(collectionShareRepository.findByUserId(9L)).thenReturn(Optional.empty());
+
+        service.transferToExistingUser(2L, 9L);
+
+        InOrder order = inOrder(recommendationSessionRepository, moodTestResultRepository);
+        order.verify(recommendationSessionRepository)
+                .clearPartnerMoodTestResultForOtherOwners(
+                        List.of(2L, 9L),
+                        List.of(101L)
+                );
+        order.verify(moodTestResultRepository).deleteAllByIdInBatch(List.of(101L));
+        verify(recommendationItemRepository, never())
+                .deleteAllByRecommendationSessionIdIn(any());
+        verify(recommendationSessionRepository, never())
+                .deleteAllByIdIn(any());
     }
 
     @Test

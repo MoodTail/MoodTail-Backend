@@ -32,10 +32,26 @@ public interface RecommendationSessionRepository extends JpaRepository<Recommend
     @Query("""
             select distinct session.id
               from RecommendationSession session
-             where session.moodTestResult.id in :moodTestResultIds
-                or session.partnerMoodTestResult.id in :moodTestResultIds
+             where session.user.id in :ownerUserIds
+               and (
+                    session.moodTestResult.id in :moodTestResultIds
+                    or session.partnerMoodTestResult.id in :moodTestResultIds
+               )
             """)
-    List<Long> findAllIdsRelatedToMoodTestResultIdIn(
+    List<Long> findAllIdsOwnedByUserIdInAndRelatedToMoodTestResultIdIn(
+            @Param("ownerUserIds") Collection<Long> ownerUserIds,
+            @Param("moodTestResultIds") Collection<Long> moodTestResultIds
+    );
+
+    @Modifying(flushAutomatically = true)
+    @Query("""
+            update RecommendationSession session
+               set session.partnerMoodTestResult = null
+             where session.user.id not in :ownerUserIds
+               and session.partnerMoodTestResult.id in :moodTestResultIds
+            """)
+    int clearPartnerMoodTestResultForOtherOwners(
+            @Param("ownerUserIds") Collection<Long> ownerUserIds,
             @Param("moodTestResultIds") Collection<Long> moodTestResultIds
     );
 
