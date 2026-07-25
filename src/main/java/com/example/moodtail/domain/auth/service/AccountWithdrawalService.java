@@ -18,6 +18,7 @@ import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
+import com.example.moodtail.domain.recommendation.repository.SharedPairRecommendationRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
@@ -44,6 +45,7 @@ public class AccountWithdrawalService {
     private final UserRepository userRepository;
     private final RecommendationSessionRepository recommendationSessionRepository;
     private final RecommendationItemRepository recommendationItemRepository;
+    private final SharedPairRecommendationRepository sharedPairRecommendationRepository;
     private final WithdrawalHistoryRepository withdrawalHistoryRepository;
     private final ImageRepository imageRepository;
     private final CocktailRepository cocktailRepository;
@@ -109,6 +111,7 @@ public class AccountWithdrawalService {
                         .orElse(null);
 
         deleteRecommendations(userId);
+        sharedPairRecommendationRepository.deleteAllByCreatorId(userId);
         withdrawalHistoryRepository.deletePhotosByUserId(userId);
         withdrawalHistoryRepository.deleteRecordsByUserId(userId);
         List<String> storageCleanupCandidates = new ArrayList<>(deleteUnreferencedHistoryImages(historyImages));
