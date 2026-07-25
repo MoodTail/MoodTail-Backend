@@ -265,7 +265,7 @@ class AuthFlowIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'GUEST' and deleted_at is null",
                 Integer.class
-        )).isEqualTo(1);
+        )).isZero();
     }
 
     @Test
@@ -313,7 +313,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void localSignupUpgradesItsGuestWhileExistingLoginKeepsTheSecondGuestSeparate() throws Exception {
+    void localSignupUpgradesItsGuestAndExistingLoginRetiresTheSecondGuest() throws Exception {
         String signupGuestToken = guestLogin(UUID.randomUUID());
         JsonNode signup = postJson(
                 "/api/v1/auth/signup/local",
@@ -350,7 +350,7 @@ class AuthFlowIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'GUEST' and deleted_at is null",
                 Integer.class
-        )).isEqualTo(1);
+        )).isZero();
     }
 
     @Test
