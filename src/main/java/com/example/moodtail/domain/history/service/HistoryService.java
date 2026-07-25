@@ -94,7 +94,7 @@ public class HistoryService {
         );
 
         Map<LocalDate, MoodTestResult> testResultByDate = new HashMap<>();
-        testResults.forEach(result -> testResultByDate.put(result.getResultDate(), result));
+        testResults.forEach(result -> testResultByDate.putIfAbsent(result.getResultDate(), result));
 
         Set<LocalDate> activeDates = new TreeSet<>();
         activeDates.addAll(testResultByDate.keySet());
