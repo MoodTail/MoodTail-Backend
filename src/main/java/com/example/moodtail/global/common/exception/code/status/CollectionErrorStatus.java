@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 @AllArgsConstructor
 public enum CollectionErrorStatus implements BaseCodeInterface {
 
-    COLLECTION_SHARE_NOT_FOUND(HttpStatus.NOT_FOUND,"COLLECTION_SHARE404","공유된 도감을 찾을 수 없습니다.");
+    COLLECTION_REPRESENTATIVE_MOOD_TYPE_NOT_UNLOCKED(HttpStatus.BAD_REQUEST, "COLLECTION_MOOD_TYPE400", "해금한 무드 타입만 대표 타입으로 지정할 수 있습니다."),
+    COLLECTION_SHARE_NOT_FOUND(HttpStatus.NOT_FOUND, "COLLECTION_SHARE404", "공유된 도감을 찾을 수 없습니다.");
 
     private final HttpStatus httpStatus;
     private final boolean isSuccess = false;

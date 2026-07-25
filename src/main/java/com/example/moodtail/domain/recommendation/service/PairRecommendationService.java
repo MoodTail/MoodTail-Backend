@@ -8,7 +8,6 @@ import com.example.moodtail.domain.recommendation.calculator.TasteContributionCa
 import com.example.moodtail.domain.recommendation.calculator.TasteSimilarityCalculator;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationResponse;
 import com.example.moodtail.domain.recommendation.dto.response.RecommendedCocktailResponse;
-import com.example.moodtail.domain.recommendation.model.RecommendationItemCommand;
 import com.example.moodtail.domain.recommendation.model.TasteMetricContribution;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
@@ -26,7 +25,7 @@ import java.util.List;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(readOnly = true)
 public class PairRecommendationService {
 
     private static final int RECOMMENDATION_LIMIT = 3;
@@ -35,14 +34,12 @@ public class PairRecommendationService {
     private final CocktailRepository cocktailRepository;
     private final TasteSimilarityCalculator tasteSimilarityCalculator;
     private final TasteContributionCalculator tasteContributionCalculator;
-    private final PairRecommendationPersistenceService pairRecommendationPersistenceService;
     private final InviteCodeService inviteCodeService;
 
     public PairRecommendationResponse recommendPair(Long userId, String partnerInviteCode) {
-        MoodTestResult myResult = findLatestResult(userId);
-
-        User partner = inviteCodeService.findUserByInviteCode(partnerInviteCode);
-        MoodTestResult partnerResult = findLatestResult(partner.getId());
+        PairParticipants participants = validatePairRecommendationAvailable(userId, partnerInviteCode);
+        MoodTestResult myResult = participants.myResult();
+        MoodTestResult partnerResult = participants.partnerResult();
 
         TasteProfile myProfile = myResult.toTasteProfile();
         TasteProfile partnerProfile = partnerResult.toTasteProfile();
@@ -57,13 +54,6 @@ public class PairRecommendationService {
                 recommendationResult.topCocktailProfile()
         );
 
-        pairRecommendationPersistenceService.saveCompromise(
-                myResult.getUser(),
-                myResult,
-                partnerResult,
-                toCommands(recommendations)
-        );
-
         return PairRecommendationResponse.of(
                 myResult.getUser().getNickname(),
                 partnerResult.getUser().getNickname(),
@@ -73,6 +63,14 @@ public class PairRecommendationService {
                 recommendations,
                 tasteContributions
         );
+    }
+
+    @Transactional(readOnly = true)
+    public PairParticipants validatePairRecommendationAvailable(Long userId, String partnerInviteCode) {
+        MoodTestResult myResult = findLatestResult(userId);
+        User partner = inviteCodeService.findUserByInviteCode(partnerInviteCode);
+        MoodTestResult partnerResult = findLatestResult(partner.getId());
+        return new PairParticipants(myResult, partner, partnerResult);
     }
 
     private MoodTestResult findLatestResult(Long userId) {
@@ -118,15 +116,12 @@ public class PairRecommendationService {
         return new RecommendationResult(responses, topCocktailProfile);
     }
 
-    private List<RecommendationItemCommand> toCommands(List<RecommendedCocktailResponse> recommendations) {
-        return recommendations.stream()
-                .map(r -> new RecommendationItemCommand(r.cocktailId(), r.matchScore()))
-                .toList();
-    }
-
     private record ScoredCocktail(Cocktail cocktail, double distance) {
     }
 
     private record RecommendationResult(List<RecommendedCocktailResponse> responses, TasteProfile topCocktailProfile) {
+    }
+
+    public record PairParticipants(MoodTestResult myResult, User partner, MoodTestResult partnerResult) {
     }
 }
