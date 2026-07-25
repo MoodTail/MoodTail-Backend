@@ -146,6 +146,43 @@ class HistoryServiceTest {
     }
 
     @Test
+    void keepsLatestTestResultAsCalendarRepresentativeForSameDate() {
+        LocalDate resultDate = LocalDate.of(2026, 7, 10);
+        MoodType latestMoodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodType olderMoodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodTestResult latestResult = org.mockito.Mockito.mock(MoodTestResult.class);
+        MoodTestResult olderResult = org.mockito.Mockito.mock(MoodTestResult.class);
+        when(latestMoodType.getId()).thenReturn(3L);
+        when(latestMoodType.getCode()).thenReturn("LATEST");
+        when(latestMoodType.getName()).thenReturn("최신 무드");
+        when(olderMoodType.getId()).thenReturn(2L);
+        when(olderMoodType.getCode()).thenReturn("OLDER");
+        when(olderMoodType.getName()).thenReturn("이전 무드");
+        when(latestResult.getId()).thenReturn(23L);
+        when(latestResult.getResultDate()).thenReturn(resultDate);
+        when(latestResult.getMoodType()).thenReturn(latestMoodType);
+        when(olderResult.getId()).thenReturn(18L);
+        when(olderResult.getResultDate()).thenReturn(resultDate);
+        when(olderResult.getMoodType()).thenReturn(olderMoodType);
+        when(moodTestResultRepository.findAllWithMoodType(
+                USER_ID,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 11)
+        )).thenReturn(List.of(latestResult, olderResult));
+
+        var response = historyService.getCalendar(USER_ID, 2026, 7);
+
+        assertThat(response.days()).singleElement().satisfies(day -> {
+            assertThat(day.date()).isEqualTo(resultDate);
+            assertThat(day.moodType().moodTypeId()).isEqualTo(3L);
+            assertThat(day.moodType().typeCode()).isEqualTo("LATEST");
+        });
+        assertThat(response.testResults())
+                .extracting(result -> result.resultId())
+                .containsExactly(23L, 18L);
+    }
+
+    @Test
     void returnsAllDrinkingRecordsForDateInRepositoryOrder() {
         LocalDate recordDate = LocalDate.of(2026, 7, 10);
         Cocktail mojito = cocktail(7L, "모히토");
