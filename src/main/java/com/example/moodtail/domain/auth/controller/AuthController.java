@@ -140,7 +140,7 @@ public class AuthController implements AuthControllerDocs {
         return authenticated(
                 authService.localLogin(
                         request,
-                        optionalGuestUserId(principal, httpRequest),
+                        optionalGuestUserIdForLogin(principal),
                         authHttpSupport.clientAddress(httpRequest)
                 ),
                 response
@@ -254,6 +254,13 @@ public class AuthController implements AuthControllerDocs {
             return null;
         }
         return guestUserId(principal);
+    }
+
+    private Long optionalGuestUserIdForLogin(PrincipalDetails principal) {
+        if (principal == null || !UserRole.GUEST.name().equals(principal.getRole())) {
+            return null;
+        }
+        return principal.getUserId();
     }
 
     private Long guestUserId(PrincipalDetails principal) {

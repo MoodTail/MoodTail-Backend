@@ -90,6 +90,26 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
+    void ignoresOldGuestTokenForLocalLogin() throws Exception {
+        User upgradedUser = guestWithId(7L);
+        upgradedUser.upgradeToUser("회원", LocalDateTime.now());
+        Claims claims = accessClaims("7", UserRole.GUEST);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
+        MockHttpServletRequest request =
+                new MockHttpServletRequest("POST", "/api/v1/auth/login/local");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer old-guest-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        when(jwtProvider.validateAccessTokenAndGetClaims("old-guest-token"))
+                .thenReturn(Optional.of(claims));
+        when(userRepository.findAuthUserById(7L)).thenReturn(Optional.of(upgradedUser));
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        verify(filterChain).doFilter(request, response);
+    }
+
+    @Test
     void reportsAuthenticationInfrastructureFailureWhenUserLookupFails() {
         Claims claims = accessClaims("7", UserRole.GUEST);
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);

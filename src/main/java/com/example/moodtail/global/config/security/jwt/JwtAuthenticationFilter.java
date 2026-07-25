@@ -26,6 +26,8 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+	private static final String LOCAL_LOGIN_PATH = "/api/v1/auth/login/local";
+
 	private final JwtProvider jwtTokenProvider;
 	private final UserRepository userRepository;
 	@Override
@@ -43,10 +45,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				: jwtTokenProvider.validateAccessTokenAndGetClaims(token).orElse(null);
 
 		if (claims != null) {
-			Authentication authentication = getAuthentication(claims);
-			SecurityContextHolder.getContext().setAuthentication(authentication);
+			try {
+				Authentication authentication = getAuthentication(claims);
+				SecurityContextHolder.getContext().setAuthentication(authentication);
+			} catch (RestApiException exception) {
+				if (!isIgnorableOptionalGuestFailure(uri, exception)) {
+					throw exception;
+				}
+				SecurityContextHolder.clearContext();
+			}
 		}
 		chain.doFilter(request, response);
+	}
+
+	private boolean isIgnorableOptionalGuestFailure(String uri, RestApiException exception) {
+		if (!LOCAL_LOGIN_PATH.equals(uri)) {
+			return false;
+		}
+		String code = exception.getErrorCode().getCode();
+		return AuthErrorStatus.INVALID_ACCESS_TOKEN.getCode().getCode().equals(code)
+				|| AuthErrorStatus.INVALID_ROLE.getCode().getCode().equals(code)
+				|| AuthErrorStatus.USER_NOT_FOUND.getCode().getCode().equals(code)
+				|| AuthErrorStatus.INACTIVE_USER.getCode().getCode().equals(code);
 	}
 
 	private boolean isActuatorRequest(String uri) {

@@ -91,8 +91,9 @@ class GuestDataTransferServiceTest {
         when(userUnlockedMoodTypeRepository.findMoodTypeIdsByUserId(3L)).thenReturn(List.of());
         when(collectionShareRepository.findByUserId(3L)).thenReturn(Optional.empty());
 
-        service.transferToExistingUser(8L, 3L);
+        boolean transferred = service.transferToExistingUserIfActiveGuest(8L, 3L);
 
+        assertThat(transferred).isTrue();
         InOrder order = inOrder(userRepository);
         order.verify(userRepository).findByIdForUpdate(3L);
         order.verify(userRepository).findByIdForUpdate(8L);
@@ -129,7 +130,8 @@ class GuestDataTransferServiceTest {
 
         TransactionSynchronizationManager.initSynchronization();
         try {
-            service.transferToExistingUser(2L, 9L);
+            boolean transferred = service.transferToExistingUserIfActiveGuest(2L, 9L);
+            assertThat(transferred).isTrue();
             List<TransactionSynchronization> synchronizations =
                     TransactionSynchronizationManager.getSynchronizations();
             assertThat(synchronizations).hasSize(1);
@@ -180,8 +182,9 @@ class GuestDataTransferServiceTest {
         when(userUnlockedMoodTypeRepository.findMoodTypeIdsByUserId(9L)).thenReturn(List.of());
         when(collectionShareRepository.findByUserId(9L)).thenReturn(Optional.empty());
 
-        service.transferToExistingUser(2L, 9L);
+        boolean transferred = service.transferToExistingUserIfActiveGuest(2L, 9L);
 
+        assertThat(transferred).isTrue();
         InOrder order = inOrder(recommendationSessionRepository, moodTestResultRepository);
         order.verify(recommendationSessionRepository)
                 .clearPartnerMoodTestResultForOtherOwners(
@@ -196,18 +199,16 @@ class GuestDataTransferServiceTest {
     }
 
     @Test
-    void rejectsInactiveGuestBeforeChangingDomainData() {
+    void skipsInactiveGuestBeforeChangingDomainData() {
         User guestUser = guest(2L);
         guestUser.delete();
         User targetUser = member(9L);
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guestUser));
         when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(targetUser));
 
-        assertThatThrownBy(() -> service.transferToExistingUser(2L, 9L))
-                .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
-                );
+        boolean transferred = service.transferToExistingUserIfActiveGuest(2L, 9L);
 
+        assertThat(transferred).isFalse();
         verifyNoInteractions(
                 moodTestResultRepository,
                 recommendationSessionRepository,
@@ -223,8 +224,9 @@ class GuestDataTransferServiceTest {
         User targetUser = member(2L);
         when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(targetUser));
 
-        service.transferToExistingUser(2L, 2L);
+        boolean transferred = service.transferToExistingUserIfActiveGuest(2L, 2L);
 
+        assertThat(transferred).isFalse();
         verify(userRepository).findByIdForUpdate(2L);
         verifyNoInteractions(
                 moodTestResultRepository,
@@ -234,6 +236,37 @@ class GuestDataTransferServiceTest {
                 sharedMoodTestResultRepository,
                 collectionShareRepository
         );
+    }
+
+    @Test
+    void skipsMissingGuestWithoutChangingDomainData() {
+        User targetUser = member(9L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.empty());
+        when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.of(targetUser));
+
+        boolean transferred = service.transferToExistingUserIfActiveGuest(2L, 9L);
+
+        assertThat(transferred).isFalse();
+        verifyNoInteractions(
+                moodTestResultRepository,
+                recommendationSessionRepository,
+                recommendationItemRepository,
+                userUnlockedMoodTypeRepository,
+                sharedMoodTestResultRepository,
+                collectionShareRepository
+        );
+    }
+
+    @Test
+    void rejectsMissingTargetUser() {
+        User guestUser = guest(2L);
+        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guestUser));
+        when(userRepository.findByIdForUpdate(9L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.transferToExistingUserIfActiveGuest(2L, 9L))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH010")
+                );
     }
 
     private User guest(Long id) {

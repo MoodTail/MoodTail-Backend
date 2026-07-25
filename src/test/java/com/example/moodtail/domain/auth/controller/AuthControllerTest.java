@@ -318,7 +318,19 @@ class AuthControllerTest {
     }
 
     @Test
-    void localLoginRejectsAnInvalidOptionalGuestTokenInsteadOfDroppingGuestData() throws Exception {
+    void localLoginIgnoresInvalidOptionalGuestToken() throws Exception {
+        LocalAuthResponse loginResponse = new LocalAuthResponse(
+                2L,
+                "user@example.com",
+                "무드테일러",
+                false,
+                "Bearer",
+                "login-access-token"
+        );
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.localLogin(any(LocalLoginRequest.class), isNull(), eq("203.0.113.7")))
+                .thenReturn(new AuthResult<>(loginResponse, "login-refresh-token"));
+
         mockMvc.perform(post("/api/v1/auth/login/local")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer expired-or-invalid-token")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -328,10 +340,14 @@ class AuthControllerTest {
                                   "password": "password123!"
                                 }
                                 """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("AUTH006"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.accessToken").value("login-access-token"));
 
-        verify(authService, never()).localLogin(any(), any(), any());
+        verify(authService).localLogin(
+                any(LocalLoginRequest.class),
+                isNull(),
+                eq("203.0.113.7")
+        );
     }
 
     @Test

@@ -130,6 +130,7 @@ public interface AuthControllerDocs {
             summary = "로컬 계정 로그인",
             description = "이메일과 비밀번호로 로그인합니다. 게스트 Access Token이 있으면 게스트 데이터를 "
                     + "기존 회원에게 승계한 뒤 게스트 세션을 회원 세션으로 교체합니다. "
+                    + "게스트 토큰이 만료되었거나 이미 퇴역한 경우에는 승계만 건너뛰고 로그인을 계속합니다. "
                     + "세션 발급에 실패하면 AUTH041을 반환합니다."
     )
     @SecurityRequirements

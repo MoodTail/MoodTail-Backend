@@ -19,6 +19,7 @@ import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -34,22 +35,29 @@ public class GuestDataTransferService {
     private final ImageService imageService;
 
     @Transactional(propagation = Propagation.MANDATORY)
-    public void transferToExistingUser(Long guestUserId, Long targetUserId) {
-        if (guestUserId == null || targetUserId == null) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+    public boolean transferToExistingUserIfActiveGuest(Long guestUserId, Long targetUserId) {
+        if (targetUserId == null) {
+            throw new RestApiException(AuthErrorStatus.USER_NOT_FOUND);
+        }
+        if (guestUserId == null) {
+            return false;
         }
         if (guestUserId.equals(targetUserId)) {
-            validateTargetUser(lockUser(targetUserId));
-            return;
+            validateTargetUser(lockRequiredUser(targetUserId));
+            return false;
         }
 
-        User firstUser = lockUser(Math.min(guestUserId, targetUserId));
-        User secondUser = lockUser(Math.max(guestUserId, targetUserId));
-        User guestUser = firstUser.getId().equals(guestUserId) ? firstUser : secondUser;
-        User targetUser = firstUser.getId().equals(targetUserId) ? firstUser : secondUser;
+        long firstUserId = Math.min(guestUserId, targetUserId);
+        long secondUserId = Math.max(guestUserId, targetUserId);
+        User firstUser = lockUser(firstUserId).orElse(null);
+        User secondUser = lockUser(secondUserId).orElse(null);
+        User guestUser = firstUserId == guestUserId ? firstUser : secondUser;
+        User targetUser = firstUserId == targetUserId ? firstUser : secondUser;
 
-        validateGuestUser(guestUser);
         validateTargetUser(targetUser);
+        if (!isActiveGuest(guestUser)) {
+            return false;
+        }
 
         transferMoodTestData(guestUserId, targetUser);
         transferUnlockedMoodTypes(guestUserId, targetUser);
@@ -60,6 +68,7 @@ public class GuestDataTransferService {
             targetUser.updateRepresentativeMoodType(guestUser.getRepresentativeMoodType());
         }
         guestUser.retireGuest();
+        return true;
     }
 
     private void transferMoodTestData(Long guestUserId, User targetUser) {
@@ -128,18 +137,25 @@ public class GuestDataTransferService {
         });
     }
 
-    private User lockUser(Long userId) {
+    private Optional<User> lockUser(Long userId) {
+        return userRepository.findByIdForUpdate(userId);
+    }
+
+    private User lockRequiredUser(Long userId) {
         return userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
     }
 
-    private void validateGuestUser(User guestUser) {
-        if (!guestUser.isGuest() || !guestUser.isAvailableForAuthentication()) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-        }
+    private boolean isActiveGuest(User guestUser) {
+        return guestUser != null
+                && guestUser.isGuest()
+                && guestUser.isAvailableForAuthentication();
     }
 
     private void validateTargetUser(User targetUser) {
+        if (targetUser == null) {
+            throw new RestApiException(AuthErrorStatus.USER_NOT_FOUND);
+        }
         if (targetUser.isGuest() || !targetUser.isAvailableForAuthentication()) {
             throw new RestApiException(AuthErrorStatus.INACTIVE_USER);
         }

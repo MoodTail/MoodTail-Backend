@@ -39,6 +39,7 @@ import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -82,7 +83,11 @@ class SocialAccountServiceTest {
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        lenient().when(tokenSessionService.issueSessionReplacingGuest(anyLong(), any(), anyLong()))
+        lenient().when(tokenSessionService.issueSessionReplacingGuest(
+                        anyLong(),
+                        any(),
+                        nullable(Long.class)
+                ))
                 .thenReturn(new TokenInfo("access", "refresh"));
     }
 
@@ -171,6 +176,8 @@ class SocialAccountServiceTest {
         );
         when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.GOOGLE, "google-id"))
                 .thenReturn(Optional.of(account));
+        when(guestDataTransferService.transferToExistingUserIfActiveGuest(2L, 99L))
+                .thenReturn(true);
         when(tokenSessionService.issueSessionReplacingGuest(99L, UserRole.USER, 2L))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
@@ -183,10 +190,41 @@ class SocialAccountServiceTest {
         assertThat(result.userId()).isEqualTo(99L);
         assertThat(result.isNewUser()).isFalse();
         InOrder order = inOrder(guestDataTransferService, transactionManager, tokenSessionService);
-        order.verify(guestDataTransferService).transferToExistingUser(2L, 99L);
+        order.verify(guestDataTransferService)
+                .transferToExistingUserIfActiveGuest(2L, 99L);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
         verify(userTermAgreementRepository, never()).saveAll(any());
+    }
+
+    @Test
+    void existingAuthenticationContinuesWhenGuestSessionIsNoLongerActive() {
+        User existingUser = guestWithId(99L);
+        existingUser.upgradeToUser("기존유저", LocalDateTime.now());
+        SocialAccount account = SocialAccount.create(
+                existingUser,
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com"
+        );
+        SocialUserProfile profile = new SocialUserProfile(
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com",
+                "기존유저"
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.of(account));
+        when(guestDataTransferService.transferToExistingUserIfActiveGuest(2L, 99L))
+                .thenReturn(false);
+
+        SocialLoginUser result = service.authenticate(profile, 2L, List.of()).user();
+
+        assertThat(result.userId()).isEqualTo(99L);
+        verify(tokenSessionService)
+                .issueSessionReplacingGuest(99L, UserRole.USER, null);
     }
 
     @Test
@@ -235,11 +273,46 @@ class SocialAccountServiceTest {
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
                 );
-        verify(guestDataTransferService, never()).transferToExistingUser(any(), any());
+        verify(guestDataTransferService, never())
+                .transferToExistingUserIfActiveGuest(any(), any());
     }
 
     @Test
-    void authenticationRejectsMissingGuestBeforeQueryingAccounts() {
+    void existingAuthenticationAllowsMissingGuestSession() {
+        User existingUser = guestWithId(99L);
+        existingUser.upgradeToUser("기존유저", LocalDateTime.now());
+        SocialAccount account = SocialAccount.create(
+                existingUser,
+                SocialProvider.KAKAO,
+                "12345",
+                "user@example.com"
+        );
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.KAKAO,
+                "12345"
+        )).thenReturn(Optional.of(account));
+
+        SocialLoginUser result = service.authenticate(
+                kakaoProfile(),
+                null,
+                List.of()
+        ).user();
+
+        assertThat(result.userId()).isEqualTo(99L);
+        assertThat(result.isNewUser()).isFalse();
+        verify(guestDataTransferService)
+                .transferToExistingUserIfActiveGuest(null, 99L);
+        verify(tokenSessionService)
+                .issueSessionReplacingGuest(99L, UserRole.USER, null);
+    }
+
+    @Test
+    void newAuthenticationStillRequiresGuestSession() {
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.KAKAO,
+                "12345"
+        )).thenReturn(Optional.empty());
+
         assertThatThrownBy(() -> service.authenticate(
                 kakaoProfile(),
                 null,
@@ -248,7 +321,7 @@ class SocialAccountServiceTest {
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
         );
 
-        verify(socialAccountRepository, never()).findByProviderAndProviderUserId(any(), anyString());
+        verify(userRepository, never()).findByIdForUpdate(any());
     }
 
     @Test
