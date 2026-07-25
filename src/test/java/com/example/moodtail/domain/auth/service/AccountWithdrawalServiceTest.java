@@ -18,6 +18,7 @@ import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
+import com.example.moodtail.domain.recommendation.repository.SharedPairRecommendationRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
@@ -60,6 +61,8 @@ class AccountWithdrawalServiceTest {
     private RecommendationSessionRepository recommendationSessionRepository;
     @Mock
     private RecommendationItemRepository recommendationItemRepository;
+    @Mock
+    private SharedPairRecommendationRepository sharedPairRecommendationRepository;
     @Mock
     private WithdrawalHistoryRepository withdrawalHistoryRepository;
     @Mock
@@ -111,6 +114,7 @@ class AccountWithdrawalServiceTest {
         service.withdraw(7L);
 
         verify(recommendationSessionRepository).findAllIdsRelatedToUserId(7L);
+        verify(sharedPairRecommendationRepository).deleteAllByCreatorId(7L);
         verify(withdrawalHistoryRepository).deletePhotosByUserId(7L);
         verify(withdrawalHistoryRepository).deleteRecordsByUserId(7L);
         verify(cocktailFavoriteRepository).deleteAllByUserId(7L);
@@ -146,6 +150,20 @@ class AccountWithdrawalServiceTest {
         order.verify(recommendationItemRepository)
                 .deleteAllByRecommendationSessionIdIn(List.of(11L, 12L));
         order.verify(recommendationSessionRepository).deleteAllByIdIn(List.of(11L, 12L));
+    }
+
+    @Test
+    void deletesSharedPairRecommendationsBeforeTheirCreator() {
+        stubSuccessfulDatabaseDeletion(List.of(), List.of());
+        when(imageService.deleteImagesFromStorage(List.of()))
+                .thenReturn(new StorageCleanupResult(0, 0));
+
+        service.withdraw(7L);
+
+        InOrder order = inOrder(sharedPairRecommendationRepository, userRepository);
+        order.verify(sharedPairRecommendationRepository).deleteAllByCreatorId(7L);
+        order.verify(userRepository).delete(any(User.class));
+        order.verify(userRepository).flush();
     }
 
     @Test
