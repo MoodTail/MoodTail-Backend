@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/auth")
+@RequestMapping(AuthApiPaths.BASE)
 public class AuthController implements AuthControllerDocs {
 
     private static final String NO_STORE = "no-store";
@@ -129,7 +129,7 @@ public class AuthController implements AuthControllerDocs {
     }
 
     @Override
-    @PostMapping("/login/local")
+    @PostMapping(AuthApiPaths.LOCAL_LOGIN)
     public BaseResponse<LocalAuthResponse> localLogin(
             @Valid @RequestBody LocalLoginRequest request,
             @AuthenticationPrincipal PrincipalDetails principal,

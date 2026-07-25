@@ -1,5 +1,6 @@
 package com.example.moodtail.global.config.security.jwt;
 
+import com.example.moodtail.domain.auth.controller.AuthApiPaths;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
@@ -25,8 +26,6 @@ import java.util.Locale;
 
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-
-	private static final String LOCAL_LOGIN_PATH = "/api/v1/auth/login/local";
 
 	private final JwtProvider jwtTokenProvider;
 	private final UserRepository userRepository;
@@ -59,7 +58,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 	}
 
 	private boolean isIgnorableOptionalGuestFailure(String uri, RestApiException exception) {
-		if (!LOCAL_LOGIN_PATH.equals(uri)) {
+		if (!AuthApiPaths.LOCAL_LOGIN_FULL.equals(uri)) {
 			return false;
 		}
 		String code = exception.getErrorCode().getCode();
