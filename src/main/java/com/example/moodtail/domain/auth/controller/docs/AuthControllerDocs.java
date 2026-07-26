@@ -71,7 +71,7 @@ public interface AuthControllerDocs {
                 "email": "google-user@example.com",
                 "nickname": null,
                 "provider": "GOOGLE",
-                "signupToken": "social-signup-token",
+                "signupToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "signupTokenExpiresInSeconds": 600,
                 "grantType": null,
                 "accessToken": null
@@ -144,6 +144,9 @@ public interface AuthControllerDocs {
             """;
     String COMMON406_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON406","message":"요청 본문 형식이 올바르지 않습니다."}
+            """;
+    String USER400_EXAMPLE = """
+            {"timestamp":"2026-07-24T14:30:00","code":"USER400","message":"닉네임 입력값이 올바르지 않습니다."}
             """;
     String COMMON500_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON500","message":"서버 에러가 발생했습니다."}
@@ -448,10 +451,11 @@ public interface AuthControllerDocs {
                             value = SOCIAL_SIGNUP_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/AUTH024/AUTH026 - 요청·닉네임·약관 오류",
+                    description = "COMMON402/COMMON406/USER400/AUTH024/AUTH026 - 요청·닉네임·약관 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
+                            @ExampleObject(name = "USER400", value = USER400_EXAMPLE),
                             @ExampleObject(name = "AUTH024", value = AUTH024_EXAMPLE),
                             @ExampleObject(name = "AUTH026", value = AUTH026_EXAMPLE)
                     })),

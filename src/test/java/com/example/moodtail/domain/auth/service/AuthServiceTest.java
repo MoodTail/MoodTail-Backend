@@ -337,6 +337,24 @@ class AuthServiceTest {
     }
 
     @Test
+    void invalidSocialSignupNicknameDoesNotConsumeSignupTicket() {
+        SocialSignupRequest request = new SocialSignupRequest(
+                "signup-token",
+                "a",
+                List.of(new TermAgreementRequest(1L, true))
+        );
+
+        assertThatThrownBy(() -> authService.socialSignup(request))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("USER400")
+                );
+
+        verify(termAgreementService, never()).validateAgreements(any());
+        verify(socialSignupSessionService, never()).consume(any());
+        verify(socialAccountService, never()).register(any(), any(), any());
+    }
+
+    @Test
     void socialLoginRejectsProfileWithoutProviderUserId() {
         SocialUserProfile invalidProfile = new SocialUserProfile(
                 SocialProvider.KAKAO,
