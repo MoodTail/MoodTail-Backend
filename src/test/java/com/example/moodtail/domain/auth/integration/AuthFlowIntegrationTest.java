@@ -315,7 +315,8 @@ class AuthFlowIntegrationTest {
     @Test
     void localSignupAndLoginKeepGuestUsersSeparateAndEndOnlyTheirSessions() throws Exception {
         UUID signupGuestUuid = UUID.randomUUID();
-        String signupGuestToken = guestLogin(signupGuestUuid);
+        GuestSession signupGuestSession = guestLoginSession(signupGuestUuid);
+        String signupGuestToken = signupGuestSession.accessToken();
         Long signupGuestUserId = jdbcTemplate.queryForObject(
                 "select id from users where guest_uuid = ?",
                 Long.class,
@@ -335,10 +336,12 @@ class AuthFlowIntegrationTest {
         assertThat(signup.path("isNewUser").asBoolean()).isTrue();
         assertThat(signup.path("userId").asLong()).isNotEqualTo(signupGuestUserId);
         assertThat(getCurrentUser(signupGuestToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertRefreshSessionEnded(signupGuestSession.refreshCookie());
         String signupAccessToken = signup.path("accessToken").asText();
 
         UUID loginGuestUuid = UUID.randomUUID();
-        String loginGuestToken = guestLogin(loginGuestUuid);
+        GuestSession loginGuestSession = guestLoginSession(loginGuestUuid);
+        String loginGuestToken = loginGuestSession.accessToken();
         JsonNode login = postJson(
                 "/api/v1/auth/login/local",
                 Map.of(
@@ -351,6 +354,7 @@ class AuthFlowIntegrationTest {
         assertThat(login.path("userId").asLong()).isEqualTo(signup.path("userId").asLong());
         assertThat(login.path("isNewUser").asBoolean()).isFalse();
         assertThat(getCurrentUser(loginGuestToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertRefreshSessionEnded(loginGuestSession.refreshCookie());
         assertThat(getCurrentUser(signupAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(getCurrentUser(login.path("accessToken").asText()).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(jdbcTemplate.queryForObject(
@@ -485,12 +489,31 @@ class AuthFlowIntegrationTest {
     }
 
     private String guestLogin(UUID guestUuid) throws Exception {
-        JsonNode result = postJson(
+        return guestLoginSession(guestUuid).accessToken();
+    }
+
+    private GuestSession guestLoginSession(UUID guestUuid) throws Exception {
+        ResponseEntity<String> response = exchangeJson(
+                HttpMethod.POST,
                 "/api/v1/auth/guest",
                 Map.of("guestUuid", guestUuid.toString()),
                 null
-        ).path("result");
-        return result.path("accessToken").asText();
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode result = objectMapper.readTree(response.getBody()).path("result");
+        return new GuestSession(result.path("accessToken").asText(), cookiePair(response));
+    }
+
+    private void assertRefreshSessionEnded(String refreshCookie) throws Exception {
+        ResponseEntity<String> response = exchangeCookieAuthenticated(
+                HttpMethod.POST,
+                "/api/v1/auth/reissue",
+                null,
+                null,
+                refreshCookie
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(objectMapper.readTree(response.getBody()).path("code").asText()).isEqualTo("AUTH007");
     }
 
     private JsonNode issueState(String guestAccessToken) throws Exception {
@@ -570,6 +593,9 @@ class AuthFlowIntegrationTest {
             throw new IllegalStateException(name + " is required for the auth integration test");
         }
         return value;
+    }
+
+    private record GuestSession(String accessToken, String refreshCookie) {
     }
 
     private static final class StubOAuthClient implements OAuthClient {
