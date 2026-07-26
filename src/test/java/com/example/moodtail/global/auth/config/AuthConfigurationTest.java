@@ -11,6 +11,7 @@ class AuthConfigurationTest {
             .withUserConfiguration(AuthConfiguration.class)
             .withPropertyValues(
                     "auth.oauth.state-expiration-millis=300000",
+                    "auth.oauth.signup-token-expiration-millis=600000",
                     "auth.oauth.connect-timeout-millis=3000",
                     "auth.oauth.read-timeout-millis=5000",
                     "auth.oauth.state-rate-limit.max-attempts=10",
@@ -65,6 +66,7 @@ class AuthConfigurationTest {
             assertThat(properties.oauth().google().clientId()).isEqualTo("google-client-id");
             assertThat(properties.oauth().google().enabled()).isTrue();
             assertThat(properties.oauth().connectTimeoutMillis()).isEqualTo(3_000L);
+            assertThat(properties.oauth().signupTokenExpirationMillis()).isEqualTo(600_000L);
             assertThat(properties.oauth().stateRateLimit().maxAttempts()).isEqualTo(10);
             assertThat(properties.oauth().stateRateLimit().windowMillis()).isEqualTo(60_000L);
             assertThat(properties.refreshCookie().domain()).isEqualTo(".example.com");

@@ -9,6 +9,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyReque
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalEmailAvailabilityResponse;
+import com.example.moodtail.domain.auth.dto.response.OAuthStateResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
@@ -23,6 +24,7 @@ import com.example.moodtail.global.common.exception.ExceptionAdvice;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
+import com.example.moodtail.global.config.security.jwt.TokenInfo;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -82,14 +84,12 @@ class AuthControllerTest {
 
     @Test
     void socialLoginUsesVersionedProviderEndpointAndCodeAlias() throws Exception {
-        SocialLoginResponse socialLoginResponse = new SocialLoginResponse(
+        SocialLoginResponse socialLoginResponse = SocialLoginResponse.loginCompleted(
                 1L,
-                "kakao@example.com",
                 "카카오유저",
                 SocialProvider.KAKAO,
-                true,
-                "Bearer",
-                "access-token"
+                "kakao@example.com",
+                new TokenInfo("access-token", "refresh-token")
         );
         when(authService.socialLogin(eq("kakao"), any(SocialLoginRequest.class)))
                 .thenReturn(new AuthResult<>(socialLoginResponse, "refresh-token"));
@@ -99,9 +99,7 @@ class AuthControllerTest {
                         .content("""
                                 {
                                   "code": "kakao-authorization-code",
-                                  "state": "%s",
-                                  "nickname": "카카오유저",
-                                  "agreements": [{"termId": 1, "agreed": true}]
+                                  "state": "%s"
                                 }
                                 """.formatted(VALID_OAUTH_STATE)))
                 .andExpect(status().isOk())
@@ -111,7 +109,7 @@ class AuthControllerTest {
                         .string(HttpHeaders.PRAGMA, "no-cache"))
                 .andExpect(jsonPath("$.code").value("COMMON200"))
                 .andExpect(jsonPath("$.result.provider").value("KAKAO"))
-                .andExpect(jsonPath("$.result.isNewUser").value(true));
+                .andExpect(jsonPath("$.result.status").value("LOGIN_COMPLETED"));
 
         ArgumentCaptor<SocialLoginRequest> requestCaptor = ArgumentCaptor.forClass(SocialLoginRequest.class);
         verify(authService).socialLogin(eq("kakao"), requestCaptor.capture());
@@ -124,17 +122,14 @@ class AuthControllerTest {
 
     @Test
     void googleLoginUsesCommonProviderEndpoint() throws Exception {
-        SocialLoginResponse socialLoginResponse = new SocialLoginResponse(
-                2L,
+        SocialLoginResponse socialLoginResponse = SocialLoginResponse.signupRequired(
                 "google@example.com",
-                "구글유저",
                 SocialProvider.GOOGLE,
-                false,
-                "Bearer",
-                "access-token"
+                "signup-token",
+                600L
         );
         when(authService.socialLogin(eq("google"), any(SocialLoginRequest.class)))
-                .thenReturn(new AuthResult<>(socialLoginResponse, "refresh-token"));
+                .thenReturn(new AuthResult<>(socialLoginResponse, null));
 
         mockMvc.perform(post("/api/v1/auth/google")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -148,12 +143,76 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.provider").value("GOOGLE"))
                 .andExpect(jsonPath("$.result.email").value("google@example.com"))
-                .andExpect(jsonPath("$.result.isNewUser").value(false));
+                .andExpect(jsonPath("$.result.status").value("SIGNUP_REQUIRED"))
+                .andExpect(jsonPath("$.result.signupToken").value("signup-token"));
 
         ArgumentCaptor<SocialLoginRequest> requestCaptor = ArgumentCaptor.forClass(SocialLoginRequest.class);
         verify(authService).socialLogin(eq("google"), requestCaptor.capture());
+        verify(authHttpSupport, never()).setRefreshTokenCookie(any(), any());
         org.assertj.core.api.Assertions.assertThat(requestCaptor.getValue().redirectUri())
                 .isEqualTo("https://frontend.example.com/oauth/google/callback");
+    }
+
+    @Test
+    void oauthStateCanBeIssuedWithoutGuestAuthentication() throws Exception {
+        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
+        when(authService.createOAuthState("google", null, "203.0.113.7"))
+                .thenReturn(new OAuthStateResponse("state", "challenge", "S256", 300L));
+
+        mockMvc.perform(post("/api/v1/auth/oauth-states/google"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.state").value("state"));
+
+        verify(authService).createOAuthState("google", null, "203.0.113.7");
+    }
+
+    @Test
+    void socialSignupAcceptsOnlySignupTokenNicknameAndAgreements() throws Exception {
+        SocialLoginResponse signupResponse = SocialLoginResponse.signupCompleted(
+                2L,
+                "소셜회원",
+                SocialProvider.GOOGLE,
+                "google@example.com",
+                new TokenInfo("member-access", "member-refresh")
+        );
+        when(authService.socialSignup(any()))
+                .thenReturn(new AuthResult<>(signupResponse, "member-refresh"));
+
+        mockMvc.perform(post("/api/v1/auth/signup/social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "signupToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                  "nickname": "소셜회원",
+                                  "agreements": [
+                                    {"termId": 1, "agreed": true}
+                                  ]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.result.status").value("SIGNUP_COMPLETED"))
+                .andExpect(jsonPath("$.result.nickname").value("소셜회원"))
+                .andExpect(jsonPath("$.result.accessToken").value("member-access"));
+
+        verify(authService).socialSignup(any());
+        verify(authHttpSupport).setRefreshTokenCookie(any(), eq("member-refresh"));
+    }
+
+    @Test
+    void socialSignupRejectsMissingAgreementsBeforeServiceCall() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup/social")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "signupToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                                  "nickname": "소셜회원",
+                                  "agreements": []
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"));
+
+        verify(authService, never()).socialSignup(any());
     }
 
     @Test
@@ -508,13 +567,13 @@ class AuthControllerTest {
     }
 
     @Test
-    void socialLoginRejectsNullAgreementElement() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/google")
+    void socialSignupRejectsNullAgreementElement() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/signup/social")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "code": "google-code",
-                                  "state": "%s",
+                                  "signupToken": "%s",
+                                  "nickname": "소셜회원",
                                   "agreements": [null]
                                 }
                                 """.formatted(VALID_OAUTH_STATE)))

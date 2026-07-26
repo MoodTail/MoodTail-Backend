@@ -2,6 +2,8 @@ package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.dto.request.GuestLoginRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.SocialSignupRequest;
+import com.example.moodtail.domain.auth.dto.request.TermAgreementRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.OAuthStateResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
@@ -12,8 +14,11 @@ import com.example.moodtail.domain.auth.model.GuestLoginUser;
 import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.model.OAuthState;
 import com.example.moodtail.domain.auth.model.SocialLoginUser;
+import com.example.moodtail.domain.auth.model.SocialSignupSession;
+import com.example.moodtail.domain.auth.model.SocialSignupTicket;
 import com.example.moodtail.domain.auth.validator.GuestLoginRateLimiter;
 import com.example.moodtail.domain.auth.validator.LocalAuthRateLimiter;
+import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.auth.client.OAuthClient;
@@ -45,7 +50,6 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -80,6 +84,12 @@ class AuthServiceTest {
 
     @Mock
     private SocialAccountService socialAccountService;
+
+    @Mock
+    private SocialSignupSessionService socialSignupSessionService;
+
+    @Mock
+    private TermAgreementService termAgreementService;
 
     @Mock
     private GuestUserService guestUserService;
@@ -120,6 +130,8 @@ class AuthServiceTest {
         authService = new AuthService(
                 List.of(kakaoOAuthClient, googleOAuthClient),
                 socialAccountService,
+                socialSignupSessionService,
+                termAgreementService,
                 guestUserService,
                 oAuthStateService,
                 guestLoginRateLimiter,
@@ -157,19 +169,30 @@ class AuthServiceTest {
     @Test
     void createOAuthStateBindsProviderAndGuestUser() {
         OAuthState state = new OAuthState("state-value", "challenge", "S256", 300L);
-        when(oAuthStateService.issue(2L, SocialProvider.KAKAO)).thenReturn(state);
+        when(oAuthStateService.issue(2L, "203.0.113.7", SocialProvider.KAKAO)).thenReturn(state);
 
-        OAuthStateResponse result = authService.createOAuthState("kakao", 2L);
+        OAuthStateResponse result = authService.createOAuthState("kakao", 2L, "203.0.113.7");
 
         assertThat(result.state()).isEqualTo("state-value");
         assertThat(result.expiresInSeconds()).isEqualTo(300L);
     }
 
     @Test
+    void createOAuthStateAllowsAnonymousRequest() {
+        OAuthState state = new OAuthState("state-value", "challenge", "S256", 300L);
+        when(oAuthStateService.issue(null, "203.0.113.7", SocialProvider.GOOGLE)).thenReturn(state);
+
+        OAuthStateResponse result = authService.createOAuthState("google", null, "203.0.113.7");
+
+        assertThat(result.state()).isEqualTo("state-value");
+        verify(oAuthStateService).issue(null, "203.0.113.7", SocialProvider.GOOGLE);
+    }
+
+    @Test
     void disabledGoogleProviderDoesNotIssueOrConsumeOAuthState() {
         when(googleOAuthClient.isEnabled()).thenReturn(false);
 
-        assertThatThrownBy(() -> authService.createOAuthState("google", 2L))
+        assertThatThrownBy(() -> authService.createOAuthState("google", 2L, "203.0.113.7"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH017")
                 );
@@ -180,12 +203,12 @@ class AuthServiceTest {
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH017")
         );
 
-        verify(oAuthStateService, never()).issue(any(), any());
+        verify(oAuthStateService, never()).issue(any(), any(), any());
         verify(oAuthStateService, never()).consumeForAuthentication(any(), any());
     }
 
     @Test
-    void socialLoginConsumesStateAndLogsInExistingAccount() {
+    void socialLoginWithoutGuestLogsInExistingAccount() {
         SocialUserProfile profile = new SocialUserProfile(
                 SocialProvider.KAKAO,
                 "12345",
@@ -202,11 +225,11 @@ class AuthServiceTest {
         );
         TokenInfo tokenInfo = new TokenInfo("service-access-token", "service-refresh-token");
         when(oAuthStateService.consumeForAuthentication("state-value", SocialProvider.KAKAO))
-                .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
+                .thenReturn(new ConsumedOAuthState(null, PKCE_VERIFIER));
         when(kakaoOAuthClient.provider()).thenReturn(SocialProvider.KAKAO);
         when(kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER)).thenReturn(profile);
-        when(socialAccountService.authenticate(eq(profile), eq(2L), any()))
-                .thenReturn(new SocialAuthenticationResult(socialUser, tokenInfo));
+        when(socialAccountService.loginExisting(profile, null))
+                .thenReturn(Optional.of(new SocialAuthenticationResult(socialUser, tokenInfo)));
 
         AuthResult<SocialLoginResponse> result = authService.socialLogin(
                 "kakao",
@@ -216,13 +239,13 @@ class AuthServiceTest {
         assertThat(result.response().userId()).isEqualTo(99L);
         assertThat(result.response().email()).isEqualTo("kakao@example.com");
         assertThat(result.response().provider()).isEqualTo(SocialProvider.KAKAO);
-        assertThat(result.response().isNewUser()).isFalse();
+        assertThat(result.response().status()).isEqualTo(SocialLoginResponse.Status.LOGIN_COMPLETED);
         assertThat(result.refreshToken()).isEqualTo("service-refresh-token");
-        verify(socialAccountService).authenticate(eq(profile), eq(2L), any());
+        verify(socialAccountService).loginExisting(profile, null);
     }
 
     @Test
-    void socialLoginRegistersUnregisteredAccountInSameRequest() {
+    void socialLoginReturnsSignupTicketForUnregisteredAccount() {
         SocialUserProfile profile = new SocialUserProfile(
                 SocialProvider.GOOGLE,
                 "unregistered-google-id",
@@ -230,67 +253,87 @@ class AuthServiceTest {
                 "신규사용자"
         );
         when(oAuthStateService.consumeForAuthentication("state-value", SocialProvider.GOOGLE))
-                .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
+                .thenReturn(new ConsumedOAuthState(null, PKCE_VERIFIER));
         when(googleOAuthClient.requestUserProfile("google-code", null, PKCE_VERIFIER)).thenReturn(profile);
-        SocialLoginUser newUser = new SocialLoginUser(
-                2L, UserRole.USER, "신규사용자", SocialProvider.GOOGLE, "new-user@example.com", true
-        );
-        TokenInfo tokenInfo = new TokenInfo("new-access", "new-refresh");
-        when(socialAccountService.authenticate(eq(profile), eq(2L), anyList()))
-                .thenReturn(new SocialAuthenticationResult(newUser, tokenInfo));
+        when(socialAccountService.loginExisting(profile, null)).thenReturn(Optional.empty());
+        when(socialSignupSessionService.issue(profile, null))
+                .thenReturn(new SocialSignupTicket("signup-token", 600L));
 
         AuthResult<SocialLoginResponse> result = authService.socialLogin(
                 "google",
-                new SocialLoginRequest(
-                        "google-code",
-                        null,
-                        "state-value",
-                        "신규사용자",
-                        List.of(new com.example.moodtail.domain.auth.dto.request.TermAgreementRequest(1L, true))
-                )
+                new SocialLoginRequest("google-code", null, "state-value")
         );
 
-        assertThat(result.response().userId()).isEqualTo(2L);
-        assertThat(result.response().isNewUser()).isTrue();
-        assertThat(result.response().accessToken()).isEqualTo("new-access");
+        assertThat(result.response().status()).isEqualTo(SocialLoginResponse.Status.SIGNUP_REQUIRED);
+        assertThat(result.response().userId()).isNull();
+        assertThat(result.response().signupToken()).isEqualTo("signup-token");
+        assertThat(result.response().signupTokenExpiresInSeconds()).isEqualTo(600L);
+        assertThat(result.response().accessToken()).isNull();
+        assertThat(result.refreshToken()).isNull();
+        verify(socialAccountService, never()).register(any(), any(), any());
     }
 
     @Test
-    void socialLoginDoesNotMergeGuestWhenProviderAccountAlreadyExists() {
-        SocialUserProfile profile = new SocialUserProfile(
+    void socialSignupCreatesAccountOnlyAfterNicknameAndTermsAreSubmitted() {
+        Term requiredTerm = org.mockito.Mockito.mock(Term.class);
+        SocialSignupRequest request = new SocialSignupRequest(
+                "signup-token",
+                "새회원",
+                List.of(new TermAgreementRequest(1L, true))
+        );
+        SocialSignupSession signupSession = new SocialSignupSession(
                 SocialProvider.GOOGLE,
                 "google-user-id",
-                "user@example.com",
-                "기존유저"
+                "new-user@example.com",
+                2L
         );
-        SocialLoginUser existingUser = new SocialLoginUser(
-                99L,
-                UserRole.USER,
-                "기존유저",
+        SocialUserProfile signupProfile = new SocialUserProfile(
                 SocialProvider.GOOGLE,
-                "user@example.com",
-                false
+                "google-user-id",
+                "new-user@example.com",
+                "새회원"
         );
-        TokenInfo tokenInfo = new TokenInfo("access", "refresh");
-
-        when(oAuthStateService.consumeForAuthentication("state-value", SocialProvider.GOOGLE))
-                .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
-        when(googleOAuthClient.provider()).thenReturn(SocialProvider.GOOGLE);
-        when(googleOAuthClient.requestUserProfile(
-                "google-code", "http://frontend/callback", PKCE_VERIFIER
-        ))
-                .thenReturn(profile);
-        when(socialAccountService.authenticate(eq(profile), eq(2L), any()))
-                .thenReturn(new SocialAuthenticationResult(existingUser, tokenInfo));
-
-        AuthResult<SocialLoginResponse> result = authService.socialLogin(
-                "google",
-                new SocialLoginRequest("google-code", "http://frontend/callback", "state-value")
+        SocialLoginUser newUser = new SocialLoginUser(
+                100L,
+                UserRole.USER,
+                "새회원",
+                SocialProvider.GOOGLE,
+                "new-user@example.com",
+                true
         );
+        TokenInfo tokenInfo = new TokenInfo("new-access", "new-refresh");
+        when(termAgreementService.validateAgreements(any())).thenReturn(List.of(requiredTerm));
+        when(socialSignupSessionService.consume("signup-token")).thenReturn(signupSession);
+        when(socialAccountService.register(signupProfile, 2L, List.of(requiredTerm)))
+                .thenReturn(new SocialAuthenticationResult(newUser, tokenInfo));
 
-        assertThat(result.response().userId()).isEqualTo(99L);
-        assertThat(result.response().isNewUser()).isFalse();
-        verify(socialAccountService).authenticate(eq(profile), eq(2L), any());
+        AuthResult<SocialLoginResponse> result = authService.socialSignup(request);
+
+        assertThat(result.response().status()).isEqualTo(SocialLoginResponse.Status.SIGNUP_COMPLETED);
+        assertThat(result.response().userId()).isEqualTo(100L);
+        assertThat(result.response().accessToken()).isEqualTo("new-access");
+        assertThat(result.refreshToken()).isEqualTo("new-refresh");
+        verify(socialAccountService).register(signupProfile, 2L, List.of(requiredTerm));
+    }
+
+    @Test
+    void invalidSignupAgreementDoesNotConsumeSignupTicket() {
+        SocialSignupRequest request = new SocialSignupRequest(
+                "signup-token",
+                "새회원",
+                List.of(new TermAgreementRequest(1L, false))
+        );
+        when(termAgreementService.validateAgreements(any()))
+                .thenThrow(new RestApiException(
+                        com.example.moodtail.global.common.exception.code.status.AuthErrorStatus
+                                .REQUIRED_TERMS_NOT_AGREED
+                ));
+
+        assertThatThrownBy(() -> authService.socialSignup(request))
+                .isInstanceOf(RestApiException.class);
+
+        verify(socialSignupSessionService, never()).consume(any());
+        verify(socialAccountService, never()).register(any(), any(), any());
     }
 
     @Test
@@ -313,7 +356,8 @@ class AuthServiceTest {
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
         );
 
-        verify(socialAccountService, never()).authenticate(any(), any(), any());
+        verify(socialAccountService, never()).loginExisting(any(), any());
+        verify(socialSignupSessionService, never()).issue(any(), any());
     }
 
     @Test
@@ -336,7 +380,8 @@ class AuthServiceTest {
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
         );
 
-        verify(socialAccountService, never()).authenticate(any(), any(), any());
+        verify(socialAccountService, never()).loginExisting(any(), any());
+        verify(socialSignupSessionService, never()).issue(any(), any());
     }
 
     @Test
@@ -371,56 +416,12 @@ class AuthServiceTest {
     }
 
     @Test
-    void existingSocialLoginLeavesSignupOnlyNicknameValidationToTheAccountService() {
-        SocialUserProfile providerProfile = new SocialUserProfile(
-                SocialProvider.KAKAO,
-                "12345",
-                "user@example.com",
-                "제공자닉네임"
-        );
-        SocialUserProfile requestedProfile = new SocialUserProfile(
-                SocialProvider.KAKAO,
-                "12345",
-                "user@example.com",
-                "x"
-        );
-        SocialLoginUser existingUser = new SocialLoginUser(
-                99L,
-                UserRole.USER,
-                "기존회원",
-                SocialProvider.KAKAO,
-                "user@example.com",
-                false
-        );
-        TokenInfo tokenInfo = new TokenInfo("access", "refresh");
-        when(oAuthStateService.consumeForAuthentication("state-value", SocialProvider.KAKAO))
-                .thenReturn(new ConsumedOAuthState(2L, PKCE_VERIFIER));
-        when(kakaoOAuthClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
-                .thenReturn(providerProfile);
-        when(socialAccountService.authenticate(eq(requestedProfile), eq(2L), anyList()))
-                .thenReturn(new SocialAuthenticationResult(existingUser, tokenInfo));
-
-        AuthResult<SocialLoginResponse> result = authService.socialLogin(
-                "kakao",
-                new SocialLoginRequest(
-                        "kakao-code",
-                        null,
-                        "state-value",
-                        "x",
-                        List.of()
-                )
-        );
-
-        assertThat(result.response().userId()).isEqualTo(99L);
-        assertThat(result.response().isNewUser()).isFalse();
-        verify(socialAccountService).authenticate(eq(requestedProfile), eq(2L), anyList());
-    }
-
-    @Test
     void oauthClientRegistryRejectsDuplicateProviderAdapters() {
         AuthService invalidService = new AuthService(
                 List.of(kakaoOAuthClient, kakaoOAuthClient, googleOAuthClient),
                 socialAccountService,
+                socialSignupSessionService,
+                termAgreementService,
                 guestUserService,
                 oAuthStateService,
                 guestLoginRateLimiter,
@@ -440,6 +441,8 @@ class AuthServiceTest {
         AuthService invalidService = new AuthService(
                 List.of(kakaoOAuthClient),
                 socialAccountService,
+                socialSignupSessionService,
+                termAgreementService,
                 guestUserService,
                 oAuthStateService,
                 guestLoginRateLimiter,

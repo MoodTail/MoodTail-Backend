@@ -1,6 +1,7 @@
 package com.example.moodtail.global.token.repository.redis.impl;
 
 import com.example.moodtail.support.auth.AuthPropertiesFixtures;
+import com.example.moodtail.global.token.repository.redis.RedisRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,6 +60,7 @@ class RedisRepositoryImplTest {
     void storesOAuthStateInsideConfiguredAuthNamespace() {
         repository.saveOAuthState(
                 "state-value",
+                "guest:7",
                 7L,
                 "KAKAO",
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_",
@@ -68,13 +70,35 @@ class RedisRepositoryImplTest {
         verify(redisTemplate).execute(
                 any(),
                 eq(List.of(
-                        "moodtail:auth:test:oauth-state-owner:kakao:7",
+                        "moodtail:auth:test:oauth-state-owner:kakao:guest:7",
                         "moodtail:auth:test:oauth-state:kakao:state-value"
                 )),
                 eq("moodtail:auth:test:oauth-state:kakao:"),
                 anyString(),
                 eq("300000"),
                 eq("state-value")
+        );
+    }
+
+    @Test
+    void storesSocialSignupSessionInsideConfiguredAuthNamespace() {
+        RedisRepository.SocialSignupSession session = new RedisRepository.SocialSignupSession(
+                "GOOGLE",
+                "google-user-id",
+                "user@example.com",
+                null
+        );
+
+        repository.saveSocialSignupToken(
+                "signup-token",
+                session,
+                Duration.ofMinutes(10)
+        );
+
+        verify(valueOperations).set(
+                eq("moodtail:auth:test:social-signup:signup-token"),
+                anyString(),
+                eq(Duration.ofMinutes(10))
         );
     }
 

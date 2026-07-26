@@ -11,6 +11,7 @@ public final class AuthPropertiesFixtures {
         return new AuthProperties(
                 new AuthProperties.OAuth(
                         300_000L,
+                        600_000L,
                         3_000L,
                         5_000L,
                         new AuthProperties.RateLimit(10, 60_000L),

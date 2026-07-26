@@ -23,6 +23,7 @@ public record AuthProperties(
 
     public record OAuth(
             long stateExpirationMillis,
+            long signupTokenExpirationMillis,
             long connectTimeoutMillis,
             long readTimeoutMillis,
             RateLimit stateRateLimit,
@@ -31,6 +32,7 @@ public record AuthProperties(
     ) {
         public OAuth {
             requirePositive(stateExpirationMillis, "auth.oauth.state-expiration-millis");
+            requirePositive(signupTokenExpirationMillis, "auth.oauth.signup-token-expiration-millis");
             requirePositiveIntRange(connectTimeoutMillis, "auth.oauth.connect-timeout-millis");
             requirePositiveIntRange(readTimeoutMillis, "auth.oauth.read-timeout-millis");
             if (stateRateLimit == null || kakao == null || google == null) {

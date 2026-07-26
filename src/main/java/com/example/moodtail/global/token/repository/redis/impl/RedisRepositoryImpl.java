@@ -26,6 +26,7 @@ public class RedisRepositoryImpl implements RedisRepository {
 	private static final String OAUTH_STATE_KEY_PREFIX = "oauth-state:";
 	private static final String OAUTH_STATE_OWNER_KEY_PREFIX = "oauth-state-owner:";
 	private static final String OAUTH_STATE_RATE_KEY_PREFIX = "oauth-state-rate:";
+	private static final String SOCIAL_SIGNUP_KEY_PREFIX = "social-signup:";
 	private static final String GUEST_LOGIN_RATE_KEY_PREFIX = "guest-rate:";
 	private static final String LOCAL_AUTH_RATE_KEY_PREFIX = "local-auth-rate:";
 	private static final String PASSWORD_RESET_CLIENT_RATE_KEY_PREFIX = "password-reset-client-rate:";
@@ -115,6 +116,7 @@ public class RedisRepositoryImpl implements RedisRepository {
 	@Override
 	public void saveOAuthState(
 			String state,
+			String ownerKey,
 			Long guestUserId,
 			String provider,
 			String codeVerifier,
@@ -125,7 +127,7 @@ public class RedisRepositoryImpl implements RedisRepository {
 		redisTemplate.execute(
 				SAVE_SINGLE_ACTIVE_VALUE_SCRIPT,
 				List.of(
-						createAuthKey(OAUTH_STATE_OWNER_KEY_PREFIX + normalizedProvider + ":" + guestUserId),
+						createAuthKey(OAUTH_STATE_OWNER_KEY_PREFIX + normalizedProvider + ":" + ownerKey),
 						stateKeyPrefix + state
 				),
 				stateKeyPrefix,
@@ -146,7 +148,7 @@ public class RedisRepositoryImpl implements RedisRepository {
 
 	@Override
 	public boolean acquireOAuthStateSlot(
-			Long guestUserId,
+			String ownerKey,
 			String provider,
 			int maxAttempts,
 			Duration window
@@ -154,11 +156,29 @@ public class RedisRepositoryImpl implements RedisRepository {
 		Long attempts = redisTemplate.execute(
 				RATE_LIMIT_SCRIPT,
 				List.of(createAuthKey(
-						OAUTH_STATE_RATE_KEY_PREFIX + normalizeProvider(provider) + ":" + guestUserId
+						OAUTH_STATE_RATE_KEY_PREFIX + normalizeProvider(provider) + ":" + ownerKey
 				)),
 				String.valueOf(window.toMillis())
 		);
 		return attempts != null && attempts <= maxAttempts;
+	}
+
+	@Override
+	public void saveSocialSignupToken(String token, SocialSignupSession session, Duration ttl) {
+		redisTemplate.opsForValue().set(
+				createAuthKey(SOCIAL_SIGNUP_KEY_PREFIX + token),
+				serialize(session),
+				ttl
+		);
+	}
+
+	@Override
+	public Optional<SocialSignupSession> consumeSocialSignupToken(String token) {
+		String value = redisTemplate.execute(
+				CONSUME_VALUE_SCRIPT,
+				List.of(createAuthKey(SOCIAL_SIGNUP_KEY_PREFIX + token))
+		);
+		return deserialize(value, SocialSignupSession.class);
 	}
 
 	@Override
