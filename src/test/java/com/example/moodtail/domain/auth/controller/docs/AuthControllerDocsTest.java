@@ -17,4 +17,20 @@ class AuthControllerDocsTest {
         assertThat(example.path("result").path("signupToken").asText())
                 .matches("^[A-Za-z0-9_-]{43}$");
     }
+
+    @Test
+    void socialSignupSuccessExamplesDocumentBothCompletionStatuses() throws Exception {
+        ObjectMapper objectMapper = new ObjectMapper();
+        JsonNode signupCompleted = objectMapper.readTree(
+                AuthControllerDocs.SOCIAL_SIGNUP_SUCCESS_EXAMPLE
+        );
+        JsonNode loginCompleted = objectMapper.readTree(
+                AuthControllerDocs.SOCIAL_SIGNUP_RECOVERED_LOGIN_EXAMPLE
+        );
+
+        assertThat(signupCompleted.path("result").path("status").asText())
+                .isEqualTo("SIGNUP_COMPLETED");
+        assertThat(loginCompleted.path("result").path("status").asText())
+                .isEqualTo("LOGIN_COMPLETED");
+    }
 }

@@ -96,6 +96,24 @@ public interface AuthControllerDocs {
               }
             }
             """;
+    String SOCIAL_SIGNUP_RECOVERED_LOGIN_EXAMPLE = """
+            {
+              "timestamp": "2026-07-24T14:32:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "status": "LOGIN_COMPLETED",
+                "userId": 38,
+                "email": "google-user@example.com",
+                "nickname": "무드테일",
+                "provider": "GOOGLE",
+                "signupToken": null,
+                "signupTokenExpiresInSeconds": null,
+                "grantType": "Bearer",
+                "accessToken": "member-access-token"
+              }
+            }
+            """;
     String LOCAL_SIGNUP_SUCCESS_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"userId":39,"email":"user@example.com","nickname":"무드테일","isNewUser":true,"grantType":"Bearer","accessToken":"member-access-token"}}
             """;
@@ -439,17 +457,25 @@ public interface AuthControllerDocs {
             summary = "소셜 신규 회원가입 완료",
             description = "OAuth 인증 API가 SIGNUP_REQUIRED로 반환한 일회성 signupToken과 새 UI에서 입력한 "
                     + "닉네임·약관 동의를 제출합니다. 검증이 끝난 뒤에만 회원과 소셜 계정을 생성하고 Access "
-                    + "Token과 Refresh Token 쿠키를 발급합니다. 게스트 데이터는 승계하지 않습니다."
+                    + "Token과 Refresh Token 쿠키를 발급합니다. 동일한 소셜 계정의 가입이 먼저 완료된 경우 "
+                    + "LOGIN_COMPLETED로 기존 계정 로그인을 완료합니다. 게스트 데이터는 승계하지 않습니다."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "COMMON200 - 소셜 회원가입 완료",
+            @ApiResponse(responseCode = "200",
+                    description = "COMMON200 - 소셜 회원가입 완료 또는 기존 소셜 계정 로그인 완료",
                     useReturnTypeSchema = true,
                     headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
                             schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = SOCIAL_SIGNUP_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(examples = {
+                            @ExampleObject(
+                                    name = "SIGNUP_COMPLETED",
+                                    value = SOCIAL_SIGNUP_SUCCESS_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "LOGIN_COMPLETED",
+                                    value = SOCIAL_SIGNUP_RECOVERED_LOGIN_EXAMPLE
+                            )
+                    })),
             @ApiResponse(responseCode = "400",
                     description = "COMMON402/COMMON406/USER400/AUTH024/AUTH026 - 요청·닉네임·약관 오류",
                     content = @Content(examples = {
