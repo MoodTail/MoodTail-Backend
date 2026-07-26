@@ -27,92 +27,339 @@ import org.springframework.web.multipart.MultipartFile;
 public interface HistoryControllerDocs {
 
     String CALENDAR_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"year":2026,"month":7,"testResultCount":6,"drinkingRecordCount":3,"reportRequiredTestCount":5,"reportAvailable":true,"testResults":[{"resultId":71,"resultDate":"2026-07-05","moodType":{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png"}}],"days":[{"date":"2026-07-05","hasTestResult":true,"hasDrinkingRecord":true,"photoCount":1,"moodType":{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png"}},{"date":"2026-07-10","hasTestResult":false,"hasDrinkingRecord":true,"photoCount":0,"moodType":null},{"date":"2026-07-15","hasTestResult":false,"hasDrinkingRecord":false,"photoCount":2,"moodType":null}]}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "year": 2026,
+                "month": 7,
+                "testResultCount": 6,
+                "drinkingRecordCount": 3,
+                "reportRequiredTestCount": 5,
+                "reportAvailable": true,
+                "testResults": [
+                  {
+                    "resultId": 71,
+                    "resultDate": "2026-07-05",
+                    "moodType": {
+                      "moodTypeId": 2001,
+                      "typeCode": "TYPE01",
+                      "name": "몽글몽글 낭만파",
+                      "characterImageUrl": "https://cdn.moodtail.com/mood-types/type01.png"
+                    }
+                  }
+                ],
+                "days": [
+                  {
+                    "date": "2026-07-05",
+                    "hasTestResult": true,
+                    "hasDrinkingRecord": true,
+                    "photoCount": 1,
+                    "moodType": {
+                      "moodTypeId": 2001,
+                      "typeCode": "TYPE01",
+                      "name": "몽글몽글 낭만파",
+                      "characterImageUrl": "https://cdn.moodtail.com/mood-types/type01.png"
+                    }
+                  },
+                  {
+                    "date": "2026-07-10",
+                    "hasTestResult": false,
+                    "hasDrinkingRecord": true,
+                    "photoCount": 0,
+                    "moodType": null
+                  },
+                  {
+                    "date": "2026-07-15",
+                    "hasTestResult": false,
+                    "hasDrinkingRecord": false,
+                    "photoCount": 2,
+                    "moodType": null
+                  }
+                ]
+              }
+            }
             """;
     String DATE_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"date":"2026-07-05","testResult":{"resultId":71,"moodType":{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","shortDescription":"부드러운 달콤함 속에서 여유를 즐기는 타입","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png"}},"drinkingRecords":[{"recordId":31,"cocktailId":10,"cocktailName":"모히또","cocktailImageUrl":"https://cdn.moodtail.com/cocktails/mojito.png"},{"recordId":32,"cocktailId":11,"cocktailName":"마가리타","cocktailImageUrl":null}],"photos":[{"photoId":3,"sourceType":"CAMERA","imageUrl":"https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"}]}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "date": "2026-07-05",
+                "testResult": {
+                  "resultId": 71,
+                  "moodType": {
+                    "moodTypeId": 2001,
+                    "typeCode": "TYPE01",
+                    "name": "몽글몽글 낭만파",
+                    "shortDescription": "부드러운 달콤함 속에서 여유를 즐기는 타입",
+                    "characterImageUrl": "https://cdn.moodtail.com/mood-types/type01.png"
+                  }
+                },
+                "drinkingRecords": [
+                  {
+                    "recordId": 31,
+                    "cocktailId": 10,
+                    "cocktailName": "모히또",
+                    "cocktailImageUrl": "https://cdn.moodtail.com/cocktails/mojito.png"
+                  },
+                  {
+                    "recordId": 32,
+                    "cocktailId": 11,
+                    "cocktailName": "마가리타",
+                    "cocktailImageUrl": null
+                  }
+                ],
+                "photos": [
+                  {
+                    "photoId": 3,
+                    "sourceType": "CAMERA",
+                    "imageUrl": "https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"
+                  }
+                ]
+              }
+            }
             """;
     String TEST_RESULT_DETAIL_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"resultId":71,"resultDate":"2026-07-05","moodType":{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","shortDescription":"부드러운 달콤함 속에서 여유를 즐기는 타입","description":"오늘은 잔잔한 여유가 어울리는 날이에요.","characterQuote":"천천히 즐겨도 괜찮아요.","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png"},"tasteProfile":{"alcoholIntensity":2.8,"sweetness":4.1,"sourness":2.5,"refreshing":3.8,"bitterness":1.7},"recommendedCocktails":[{"cocktailId":10,"cocktailName":"모히또","cocktailImageUrl":"https://cdn.moodtail.com/cocktails/mojito.png","ranking":1,"matchScore":92}]}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "resultId": 71,
+                "resultDate": "2026-07-05",
+                "moodType": {
+                  "moodTypeId": 2001,
+                  "typeCode": "TYPE01",
+                  "name": "몽글몽글 낭만파",
+                  "shortDescription": "부드러운 달콤함 속에서 여유를 즐기는 타입",
+                  "description": "오늘은 잔잔한 여유가 어울리는 날이에요.",
+                  "characterQuote": "천천히 즐겨도 괜찮아요.",
+                  "characterImageUrl": "https://cdn.moodtail.com/mood-types/type01.png"
+                },
+                "tasteProfile": {
+                  "alcoholIntensity": 2.8,
+                  "sweetness": 4.1,
+                  "sourness": 2.5,
+                  "refreshing": 3.8,
+                  "bitterness": 1.7
+                },
+                "recommendedCocktails": [
+                  {
+                    "cocktailId": 10,
+                    "cocktailName": "모히또",
+                    "cocktailImageUrl": "https://cdn.moodtail.com/cocktails/mojito.png",
+                    "ranking": 1,
+                    "matchScore": 92
+                  }
+                ]
+              }
+            }
             """;
     String DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"recordId":31,"cocktailId":10,"cocktailName":"모히또","cocktailImageUrl":"https://cdn.moodtail.com/cocktails/mojito.png","recordDate":"2026-07-05"}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "recordId": 31,
+                "cocktailId": 10,
+                "cocktailName": "모히또",
+                "cocktailImageUrl": "https://cdn.moodtail.com/cocktails/mojito.png",
+                "recordDate": "2026-07-05"
+              }
+            }
             """;
     String DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"recordId":31,"recordDate":"2026-07-05"}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "recordId": 31,
+                "recordDate": "2026-07-05"
+              }
+            }
             """;
     String DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"recordId":31}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "recordId": 31
+              }
+            }
             """;
     String PHOTO_CREATE_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"photoId":3,"recordDate":"2026-07-05","sourceType":"CAMERA","imageUrl":"https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "photoId": 3,
+                "recordDate": "2026-07-05",
+                "sourceType": "CAMERA",
+                "imageUrl": "https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"
+              }
+            }
             """;
     String VOID_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다."
+            }
             """;
 
     String COMMON401_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON401","message":"인증이 필요합니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON401",
+              "message": "인증이 필요합니다."
+            }
             """;
     String COMMON402_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON402","message":"입력값 검증에 실패했습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON402",
+              "message": "입력값 검증에 실패했습니다."
+            }
             """;
     String COMMON405_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON405","message":"요청 인자 타입이 올바르지 않습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON405",
+              "message": "요청 인자 타입이 올바르지 않습니다."
+            }
             """;
     String COMMON406_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON406","message":"요청 본문 형식이 올바르지 않습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON406",
+              "message": "요청 본문 형식이 올바르지 않습니다."
+            }
             """;
     String COMMON500_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON500","message":"서버 에러가 발생했습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON500",
+              "message": "서버 에러가 발생했습니다."
+            }
             """;
     String AUTH006_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"AUTH006","message":"유효하지 않은 액세스 토큰입니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "AUTH006",
+              "message": "유효하지 않은 액세스 토큰입니다."
+            }
             """;
     String AUTH009_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"AUTH009","message":"권한이 없습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "AUTH009",
+              "message": "권한이 없습니다."
+            }
             """;
     String AUTH010_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"AUTH010","message":"존재하지 않는 사용자입니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "AUTH010",
+              "message": "존재하지 않는 사용자입니다."
+            }
             """;
     String AUTH020_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"AUTH020","message":"비활성화된 사용자입니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "AUTH020",
+              "message": "비활성화된 사용자입니다."
+            }
             """;
     String AUTH027_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"AUTH027","message":"기록을 저장하려면 로그인하세요"}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "AUTH027",
+              "message": "기록을 저장하려면 로그인하세요"
+            }
             """;
     String AUTH028_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"AUTH028","message":"인증 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "AUTH028",
+              "message": "인증 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."
+            }
             """;
     String HISTORY_400_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_400","message":"히스토리 요청 값이 올바르지 않습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_400",
+              "message": "히스토리 요청 값이 올바르지 않습니다."
+            }
             """;
     String HISTORY_409_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_409","message":"해당 날짜에 같은 칵테일 음주 기록이 이미 있습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_409",
+              "message": "해당 날짜에 같은 칵테일 음주 기록이 이미 있습니다."
+            }
             """;
     String HISTORY_404_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_404","message":"히스토리 기록을 찾을 수 없습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_404",
+              "message": "히스토리 기록을 찾을 수 없습니다."
+            }
             """;
     String HISTORY_TEST_404_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_TEST_404","message":"저장된 테스트 결과를 찾을 수 없습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_TEST_404",
+              "message": "저장된 테스트 결과를 찾을 수 없습니다."
+            }
             """;
     String HISTORY_PHOTO_409_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_PHOTO_409","message":"날짜별 사진은 최대 5장까지 저장할 수 있습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_PHOTO_409",
+              "message": "날짜별 사진은 최대 5장까지 저장할 수 있습니다."
+            }
             """;
     String HISTORY_PHOTO_404_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_PHOTO_404","message":"히스토리 사진을 찾을 수 없습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_PHOTO_404",
+              "message": "히스토리 사진을 찾을 수 없습니다."
+            }
             """;
     String HISTORY_PHOTO_503_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"HISTORY_PHOTO_503","message":"사진 저장소를 일시적으로 사용할 수 없습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "HISTORY_PHOTO_503",
+              "message": "사진 저장소를 일시적으로 사용할 수 없습니다."
+            }
             """;
     String COCKTAIL404_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COCKTAIL404","message":"해당 칵테일을 찾을 수 없습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COCKTAIL404",
+              "message": "해당 칵테일을 찾을 수 없습니다."
+            }
             """;
     String IMAGE400_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"IMAGE400","message":"이미지 파일 형식이 올바르지 않습니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "IMAGE400",
+              "message": "이미지 파일 형식이 올바르지 않습니다."
+            }
             """;
     String IMAGE413_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"IMAGE413","message":"이미지 파일은 5MB 이하여야 합니다."}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "IMAGE413",
+              "message": "이미지 파일은 5MB 이하여야 합니다."
+            }
             """;
 
     @Operation(
