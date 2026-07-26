@@ -92,6 +92,15 @@ public class HistoryService {
                 startDate,
                 endDate
         );
+        Map<LocalDate, Long> photoCountByDate = new HashMap<>();
+        historyPhotoRepository.findPhotoCountsByUserIdAndRecordDateBetween(
+                userId,
+                startDate,
+                endDate
+        ).forEach(photoCount -> photoCountByDate.put(
+                photoCount.getRecordDate(),
+                photoCount.getPhotoCount()
+        ));
 
         Map<LocalDate, MoodTestResult> testResultByDate = new HashMap<>();
         testResults.forEach(result -> testResultByDate.putIfAbsent(result.getResultDate(), result));
@@ -99,6 +108,7 @@ public class HistoryService {
         Set<LocalDate> activeDates = new TreeSet<>();
         activeDates.addAll(testResultByDate.keySet());
         activeDates.addAll(drinkingRecordDates);
+        activeDates.addAll(photoCountByDate.keySet());
 
         List<HistoryCalendarResponse.Day> days = activeDates.stream()
                 .map(date -> {
@@ -107,6 +117,7 @@ public class HistoryService {
                             date,
                             result != null,
                             drinkingRecordDates.contains(date),
+                            photoCountByDate.getOrDefault(date, 0L),
                             result == null ? null : toCalendarMoodType(result.getMoodType())
                     );
                 })

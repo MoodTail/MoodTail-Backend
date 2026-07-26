@@ -81,7 +81,20 @@ class HistoryControllerTest {
     @Test
     void routesHistoryQueriesUsingSpecificationPaths() throws Exception {
         when(historyService.getCalendar(USER_ID, 2026, 7)).thenReturn(new HistoryCalendarResponse(
-                2026, 7, 0, 0, 5, false, List.of(), List.of()
+                2026,
+                7,
+                0,
+                0,
+                5,
+                false,
+                List.of(),
+                List.of(new HistoryCalendarResponse.Day(
+                        LocalDate.of(2026, 7, 8),
+                        false,
+                        false,
+                        2L,
+                        null
+                ))
         ));
         when(historyService.getByDate(USER_ID, "2026-07-05")).thenReturn(new HistoryDateResponse(
                 LocalDate.of(2026, 7, 5),
@@ -117,7 +130,11 @@ class HistoryControllerTest {
 
         mockMvc.perform(get("/api/v1/history/calendar").param("year", "2026").param("month", "7"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.reportRequiredTestCount").value(5));
+                .andExpect(jsonPath("$.result.reportRequiredTestCount").value(5))
+                .andExpect(jsonPath("$.result.days[0].date").value("2026-07-08"))
+                .andExpect(jsonPath("$.result.days[0].hasTestResult").value(false))
+                .andExpect(jsonPath("$.result.days[0].hasDrinkingRecord").value(false))
+                .andExpect(jsonPath("$.result.days[0].photoCount").value(2));
         mockMvc.perform(get("/api/v1/history/dates/2026-07-05"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.date").value("2026-07-05"))

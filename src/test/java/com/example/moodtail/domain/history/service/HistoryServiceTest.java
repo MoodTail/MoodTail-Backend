@@ -112,6 +112,7 @@ class HistoryServiceTest {
         assertThat(response.days()).singleElement().satisfies(day -> {
             assertThat(day.hasTestResult()).isTrue();
             assertThat(day.hasDrinkingRecord()).isTrue();
+            assertThat(day.photoCount()).isZero();
         });
     }
 
@@ -214,6 +215,35 @@ class HistoryServiceTest {
                         org.assertj.core.groups.Tuple.tuple(31L, "모히토"),
                         org.assertj.core.groups.Tuple.tuple(32L, "네그로니")
                 );
+    }
+
+    @Test
+    void includesPhotoOnlyDateInCalendarWithPhotoCount() {
+        LocalDate photoDate = LocalDate.of(2026, 7, 8);
+        HistoryPhotoRepository.PhotoCountByDate photoCount =
+                org.mockito.Mockito.mock(HistoryPhotoRepository.PhotoCountByDate.class);
+        when(photoCount.getRecordDate()).thenReturn(photoDate);
+        when(photoCount.getPhotoCount()).thenReturn(2L);
+        when(historyPhotoRepository.findPhotoCountsByUserIdAndRecordDateBetween(
+                USER_ID,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 11)
+        )).thenReturn(List.of(photoCount));
+
+        var response = historyService.getCalendar(USER_ID, 2026, 7);
+
+        assertThat(response.days()).singleElement().satisfies(day -> {
+            assertThat(day.date()).isEqualTo(photoDate);
+            assertThat(day.hasTestResult()).isFalse();
+            assertThat(day.hasDrinkingRecord()).isFalse();
+            assertThat(day.photoCount()).isEqualTo(2L);
+            assertThat(day.moodType()).isNull();
+        });
+        verify(historyPhotoRepository).findPhotoCountsByUserIdAndRecordDateBetween(
+                USER_ID,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 11)
+        );
     }
 
     @Test
