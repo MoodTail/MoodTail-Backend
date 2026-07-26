@@ -313,8 +313,14 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void localSignupUpgradesItsGuestWhileExistingLoginKeepsTheSecondGuestSeparate() throws Exception {
-        String signupGuestToken = guestLogin(UUID.randomUUID());
+    void localSignupAndLoginKeepGuestUsersSeparateAndEndOnlyTheirSessions() throws Exception {
+        UUID signupGuestUuid = UUID.randomUUID();
+        String signupGuestToken = guestLogin(signupGuestUuid);
+        Long signupGuestUserId = jdbcTemplate.queryForObject(
+                "select id from users where guest_uuid = ?",
+                Long.class,
+                signupGuestUuid.toString()
+        );
         JsonNode signup = postJson(
                 "/api/v1/auth/signup/local",
                 Map.of(
@@ -327,9 +333,12 @@ class AuthFlowIntegrationTest {
                 signupGuestToken
         ).path("result");
         assertThat(signup.path("isNewUser").asBoolean()).isTrue();
+        assertThat(signup.path("userId").asLong()).isNotEqualTo(signupGuestUserId);
+        assertThat(getCurrentUser(signupGuestToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         String signupAccessToken = signup.path("accessToken").asText();
 
-        String loginGuestToken = guestLogin(UUID.randomUUID());
+        UUID loginGuestUuid = UUID.randomUUID();
+        String loginGuestToken = guestLogin(loginGuestUuid);
         JsonNode login = postJson(
                 "/api/v1/auth/login/local",
                 Map.of(
@@ -341,6 +350,7 @@ class AuthFlowIntegrationTest {
 
         assertThat(login.path("userId").asLong()).isEqualTo(signup.path("userId").asLong());
         assertThat(login.path("isNewUser").asBoolean()).isFalse();
+        assertThat(getCurrentUser(loginGuestToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(getCurrentUser(signupAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(getCurrentUser(login.path("accessToken").asText()).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(jdbcTemplate.queryForObject(
@@ -350,7 +360,13 @@ class AuthFlowIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'GUEST' and deleted_at is null",
                 Integer.class
-        )).isEqualTo(1);
+        )).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from users where guest_uuid in (?, ?) and role = 'GUEST' and deleted_at is null",
+                Integer.class,
+                signupGuestUuid.toString(),
+                loginGuestUuid.toString()
+        )).isEqualTo(2);
     }
 
     @Test

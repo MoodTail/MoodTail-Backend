@@ -391,9 +391,10 @@ public interface AuthControllerDocs {
             operationId = "localSignup",
             summary = "로컬 계정 회원가입",
             description = "이메일, 비밀번호, 비밀번호 확인, 닉네임과 활성 필수 약관 동의로 로컬 계정을 "
-                    + "생성합니다. 게스트 Access Token을 보내면 해당 게스트를 회원으로 전환해 데이터를 "
-                    + "유지합니다. 비밀번호는 8자 이상이며 UTF-8 기준 72바이트 이하여야 합니다. 성공 시 "
-                    + "Access Token은 본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다."
+                    + "생성합니다. 게스트 Access Token을 보내더라도 게스트 데이터는 신규 회원에게 이전하지 "
+                    + "않으며, 회원가입 성공 후 해당 게스트 세션만 종료합니다. 비밀번호는 8자 이상이며 UTF-8 "
+                    + "기준 72바이트 이하여야 합니다. 성공 시 Access Token은 본문에, Refresh Token은 "
+                    + "HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 회원가입 성공",
@@ -411,11 +412,9 @@ public interface AuthControllerDocs {
                             @ExampleObject(name = "AUTH035", value = AUTH035_EXAMPLE),
                             @ExampleObject(name = "AUTH036", value = AUTH036_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "401", description = "AUTH006/AUTH019 - 선택 게스트 인증 정보 오류",
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
-                            @ExampleObject(name = "AUTH019", value = AUTH019_EXAMPLE)
-                    })),
+            @ApiResponse(responseCode = "401", description = "AUTH006 - 선택 게스트 Access Token 오류",
+                    content = @Content(examples =
+                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE))),
             @ApiResponse(responseCode = "403", description = "AUTH009/AUTH020 - 게스트 권한 또는 사용자 상태 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
@@ -477,8 +476,8 @@ public interface AuthControllerDocs {
             operationId = "localLogin",
             summary = "로컬 계정 로그인",
             description = "이메일과 비밀번호로 로그인합니다. 선택적으로 게스트 Access Token을 보내면 게스트 "
-                    + "세션을 종료하고 회원 세션으로 교체합니다. 성공 시 Access Token은 본문에, Refresh "
-                    + "Token은 HttpOnly 쿠키에 발급됩니다."
+                    + "데이터를 기존 회원에게 이전하지 않고 게스트 세션만 종료한 뒤 회원 세션으로 교체합니다. "
+                    + "성공 시 Access Token은 본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 로그인 성공",

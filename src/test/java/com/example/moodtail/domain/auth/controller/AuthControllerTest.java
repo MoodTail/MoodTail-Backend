@@ -318,7 +318,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void localLoginRejectsAnInvalidOptionalGuestTokenInsteadOfDroppingGuestData() throws Exception {
+    void localLoginRejectsAnInvalidOptionalGuestTokenInsteadOfIgnoringIt() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login/local")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer expired-or-invalid-token")
                         .contentType(MediaType.APPLICATION_JSON)

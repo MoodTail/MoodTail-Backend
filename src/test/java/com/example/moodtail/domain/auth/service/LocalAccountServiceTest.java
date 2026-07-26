@@ -28,7 +28,6 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +37,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,13 +70,16 @@ class LocalAccountServiceTest {
     }
 
     @Test
-    void signupUpgradesGuestAndCreatesLocalCredential() {
-        User guest = guest(2L);
+    void signupCreatesMemberWithoutChangingGuestAndEndsOnlyGuestSession() {
         when(localAccountRepository.existsByEmail("user@example.com")).thenReturn(false);
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User member = invocation.getArgument(0);
+            ReflectionTestUtils.setField(member, "id", 9L);
+            return member;
+        });
         when(localAccountRepository.saveAndFlush(any(LocalAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenSessionService.issueSessionReplacingGuest(2L, UserRole.USER, 2L))
+        when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
         LocalAuthenticationResult authentication = service.signup(
@@ -89,14 +92,15 @@ class LocalAccountServiceTest {
         );
         LocalAuthUser result = authentication.user();
 
-        assertThat(result.userId()).isEqualTo(2L);
+        assertThat(result.userId()).isEqualTo(9L);
         assertThat(result.email()).isEqualTo("user@example.com");
+        assertThat(result.nickname()).isEqualTo("무드테일러");
         assertThat(result.role()).isEqualTo(UserRole.USER);
-        assertThat(guest.getGuestUuid()).isNull();
+        verify(userRepository, never()).findByIdForUpdate(2L);
         verify(termAgreementService).recordValidatedAgreements(any(), any(), any());
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
+        order.verify(tokenSessionService).issueSessionReplacingGuest(9L, UserRole.USER, 2L);
     }
 
     @Test
@@ -165,10 +169,10 @@ class LocalAccountServiceTest {
 
     @Test
     void signupUniqueConstraintRaceReturnsAccountAlreadyExists() {
-        User guest = guest(2L);
+        User member = member(9L);
         when(localAccountRepository.existsByEmail("user@example.com")).thenReturn(false, true);
         when(termAgreementService.validateAgreements(any())).thenReturn(List.of());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+        when(userRepository.save(any(User.class))).thenReturn(member);
         when(localAccountRepository.saveAndFlush(any(LocalAccount.class)))
                 .thenThrow(new DataIntegrityViolationException("duplicate email"));
 
@@ -251,12 +255,6 @@ class LocalAccountServiceTest {
         assertThat(account.getPasswordVersion()).isEqualTo(1);
         assertThat(passwordEncoder.matches("new-password1", account.getPasswordHash())).isTrue();
         verify(tokenSessionService, times(2)).revokeSession(9L);
-    }
-
-    private User guest(Long id) {
-        User user = User.createGuest(UUID.randomUUID().toString(), "게스트", LocalDateTime.now());
-        ReflectionTestUtils.setField(user, "id", id);
-        return user;
     }
 
     private User member(Long id) {
