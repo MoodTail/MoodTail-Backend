@@ -22,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.math.BigDecimal;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -186,8 +187,13 @@ class HistoryServiceTest {
     @Test
     void returnsAllDrinkingRecordsForDateInRepositoryOrder() {
         LocalDate recordDate = LocalDate.of(2026, 7, 10);
-        Cocktail mojito = cocktail(7L, "모히토");
-        Cocktail negroni = cocktail(8L, "네그로니");
+        Cocktail mojito = cocktail(
+                7L,
+                "모히토",
+                "민트와 라임의 청량한 만남",
+                new BigDecimal("20.0")
+        );
+        Cocktail negroni = cocktail(8L, "네그로니", null, null);
         DrinkingRecord first = DrinkingRecord.create(
                 User.createMember("회원", LocalDateTime.now(CLOCK)),
                 mojito,
@@ -210,10 +216,20 @@ class HistoryServiceTest {
         var response = historyService.getByDate(USER_ID, "2026-07-10");
 
         assertThat(response.drinkingRecords())
-                .extracting(item -> item.recordId(), item -> item.cocktailName())
+                .extracting(
+                        item -> item.recordId(),
+                        item -> item.cocktailName(),
+                        item -> item.shortDescription(),
+                        item -> item.alcoholDegree()
+                )
                 .containsExactly(
-                        org.assertj.core.groups.Tuple.tuple(31L, "모히토"),
-                        org.assertj.core.groups.Tuple.tuple(32L, "네그로니")
+                        org.assertj.core.groups.Tuple.tuple(
+                                31L,
+                                "모히토",
+                                "민트와 라임의 청량한 만남",
+                                new BigDecimal("20.0")
+                        ),
+                        org.assertj.core.groups.Tuple.tuple(32L, "네그로니", null, null)
                 );
     }
 
@@ -476,10 +492,17 @@ class HistoryServiceTest {
         verify(historyRepository, never()).findWithDetailsByIdAndUserId(any(), any());
     }
 
-    private Cocktail cocktail(Long id, String name) {
+    private Cocktail cocktail(
+            Long id,
+            String name,
+            String shortDescription,
+            BigDecimal alcoholDegree
+    ) {
         Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
         when(cocktail.getId()).thenReturn(id);
         when(cocktail.getNameKo()).thenReturn(name);
+        when(cocktail.getShortDescription()).thenReturn(shortDescription);
+        when(cocktail.getAlcoholDegree()).thenReturn(alcoholDegree);
         return cocktail;
     }
 }

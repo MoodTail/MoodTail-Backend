@@ -32,6 +32,7 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
@@ -104,12 +105,16 @@ class HistoryControllerTest {
                                 31L,
                                 10L,
                                 "모히토",
+                                "민트와 라임의 청량한 만남",
+                                new BigDecimal("20.0"),
                                 "https://cdn.example/mojito.jpg"
                         ),
                         new HistoryDateResponse.DrinkingRecordItem(
                                 32L,
                                 11L,
                                 "네그로니",
+                                null,
+                                null,
                                 "https://cdn.example/negroni.jpg"
                         )
                 ),
@@ -140,7 +145,12 @@ class HistoryControllerTest {
                 .andExpect(jsonPath("$.result.date").value("2026-07-05"))
                 .andExpect(jsonPath("$.result.drinkingRecords.length()").value(2))
                 .andExpect(jsonPath("$.result.drinkingRecords[0].recordId").value(31))
+                .andExpect(jsonPath("$.result.drinkingRecords[0].shortDescription")
+                        .value("민트와 라임의 청량한 만남"))
+                .andExpect(jsonPath("$.result.drinkingRecords[0].alcoholDegree").value(20.0))
                 .andExpect(jsonPath("$.result.drinkingRecords[1].recordId").value(32))
+                .andExpect(jsonPath("$.result.drinkingRecords[1].shortDescription").doesNotExist())
+                .andExpect(jsonPath("$.result.drinkingRecords[1].alcoholDegree").doesNotExist())
                 .andExpect(jsonPath("$.result.drinkingRecord").doesNotExist());
         mockMvc.perform(get("/api/v1/history/drinking-records/31"))
                 .andExpect(status().isOk())
