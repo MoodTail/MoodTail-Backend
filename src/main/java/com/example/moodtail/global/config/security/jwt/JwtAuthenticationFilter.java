@@ -1,6 +1,5 @@
 package com.example.moodtail.global.config.security.jwt;
 
-import com.example.moodtail.domain.auth.controller.AuthApiPaths;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.UserRepository;
@@ -39,33 +38,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			return;
 		}
 		String token = resolveAccessToken(request);
-		Claims claims = token == null
-				? null
-				: jwtTokenProvider.validateAccessTokenAndGetClaims(token).orElse(null);
-
-		if (claims != null) {
-			try {
-				Authentication authentication = getAuthentication(claims);
-				SecurityContextHolder.getContext().setAuthentication(authentication);
-			} catch (RestApiException exception) {
-				if (!isIgnorableOptionalGuestFailure(uri, exception)) {
-					throw exception;
-				}
-				SecurityContextHolder.clearContext();
-			}
+		if (token != null) {
+			Claims claims = jwtTokenProvider.validateAccessTokenAndGetClaims(token)
+					.orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_ACCESS_TOKEN));
+			Authentication authentication = getAuthentication(claims);
+			SecurityContextHolder.getContext().setAuthentication(authentication);
 		}
 		chain.doFilter(request, response);
-	}
-
-	private boolean isIgnorableOptionalGuestFailure(String uri, RestApiException exception) {
-		if (!AuthApiPaths.LOCAL_LOGIN_FULL.equals(uri)) {
-			return false;
-		}
-		String code = exception.getErrorCode().getCode();
-		return AuthErrorStatus.INVALID_ACCESS_TOKEN.getCode().getCode().equals(code)
-				|| AuthErrorStatus.INVALID_ROLE.getCode().getCode().equals(code)
-				|| AuthErrorStatus.USER_NOT_FOUND.getCode().getCode().equals(code)
-				|| AuthErrorStatus.INACTIVE_USER.getCode().getCode().equals(code);
 	}
 
 	private boolean isActuatorRequest(String uri) {
@@ -104,10 +83,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private String resolveAccessToken(HttpServletRequest request) {
 		String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
-		if (StringUtils.hasText(authorization) && authorization.startsWith("Bearer ")) {
-			return authorization.substring(7);
+		if (authorization == null) {
+			return null;
 		}
-		return null;
+		if (!StringUtils.hasText(authorization) || !authorization.startsWith("Bearer ")) {
+			throw new RestApiException(AuthErrorStatus.INVALID_ACCESS_TOKEN);
+		}
+		String token = authorization.substring(7);
+		if (!StringUtils.hasText(token)) {
+			throw new RestApiException(AuthErrorStatus.INVALID_ACCESS_TOKEN);
+		}
+		return token;
 	}
 
 	private UserRole parseRole(String roleClaim) {

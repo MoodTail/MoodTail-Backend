@@ -90,7 +90,7 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    void ignoresOldGuestTokenForLocalLogin() throws Exception {
+    void rejectsOldGuestTokenEvenOnLocalLogin() {
         User upgradedUser = guestWithId(7L);
         upgradedUser.upgradeToUser("회원", LocalDateTime.now());
         Claims claims = accessClaims("7", UserRole.GUEST);
@@ -98,15 +98,83 @@ class JwtAuthenticationFilterTest {
         MockHttpServletRequest request =
                 new MockHttpServletRequest("POST", "/api/v1/auth/login/local");
         request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer old-guest-token");
-        MockHttpServletResponse response = new MockHttpServletResponse();
         when(jwtProvider.validateAccessTokenAndGetClaims("old-guest-token"))
                 .thenReturn(Optional.of(claims));
         when(userRepository.findAuthUserById(7L)).thenReturn(Optional.of(upgradedUser));
+
+        assertThatThrownBy(() -> filter.doFilterInternal(
+                request,
+                new MockHttpServletResponse(),
+                filterChain
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH009")
+        );
+    }
+
+    @Test
+    void rejectsMalformedAuthorizationHeader() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tests/questions");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Token access-token");
+
+        assertThatThrownBy(() -> filter.doFilterInternal(
+                request,
+                new MockHttpServletResponse(),
+                filterChain
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH006")
+        );
+        verifyNoInteractions(jwtProvider, userRepository, filterChain);
+    }
+
+    @Test
+    void rejectsExpiredOrRevokedAccessToken() {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tests/questions");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer expired-token");
+        when(jwtProvider.validateAccessTokenAndGetClaims("expired-token"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> filter.doFilterInternal(
+                request,
+                new MockHttpServletResponse(),
+                filterChain
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH006")
+        );
+        verifyNoInteractions(userRepository, filterChain);
+    }
+
+    @Test
+    void allowsRequestWithoutAuthorizationHeaderToContinueUnauthenticated() throws Exception {
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tests/questions");
+        MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilterInternal(request, response, filterChain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         verify(filterChain).doFilter(request, response);
+        verifyNoInteractions(jwtProvider, userRepository);
+    }
+
+    @Test
+    void rejectsAccessTokenForMissingUser() {
+        Claims claims = accessClaims("404", UserRole.GUEST);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(jwtProvider, userRepository);
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/tests/questions");
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer missing-user-token");
+        when(jwtProvider.validateAccessTokenAndGetClaims("missing-user-token"))
+                .thenReturn(Optional.of(claims));
+        when(userRepository.findAuthUserById(404L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> filter.doFilterInternal(
+                request,
+                new MockHttpServletResponse(),
+                filterChain
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH010")
+        );
     }
 
     @Test

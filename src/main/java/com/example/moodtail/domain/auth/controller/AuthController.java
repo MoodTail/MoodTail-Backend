@@ -43,7 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping(AuthApiPaths.BASE)
+@RequestMapping("/api/v1/auth")
 public class AuthController implements AuthControllerDocs {
 
     private static final String NO_STORE = "no-store";
@@ -129,7 +129,7 @@ public class AuthController implements AuthControllerDocs {
     }
 
     @Override
-    @PostMapping(AuthApiPaths.LOCAL_LOGIN)
+    @PostMapping("/login/local")
     public BaseResponse<LocalAuthResponse> localLogin(
             @Valid @RequestBody LocalLoginRequest request,
             @AuthenticationPrincipal PrincipalDetails principal,
@@ -140,7 +140,7 @@ public class AuthController implements AuthControllerDocs {
         return authenticated(
                 authService.localLogin(
                         request,
-                        optionalGuestUserIdForLogin(principal),
+                        optionalGuestUserId(principal, httpRequest),
                         authHttpSupport.clientAddress(httpRequest)
                 ),
                 response
@@ -254,13 +254,6 @@ public class AuthController implements AuthControllerDocs {
             return null;
         }
         return guestUserId(principal);
-    }
-
-    private Long optionalGuestUserIdForLogin(PrincipalDetails principal) {
-        if (principal == null || !UserRole.GUEST.name().equals(principal.getRole())) {
-            return null;
-        }
-        return principal.getUserId();
     }
 
     private Long guestUserId(PrincipalDetails principal) {

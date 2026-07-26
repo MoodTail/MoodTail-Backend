@@ -122,6 +122,32 @@ class SecurityConfigTest {
         assertGuestBlocked(get("/api/v1/cocktails/favorites"));
     }
 
+    @Test
+    void invalidAccessTokenIsRejectedBeforePublicEndpoint() throws Exception {
+        when(jwtProvider.validateAccessTokenAndGetClaims("expired-token"))
+                .thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/v1/tests/questions")
+                        .header(HttpHeaders.AUTHORIZATION, "Bearer expired-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH006"));
+    }
+
+    @Test
+    void malformedAuthorizationHeaderIsRejectedBeforePublicEndpoint() throws Exception {
+        mockMvc.perform(get("/api/v1/tests/questions")
+                        .header(HttpHeaders.AUTHORIZATION, "Token malformed-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH006"));
+    }
+
+    @Test
+    void publicEndpointStillAllowsRequestWithoutAuthorizationHeader() throws Exception {
+        mockMvc.perform(get("/api/v1/tests/questions"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+    }
+
     private void assertGuestBlocked(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request
     ) throws Exception {
@@ -155,6 +181,11 @@ class SecurityConfigTest {
 
         @GetMapping("/api/v1/cocktails/favorites")
         String favoritesProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/api/v1/tests/questions")
+        String publicProbe() {
             return "ok";
         }
 

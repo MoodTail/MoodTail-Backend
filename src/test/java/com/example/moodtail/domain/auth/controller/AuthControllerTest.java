@@ -31,6 +31,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
@@ -318,19 +319,7 @@ class AuthControllerTest {
     }
 
     @Test
-    void localLoginIgnoresInvalidOptionalGuestToken() throws Exception {
-        LocalAuthResponse loginResponse = new LocalAuthResponse(
-                2L,
-                "user@example.com",
-                "무드테일러",
-                false,
-                "Bearer",
-                "login-access-token"
-        );
-        when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
-        when(authService.localLogin(any(LocalLoginRequest.class), isNull(), eq("203.0.113.7")))
-                .thenReturn(new AuthResult<>(loginResponse, "login-refresh-token"));
-
+    void localLoginRejectsAnInvalidOptionalGuestTokenInsteadOfDroppingGuestData() throws Exception {
         mockMvc.perform(post("/api/v1/auth/login/local")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer expired-or-invalid-token")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -340,14 +329,27 @@ class AuthControllerTest {
                                   "password": "password123!"
                                 }
                                 """))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.accessToken").value("login-access-token"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("AUTH006"));
 
-        verify(authService).localLogin(
-                any(LocalLoginRequest.class),
-                isNull(),
-                eq("203.0.113.7")
+        verify(authService, never()).localLogin(any(), any(), any());
+    }
+
+    @Test
+    void localLoginRejectsMemberTokenAsOptionalGuestSession() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer member-access-token");
+
+        assertThatThrownBy(() -> controller.localLogin(
+                new LocalLoginRequest("user@example.com", "password123!"),
+                new PrincipalDetails(9L, UserRole.USER),
+                request,
+                new MockHttpServletResponse()
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH009")
         );
+
+        verify(authService, never()).localLogin(any(), any(), any());
     }
 
     @Test

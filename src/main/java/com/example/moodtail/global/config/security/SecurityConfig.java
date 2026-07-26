@@ -1,6 +1,5 @@
 package com.example.moodtail.global.config.security;
 
-import com.example.moodtail.domain.auth.controller.AuthApiPaths;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.config.security.auth.CustomAccessDeniedHandler;
 import com.example.moodtail.global.config.security.auth.CustomAuthenticationEntryPoint;
@@ -63,7 +62,7 @@ public class SecurityConfig {
 								"/api/v1/auth/guest",
 								"/api/v1/auth/kakao",
 								"/api/v1/auth/google",
-								AuthApiPaths.LOCAL_LOGIN_FULL,
+								"/api/v1/auth/login/local",
 								"/api/v1/auth/signup/local",
 								"/api/v1/auth/password-reset/codes",
 								"/api/v1/auth/password-reset/codes/verify",
