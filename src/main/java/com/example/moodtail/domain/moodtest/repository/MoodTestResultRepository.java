@@ -1,7 +1,6 @@
 package com.example.moodtail.domain.moodtest.repository;
 
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
-import com.example.moodtail.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -19,33 +18,6 @@ public interface MoodTestResultRepository extends JpaRepository<MoodTestResult, 
     Optional<MoodTestResult> findByShareToken(String shareToken);
 
     Optional<MoodTestResult> findFirstByUserIdOrderByCreatedAtDesc(Long userId);
-
-    @Query("""
-            select guestResult.id
-              from MoodTestResult guestResult
-             where guestResult.user.id = :guestUserId
-               and exists (
-                   select targetResult.id
-                     from MoodTestResult targetResult
-                    where targetResult.user.id = :targetUserId
-                      and targetResult.resultDate = guestResult.resultDate
-               )
-            """)
-    List<Long> findIdsConflictingWithUser(
-            @Param("guestUserId") Long guestUserId,
-            @Param("targetUserId") Long targetUserId
-    );
-
-    @Modifying(flushAutomatically = true)
-    @Query("""
-            update MoodTestResult result
-               set result.user = :targetUser
-             where result.user.id = :guestUserId
-            """)
-    int transferAllByUserId(
-            @Param("guestUserId") Long guestUserId,
-            @Param("targetUser") User targetUser
-    );
 
     @Modifying(flushAutomatically = true)
     @Query("delete from MoodTestResult result where result.user.id = :userId")

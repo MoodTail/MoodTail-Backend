@@ -33,7 +33,6 @@ public class SocialAccountService {
     private final UserRepository userRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final TermAgreementService termAgreementService;
-    private final GuestDataTransferService guestDataTransferService;
     private final TokenSessionService tokenSessionService;
 
     public SocialAuthenticationResult authenticate(
@@ -41,27 +40,26 @@ public class SocialAccountService {
             Long guestUserId,
             List<Consent> consents
     ) {
+        if (guestUserId == null) {
+            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+        }
         if (profile == null || profile.provider() == null || !StringUtils.hasText(profile.providerUserId())) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        SocialAuthenticationAttempt attempt =
-                authenticateInTransaction(profile, guestUserId, consents);
-        return completeAuthentication(attempt.user(), attempt.replacedGuestUserId());
+        SocialLoginUser authenticatedUser = authenticateInTransaction(profile, guestUserId, consents);
+        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
-    private SocialAuthenticationAttempt authenticateInTransaction(
+    private SocialLoginUser authenticateInTransaction(
             SocialUserProfile profile,
             Long guestUserId,
             List<Consent> consents
     ) {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
         try {
-            SocialAuthenticationAttempt result = transactionTemplate.execute(status ->
-                    loginInTransaction(profile, guestUserId).orElseGet(
-                            () -> new SocialAuthenticationAttempt(
-                                    registerInTransaction(profile, guestUserId, consents),
-                                    guestUserId
-                            )
+            SocialLoginUser result = transactionTemplate.execute(status ->
+                    loginInTransaction(profile).orElseGet(
+                            () -> registerInTransaction(profile, guestUserId, consents)
                     )
             );
             if (result == null) {
@@ -69,8 +67,8 @@ public class SocialAccountService {
             }
             return result;
         } catch (DataIntegrityViolationException exception) {
-            Optional<SocialAuthenticationAttempt> committedAuthentication =
-                    recoverCommittedRegistration(transactionTemplate, profile, guestUserId);
+            Optional<SocialLoginUser> committedAuthentication =
+                    recoverCommittedRegistration(transactionTemplate, profile);
             if (committedAuthentication.isPresent()) {
                 return committedAuthentication.get();
             }
@@ -78,14 +76,13 @@ public class SocialAccountService {
         }
     }
 
-    private Optional<SocialAuthenticationAttempt> recoverCommittedRegistration(
+    private Optional<SocialLoginUser> recoverCommittedRegistration(
             TransactionTemplate transactionTemplate,
-            SocialUserProfile profile,
-            Long guestUserId
+            SocialUserProfile profile
     ) {
         try {
-            Optional<SocialAuthenticationAttempt> result = transactionTemplate.execute(
-                    status -> loginInTransaction(profile, guestUserId)
+            Optional<SocialLoginUser> result = transactionTemplate.execute(
+                    status -> loginInTransaction(profile)
             );
             return result == null ? Optional.empty() : result;
         } catch (CannotAcquireLockException | DataIntegrityViolationException ignored) {
@@ -93,10 +90,7 @@ public class SocialAccountService {
         }
     }
 
-    private Optional<SocialAuthenticationAttempt> loginInTransaction(
-            SocialUserProfile profile,
-            Long guestUserId
-    ) {
+    private Optional<SocialLoginUser> loginInTransaction(SocialUserProfile profile) {
         Optional<SocialAccount> socialAccountOptional = socialAccountRepository
                 .findByProviderAndProviderUserId(profile.provider(), profile.providerUserId());
         if (socialAccountOptional.isEmpty()) {
@@ -105,13 +99,8 @@ public class SocialAccountService {
         SocialAccount socialAccount = socialAccountOptional.get();
         User user = socialAccount.getUser();
         validateActive(user);
-        boolean transferredGuest = guestDataTransferService
-                .transferToExistingUserIfActiveGuest(guestUserId, user.getId());
         user.updateLastAccessedAt(LocalDateTime.now());
-        return Optional.of(new SocialAuthenticationAttempt(
-                createSocialLoginUser(user, socialAccount, false),
-                transferredGuest ? guestUserId : null
-        ));
+        return Optional.of(createSocialLoginUser(user, socialAccount, false));
     }
 
     private SocialLoginUser registerInTransaction(
@@ -119,9 +108,6 @@ public class SocialAccountService {
             Long guestUserId,
             List<Consent> consents
     ) {
-        if (guestUserId == null) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-        }
         User guestUser = userRepository.findByIdForUpdate(guestUserId)
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
         if (!guestUser.isGuest() || !guestUser.isAvailableForAuthentication()) {
@@ -187,12 +173,6 @@ public class SocialAccountService {
             }
             throw exception;
         }
-    }
-
-    private record SocialAuthenticationAttempt(
-            SocialLoginUser user,
-            Long replacedGuestUserId
-    ) {
     }
 
 }

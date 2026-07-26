@@ -23,7 +23,6 @@ import org.hibernate.annotations.Check;
 import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDateTime;
-import java.util.UUID;
 
 @Entity
 @Table(
@@ -99,14 +98,6 @@ public class User extends BaseEntity {
         guestUuid = null;
         role = UserRole.USER;
         lastAccessedAt = accessedAt;
-    }
-
-    public void retireGuest() {
-        if (role != UserRole.GUEST || guestUuid == null || !isAvailableForAuthentication()) {
-            throw new IllegalStateException("활성 게스트 사용자만 종료할 수 있습니다.");
-        }
-        guestUuid = UUID.randomUUID().toString();
-        delete();
     }
 
     public void updateLastAccessedAt(LocalDateTime accessedAt) {

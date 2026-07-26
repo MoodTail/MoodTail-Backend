@@ -256,7 +256,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void socialLoginDelegatesExistingAccountAuthenticationWithGuestSession() {
+    void socialLoginDoesNotMergeGuestWhenProviderAccountAlreadyExists() {
         SocialUserProfile profile = new SocialUserProfile(
                 SocialProvider.GOOGLE,
                 "google-user-id",

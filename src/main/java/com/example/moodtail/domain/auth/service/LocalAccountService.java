@@ -43,7 +43,6 @@ public class LocalAccountService {
     private final TermAgreementService termAgreementService;
     private final PasswordEncoder passwordEncoder;
     private final LocalAuthProperties properties;
-    private final GuestDataTransferService guestDataTransferService;
     private final TokenSessionService tokenSessionService;
 
     public LocalAuthenticationResult signup(
@@ -93,11 +92,8 @@ public class LocalAccountService {
     ) {
         String normalizedEmail = normalizeEmail(email);
         validateLoginPasswordInput(password);
-        LoginAttempt attempt = loginInTransaction(normalizedEmail, password, guestUserId);
-        if (attempt.errorStatus() != null) {
-            throw new RestApiException(attempt.errorStatus());
-        }
-        return completeAuthentication(attempt.user(), attempt.transferredGuestUserId());
+        LocalAuthUser authenticatedUser = loginInTransaction(normalizedEmail, password);
+        return completeAuthentication(authenticatedUser, guestUserId);
     }
 
     public void changePassword(
@@ -148,10 +144,9 @@ public class LocalAccountService {
         return !localAccountRepository.existsByEmail(normalizedEmail);
     }
 
-    private LoginAttempt loginInTransaction(
+    private LocalAuthUser loginInTransaction(
             String normalizedEmail,
-            String password,
-            Long guestUserId
+            String password
     ) {
         LoginAttempt attempt = requiresNewTransaction().execute(status -> {
             Optional<LocalAccount> accountOptional = localAccountRepository.findByEmailForUpdate(normalizedEmail);
@@ -177,19 +172,17 @@ public class LocalAccountService {
             }
 
             account.clearLoginFailures();
-            boolean transferredGuest = guestDataTransferService
-                    .transferToExistingUserIfActiveGuest(guestUserId, user.getId());
             user.updateLastAccessedAt(now);
             LocalAuthUser authenticatedUser = LocalAuthUser.from(account);
-            return LoginAttempt.success(
-                    authenticatedUser,
-                    transferredGuest ? guestUserId : null
-            );
+            return LoginAttempt.success(authenticatedUser);
         });
         if (attempt == null) {
             throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
         }
-        return attempt;
+        if (attempt.errorStatus() != null) {
+            throw new RestApiException(attempt.errorStatus());
+        }
+        return attempt.user();
     }
 
     private LocalAuthenticationResult completeAuthentication(LocalAuthUser user, Long guestUserId) {
@@ -285,17 +278,13 @@ public class LocalAccountService {
         return template;
     }
 
-    private record LoginAttempt(
-            LocalAuthUser user,
-            AuthErrorStatus errorStatus,
-            Long transferredGuestUserId
-    ) {
-        static LoginAttempt success(LocalAuthUser user, Long transferredGuestUserId) {
-            return new LoginAttempt(user, null, transferredGuestUserId);
+    private record LoginAttempt(LocalAuthUser user, AuthErrorStatus errorStatus) {
+        static LoginAttempt success(LocalAuthUser user) {
+            return new LoginAttempt(user, null);
         }
 
         static LoginAttempt failure(AuthErrorStatus status) {
-            return new LoginAttempt(null, status, null);
+            return new LoginAttempt(null, status);
         }
     }
 }

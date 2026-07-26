@@ -3,7 +3,6 @@ package com.example.moodtail.domain.user.entity;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.entity.UserStatus;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDateTime;
 
@@ -37,39 +36,6 @@ class UserTest {
         assertThat(guest.getGuestUuid()).isNull();
         assertThat(guest.getRole()).isEqualTo(UserRole.USER);
         assertThat(guest.getNickname()).isEqualTo("소셜유저");
-    }
-
-    @Test
-    void retiringGuestRevokesOriginalUuidAndSoftDeletesIt() {
-        User guest = User.createGuest(
-                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
-                "게스트",
-                LocalDateTime.now()
-        );
-
-        guest.retireGuest();
-
-        assertThat(guest.getGuestUuid())
-                .isNotNull()
-                .isNotEqualTo("b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d");
-        assertThat(guest.isDeleted()).isTrue();
-        assertThat(guest.getRole()).isEqualTo(UserRole.GUEST);
-    }
-
-    @Test
-    void withdrawnGuestCannotBeRetired() {
-        User guest = User.createGuest(
-                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
-                "게스트",
-                LocalDateTime.now()
-        );
-        ReflectionTestUtils.setField(guest, "status", UserStatus.WITHDRAWN);
-
-        assertThatThrownBy(guest::retireGuest)
-                .isInstanceOf(IllegalStateException.class);
-        assertThat(guest.getGuestUuid())
-                .isEqualTo("b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d");
-        assertThat(guest.isDeleted()).isFalse();
     }
 
     @Test

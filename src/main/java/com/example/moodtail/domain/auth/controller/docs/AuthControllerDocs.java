@@ -282,13 +282,10 @@ public interface AuthControllerDocs {
             summary = "카카오 회원가입 또는 로그인",
             description = "카카오 인가 코드와 일회성 state를 검증합니다. 기존 카카오 계정이면 로그인하고, "
                     + "미가입 계정이면 닉네임과 활성 필수 약관 동의로 회원가입합니다. 신규 계정은 게스트를 "
-                    + "회원으로 전환해 기존 데이터를 유지합니다. 기존 계정이면 활성 게스트 데이터를 기존 "
-                    + "회원에게 승계한 뒤 게스트 세션을 회원 세션으로 교체하며, 게스트가 존재하지 않거나 이미 "
-                    + "퇴역했다면 승계만 건너뛰고 로그인을 계속합니다. 최초 가입일 때만 agreements가 필요합니다. "
-                    + "인가 요청에는 응답받은 PKCE codeChallenge와 S256 방식을 포함해야 합니다. state는 "
-                    + "한 번 소비되므로 실패 후 재시도할 때 새 state를 발급받아야 합니다. 성공 시 Access "
-                    + "Token은 본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다. 계정 처리 후 세션 "
-                    + "발급만 실패하면 AUTH041을 반환하며 다시 로그인하면 됩니다."
+                    + "회원으로 전환해 기존 데이터를 유지하며, 기존 계정 로그인은 현재 게스트 세션만 회원 "
+                    + "세션으로 교체합니다. 최초 가입일 때만 agreements가 필요합니다. state는 한 번 "
+                    + "소비되므로 실패 후 재시도할 때 새 state를 발급받아야 합니다. 성공 시 Access Token은 "
+                    + "본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 카카오 회원가입 또는 로그인 성공",
@@ -340,13 +337,10 @@ public interface AuthControllerDocs {
             summary = "구글 회원가입 또는 로그인",
             description = "구글 인가 코드와 일회성 state를 검증합니다. 기존 구글 계정이면 로그인하고, "
                     + "미가입 계정이면 닉네임과 활성 필수 약관 동의로 회원가입합니다. 신규 계정은 게스트를 "
-                    + "회원으로 전환해 기존 데이터를 유지합니다. 기존 계정이면 활성 게스트 데이터를 기존 "
-                    + "회원에게 승계한 뒤 게스트 세션을 회원 세션으로 교체하며, 게스트가 존재하지 않거나 이미 "
-                    + "퇴역했다면 승계만 건너뛰고 로그인을 계속합니다. 최초 가입일 때만 agreements가 필요합니다. "
-                    + "인가 요청에는 응답받은 PKCE codeChallenge와 S256 방식을 포함해야 합니다. state는 "
-                    + "한 번 소비되므로 실패 후 재시도할 때 새 state를 발급받아야 합니다. 성공 시 Access "
-                    + "Token은 본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다. 계정 처리 후 세션 "
-                    + "발급만 실패하면 AUTH041을 반환하며 다시 로그인하면 됩니다."
+                    + "회원으로 전환해 기존 데이터를 유지하며, 기존 계정 로그인은 현재 게스트 세션만 회원 "
+                    + "세션으로 교체합니다. 최초 가입일 때만 agreements가 필요합니다. state는 한 번 "
+                    + "소비되므로 실패 후 재시도할 때 새 state를 발급받아야 합니다. 성공 시 Access Token은 "
+                    + "본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 구글 회원가입 또는 로그인 성공",
@@ -482,11 +476,9 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "localLogin",
             summary = "로컬 계정 로그인",
-            description = "이메일과 비밀번호로 로그인합니다. 선택적으로 게스트 Access Token을 보내면 게스트 데이터를 "
-                    + "기존 회원에게 승계한 뒤 게스트 세션을 회원 세션으로 교체합니다. "
-                    + "게스트 토큰이 만료되었거나 이미 퇴역한 경우에는 승계만 건너뛰고 로그인을 계속합니다. "
-                    + "성공 시 Access Token은 본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다. "
-                    + "세션 발급에 실패하면 AUTH041을 반환합니다."
+            description = "이메일과 비밀번호로 로그인합니다. 선택적으로 게스트 Access Token을 보내면 게스트 "
+                    + "세션을 종료하고 회원 세션으로 교체합니다. 성공 시 Access Token은 본문에, Refresh "
+                    + "Token은 HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 로그인 성공",
@@ -499,10 +491,16 @@ public interface AuthControllerDocs {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "401", description = "AUTH011 - 이메일 또는 비밀번호 불일치",
-                    content = @Content(examples = @ExampleObject(name = "AUTH011", value = AUTH011_EXAMPLE))),
-            @ApiResponse(responseCode = "403", description = "AUTH020 - 비활성 또는 탈퇴 계정",
-                    content = @Content(examples = @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE))),
+            @ApiResponse(responseCode = "401", description = "AUTH006/AUTH011 - 게스트 토큰 또는 로그인 정보 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
+                            @ExampleObject(name = "AUTH011", value = AUTH011_EXAMPLE)
+                    })),
+            @ApiResponse(responseCode = "403", description = "AUTH009/AUTH020 - 게스트 권한 또는 사용자 상태 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
+                            @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE)
+                    })),
             @ApiResponse(responseCode = "429", description = "AUTH043 - 로그인 요청 한도 초과",
                     content = @Content(examples = @ExampleObject(name = "AUTH043", value = AUTH043_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028/AUTH041 - 인증 저장소 또는 세션 발급 오류",

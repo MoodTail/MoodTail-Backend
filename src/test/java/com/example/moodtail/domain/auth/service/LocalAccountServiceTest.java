@@ -35,10 +35,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -50,7 +49,6 @@ class LocalAccountServiceTest {
     @Mock LocalAccountRepository localAccountRepository;
     @Mock UserRepository userRepository;
     @Mock TermAgreementService termAgreementService;
-    @Mock GuestDataTransferService guestDataTransferService;
     @Mock TokenSessionService tokenSessionService;
 
     private PasswordEncoder passwordEncoder;
@@ -66,7 +64,6 @@ class LocalAccountServiceTest {
                 termAgreementService,
                 passwordEncoder,
                 LocalAuthPropertiesFixtures.enabled(),
-                guestDataTransferService,
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
@@ -121,26 +118,6 @@ class LocalAccountServiceTest {
         );
 
         assertThat(account.getFailedLoginAttempts()).isEqualTo(1);
-    }
-
-    @Test
-    void failedLoginDoesNotTransferGuestData() {
-        User user = member(9L);
-        LocalAccount account = LocalAccount.create(
-                user,
-                "user@example.com",
-                passwordEncoder.encode("correct-password"),
-                LocalDateTime.now()
-        );
-        when(localAccountRepository.findByEmailForUpdate("user@example.com"))
-                .thenReturn(Optional.of(account));
-
-        assertThatThrownBy(() -> service.login(
-                "user@example.com", "wrong-password", 2L
-        )).isInstanceOf(RestApiException.class);
-
-        verify(guestDataTransferService, never())
-                .transferToExistingUserIfActiveGuest(any(), any());
     }
 
     @Test
@@ -208,7 +185,7 @@ class LocalAccountServiceTest {
     }
 
     @Test
-    void loginTransfersGuestDataBeforeReplacingItsSession() {
+    void loginKeepsGuestDataSeparateAndReplacesOnlyItsSession() {
         User user = member(9L);
         LocalAccount account = LocalAccount.create(
                 user,
@@ -218,46 +195,15 @@ class LocalAccountServiceTest {
         );
         when(localAccountRepository.findByEmailForUpdate("user@example.com"))
                 .thenReturn(Optional.of(account));
-        when(guestDataTransferService.transferToExistingUserIfActiveGuest(2L, 9L))
-                .thenReturn(true);
         when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
         LocalAuthUser result = service.login("user@example.com", "correct-password", 2L).user();
 
         assertThat(result.userId()).isEqualTo(9L);
-        InOrder order = inOrder(guestDataTransferService, transactionManager, tokenSessionService);
-        order.verify(guestDataTransferService)
-                .transferToExistingUserIfActiveGuest(2L, 9L);
+        InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
         order.verify(tokenSessionService).issueSessionReplacingGuest(9L, UserRole.USER, 2L);
-    }
-
-    @Test
-    void loginContinuesWithoutReplacingGuestSessionWhenGuestIsNoLongerActive() {
-        User user = member(9L);
-        LocalAccount account = LocalAccount.create(
-                user,
-                "user@example.com",
-                passwordEncoder.encode("correct-password"),
-                LocalDateTime.now()
-        );
-        when(localAccountRepository.findByEmailForUpdate("user@example.com"))
-                .thenReturn(Optional.of(account));
-        when(guestDataTransferService.transferToExistingUserIfActiveGuest(2L, 9L))
-                .thenReturn(false);
-        when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, null))
-                .thenReturn(new TokenInfo("access", "refresh"));
-
-        LocalAuthUser result = service.login("user@example.com", "correct-password", 2L).user();
-
-        assertThat(result.userId()).isEqualTo(9L);
-        InOrder order = inOrder(guestDataTransferService, transactionManager, tokenSessionService);
-        order.verify(guestDataTransferService)
-                .transferToExistingUserIfActiveGuest(2L, 9L);
-        order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService)
-                .issueSessionReplacingGuest(9L, UserRole.USER, null);
     }
 
     @Test

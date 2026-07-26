@@ -2,7 +2,6 @@ package com.example.moodtail.domain.recommendation.repository;
 
 import com.example.moodtail.domain.recommendation.entity.RecommendationSession;
 import com.example.moodtail.domain.recommendation.entity.RecommendationSessionType;
-import com.example.moodtail.domain.user.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -28,43 +27,6 @@ public interface RecommendationSessionRepository extends JpaRepository<Recommend
                 or partnerResult.user.id = :userId
             """)
     List<Long> findAllIdsRelatedToUserId(@Param("userId") Long userId);
-
-    @Query("""
-            select distinct session.id
-              from RecommendationSession session
-             where session.user.id in :ownerUserIds
-               and (
-                    session.moodTestResult.id in :moodTestResultIds
-                    or session.partnerMoodTestResult.id in :moodTestResultIds
-               )
-            """)
-    List<Long> findAllIdsOwnedByUserIdInAndRelatedToMoodTestResultIdIn(
-            @Param("ownerUserIds") Collection<Long> ownerUserIds,
-            @Param("moodTestResultIds") Collection<Long> moodTestResultIds
-    );
-
-    @Modifying(flushAutomatically = true)
-    @Query("""
-            update RecommendationSession session
-               set session.partnerMoodTestResult = null
-             where session.user.id not in :ownerUserIds
-               and session.partnerMoodTestResult.id in :moodTestResultIds
-            """)
-    int clearPartnerMoodTestResultForOtherOwners(
-            @Param("ownerUserIds") Collection<Long> ownerUserIds,
-            @Param("moodTestResultIds") Collection<Long> moodTestResultIds
-    );
-
-    @Modifying(flushAutomatically = true)
-    @Query("""
-            update RecommendationSession session
-               set session.user = :targetUser
-             where session.user.id = :guestUserId
-            """)
-    int transferAllByUserId(
-            @Param("guestUserId") Long guestUserId,
-            @Param("targetUser") User targetUser
-    );
 
     @Modifying(flushAutomatically = true)
     @Query("delete from RecommendationSession session where session.id in :sessionIds")
