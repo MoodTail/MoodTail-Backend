@@ -21,6 +21,7 @@ public class PairRecommendationShareController implements PairRecommendationShar
 
     private final PairRecommendationShareService pairRecommendationShareService;
 
+    @Override
     @PostMapping("/share")
     public BaseResponse<PairRecommendationShareResponse> sharePairRecommendation(
             @AuthenticationPrincipal PrincipalDetails principalDetails,
