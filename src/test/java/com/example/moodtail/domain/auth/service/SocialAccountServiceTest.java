@@ -1,15 +1,13 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.entity.SocialAccount;
-import com.example.moodtail.domain.auth.model.Consent;
-import com.example.moodtail.domain.auth.model.SocialLoginUser;
+import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.term.entity.TermType;
 import com.example.moodtail.domain.term.repository.TermRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
-import com.example.moodtail.domain.user.entity.UserTermAgreement;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
 import com.example.moodtail.global.auth.model.SocialProvider;
@@ -36,9 +34,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.argThat;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -78,363 +73,207 @@ class SocialAccountServiceTest {
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        lenient().when(tokenSessionService.issueSessionReplacingGuest(anyLong(), any(), anyLong()))
+        lenient().when(tokenSessionService.issueSessionReplacingGuest(anyLong(), any(), any()))
                 .thenReturn(new TokenInfo("access", "refresh"));
     }
 
     @Test
-    void newAuthenticationUpgradesGuestAndStoresRequiredTermAgreement() {
-        User guest = guestWithId(2L);
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
-        SocialUserProfile profile = kakaoProfile();
-
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
-        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
-        SocialLoginUser result = service.authenticate(
-                profile,
-                2L,
-                List.of(new Consent(1L, true))
-        ).user();
-
-        assertThat(result.userId()).isEqualTo(2L);
-        assertThat(result.role()).isEqualTo(UserRole.USER);
-        assertThat(result.socialEmail()).isNull();
-        InOrder order = inOrder(transactionManager, tokenSessionService);
-        order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
-        assertThat(result.isNewUser()).isTrue();
-        assertThat(guest.getGuestUuid()).isNull();
-        assertThat(guest.getRole()).isEqualTo(UserRole.USER);
-
-        verify(userTermAgreementRepository).saveAll(argThat(agreements -> {
-            assertThat(agreements)
-                    .singleElement()
-                    .satisfies(agreement -> {
-                        assertThat(agreement.getUser()).isSameAs(guest);
-                        assertThat(agreement.getTerm()).isSameAs(requiredTerm);
-                    });
-            return true;
-        }));
-    }
-
-    @Test
-    void newAuthenticationReportsCommittedAccountWhenSessionIssuanceFails() {
-        User guest = guestWithId(2L);
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
-        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenSessionService.issueSessionReplacingGuest(2L, UserRole.USER, 2L))
-                .thenThrow(new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE));
-
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, true))
-        )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH041")
-        );
-
-        assertThat(guest.getRole()).isEqualTo(UserRole.USER);
-        InOrder order = inOrder(transactionManager, tokenSessionService);
-        order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(2L, UserRole.USER, 2L);
-    }
-
-    @Test
-    void existingAuthenticationSwitchesToTheExistingSocialAccountWithoutMergingGuestData() {
-        User existingUser = guestWithId(99L);
-        existingUser.upgradeToUser("기존유저", LocalDateTime.now());
+    void existingSocialAccountLogsInWithoutGuestSession() {
+        User existingUser = memberWithId(99L, "기존회원");
         SocialAccount account = SocialAccount.create(
                 existingUser,
                 SocialProvider.GOOGLE,
                 "google-id",
                 "user@example.com"
         );
-        SocialUserProfile profile = new SocialUserProfile(
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.of(account));
+
+        Optional<SocialAuthenticationResult> result = service.loginExisting(
+                googleProfile(),
+                null
+        );
+
+        assertThat(result).isPresent();
+        assertThat(result.orElseThrow().user().userId()).isEqualTo(99L);
+        verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, null);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void existingSocialAccountOnlyReplacesGuestSession() {
+        User existingUser = memberWithId(99L, "기존회원");
+        SocialAccount account = SocialAccount.create(
+                existingUser,
                 SocialProvider.GOOGLE,
                 "google-id",
-                "user@example.com",
-                "provider-nickname-is-longer-than-signup-policy"
+                "user@example.com"
         );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.GOOGLE, "google-id"))
-                .thenReturn(Optional.of(account));
-        when(tokenSessionService.issueSessionReplacingGuest(99L, UserRole.USER, 2L))
-                .thenReturn(new TokenInfo("access", "refresh"));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.of(account));
 
-        SocialLoginUser result = service.authenticate(
-                profile,
+        service.loginExisting(googleProfile(), 2L);
+
+        verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
+        verify(userRepository, never()).findByIdForUpdate(2L);
+        verify(userRepository, never()).save(any());
+    }
+
+    @Test
+    void newSocialSignupCreatesFreshMemberAndStoresAgreements() {
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE);
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            ReflectionTestUtils.setField(user, "id", 100L);
+            return user;
+        });
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        SocialAuthenticationResult result = service.register(
+                googleProfile(),
                 2L,
-                List.of()
-        ).user();
+                List.of(requiredTerm)
+        );
 
-        assertThat(result.userId()).isEqualTo(99L);
-        assertThat(result.isNewUser()).isFalse();
+        assertThat(result.user().userId()).isEqualTo(100L);
+        assertThat(result.user().isNewUser()).isTrue();
+        assertThat(result.user().nickname()).isEqualTo("새회원");
+        verify(userRepository, never()).findByIdForUpdate(2L);
+        verify(userTermAgreementRepository).saveAll(any());
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
-        verify(userTermAgreementRepository, never()).saveAll(any());
+        order.verify(tokenSessionService).issueSessionReplacingGuest(100L, UserRole.USER, 2L);
     }
 
     @Test
-    void newAuthenticationRejectsInvalidProviderNicknameBeforeUpgradingGuest() {
-        User guest = guestWithId(2L);
-        SocialUserProfile profile = new SocialUserProfile(
-                SocialProvider.KAKAO,
-                "12345",
-                "user@example.com",
-                "provider-nickname-is-longer-than-signup-policy"
-        );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
+    void registrationReportsCommittedAccountWhenSessionIssuanceFails() {
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE);
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            ReflectionTestUtils.setField(user, "id", 100L);
+            return user;
+        });
+        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(tokenSessionService.issueSessionReplacingGuest(100L, UserRole.USER, 2L))
+                .thenThrow(new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE));
 
-        assertThatThrownBy(() -> service.authenticate(
-                profile,
-                2L,
-                List.of(new Consent(1L, true))
-        )).isInstanceOf(RestApiException.class);
+        assertThatThrownBy(() -> service.register(googleProfile(), 2L, List.of(requiredTerm)))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH041")
+                );
 
-        assertThat(guest.isGuest()).isTrue();
-        verify(termRepository, never()).findByActiveTrueOrderByIdAsc();
-        verify(socialAccountRepository, never()).saveAndFlush(any());
+        InOrder order = inOrder(transactionManager, tokenSessionService);
+        order.verify(transactionManager).commit(any());
+        order.verify(tokenSessionService).issueSessionReplacingGuest(100L, UserRole.USER, 2L);
     }
 
     @Test
-    void authenticationRejectsSoftDeletedSocialUser() {
-        User deletedUser = guestWithId(99L);
-        deletedUser.upgradeToUser("탈퇴회원", LocalDateTime.now());
+    void existingAuthenticationRejectsSoftDeletedUser() {
+        User deletedUser = memberWithId(99L, "탈퇴회원");
         deletedUser.delete();
         SocialAccount account = SocialAccount.create(
                 deletedUser,
-                SocialProvider.KAKAO,
-                "12345",
-                null
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com"
         );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.of(account));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of()
-        ))
+        assertThatThrownBy(() -> service.loginExisting(googleProfile(), null))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
                 );
     }
 
     @Test
-    void authenticationRejectsMissingGuestBeforeQueryingAccounts() {
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                null,
-                List.of()
-        )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
-        );
-
-        verify(socialAccountRepository, never()).findByProviderAndProviderUserId(any(), anyString());
-    }
-
-    @Test
-    void authenticationRejectsSoftDeletedGuestSession() {
-        User deletedGuest = guestWithId(2L);
-        deletedGuest.delete();
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(deletedGuest));
-
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, true))
-        )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH019")
-        );
-
-        verify(termRepository, never()).findByActiveTrueOrderByIdAsc();
-    }
-
-    @Test
-    void authenticationRecoversCommittedAccountForSameSignupGuest() {
-        User initialGuest = guestWithId(2L);
-        User committedGuest = guestWithId(2L);
-        committedGuest.upgradeToUser("가입완료", LocalDateTime.now());
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
-        SocialAccount account = SocialAccount.create(
-                committedGuest,
-                SocialProvider.KAKAO,
-                "12345",
-                null
-        );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(account));
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
-        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
-                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
-
-        SocialLoginUser result = service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, true))
-        ).user();
-
-        assertThat(result.userId()).isEqualTo(2L);
-        assertThat(result.isNewUser()).isFalse();
-        verify(termRepository).findByActiveTrueOrderByIdAsc();
-        verify(userTermAgreementRepository, never()).saveAll(any());
-    }
-
-    @Test
-    void unifiedAuthenticationRecoversCommittedAccountImmediatelyAfterConcurrentSignup() {
-        User initialGuest = guestWithId(2L);
-        User committedUser = guestWithId(2L);
-        committedUser.upgradeToUser("가입완료", LocalDateTime.now());
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+    void registrationRecoversAccountCommittedByConcurrentRequest() {
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE);
+        User committedUser = memberWithId(99L, "가입완료");
         SocialAccount committedAccount = SocialAccount.create(
                 committedUser,
-                SocialProvider.KAKAO,
-                "12345",
-                null
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com"
         );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(committedAccount));
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.empty()).thenReturn(Optional.of(committedAccount));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            ReflectionTestUtils.setField(user, "id", 100L);
+            return user;
+        });
         when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
-                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
+                .thenThrow(new DataIntegrityViolationException("concurrent insert"));
 
-        SocialLoginUser result = service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, true))
-        ).user();
-
-        assertThat(result.userId()).isEqualTo(2L);
-        assertThat(result.isNewUser()).isFalse();
-        verify(userTermAgreementRepository, never()).saveAll(any());
-    }
-
-    @Test
-    void authenticationUsesConcurrentlyCommittedAccountOwnedByExistingUser() {
-        User initialGuest = guestWithId(2L);
-        User differentUser = guestWithId(99L);
-        differentUser.upgradeToUser("다른회원", LocalDateTime.now());
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
-        SocialAccount committedAccount = SocialAccount.create(
-                differentUser,
-                SocialProvider.KAKAO,
-                "12345",
-                null
+        SocialAuthenticationResult result = service.register(
+                googleProfile(),
+                null,
+                List.of(requiredTerm)
         );
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.of(committedAccount));
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(initialGuest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
-        when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
-                .thenThrow(new DataIntegrityViolationException("concurrent social account insert"));
 
-        SocialLoginUser result = service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, true))
-        ).user();
-
-        assertThat(result.userId()).isEqualTo(99L);
-        assertThat(result.isNewUser()).isFalse();
-        verify(userTermAgreementRepository, never()).saveAll(any());
+        assertThat(result.user().userId()).isEqualTo(99L);
+        assertThat(result.user().isNewUser()).isFalse();
+        verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, null);
     }
 
     @Test
     void unrelatedRegistrationIntegrityFailureIsNotHidden() {
-        User guest = guestWithId(2L);
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
+        Term requiredTerm = activeTerm(1L, TermType.SERVICE);
         DataIntegrityViolationException databaseFailure =
-                new DataIntegrityViolationException("unrelated foreign key failure");
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty())
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
+                new DataIntegrityViolationException("foreign key failure");
+        when(socialAccountRepository.findByProviderAndProviderUserId(
+                SocialProvider.GOOGLE,
+                "google-id"
+        )).thenReturn(Optional.empty()).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+            User user = invocation.getArgument(0);
+            ReflectionTestUtils.setField(user, "id", 100L);
+            return user;
+        });
         when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
                 .thenThrow(databaseFailure);
 
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, true))
+        assertThatThrownBy(() -> service.register(
+                googleProfile(),
+                null,
+                List.of(requiredTerm)
         )).isSameAs(databaseFailure);
     }
 
-    @Test
-    void authenticationRejectsMissingRequiredAgreementWithoutUpgradingGuest() {
-        User guest = guestWithId(2L);
-        Term requiredTerm = activeTerm(1L, TermType.PRIVACY, true);
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
-
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(new Consent(1L, false))
-        )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH024")
+    private SocialUserProfile googleProfile() {
+        return new SocialUserProfile(
+                SocialProvider.GOOGLE,
+                "google-id",
+                "user@example.com",
+                "새회원"
         );
-
-        assertThat(guest.isGuest()).isTrue();
-        verify(socialAccountRepository, never()).saveAndFlush(any());
-        verify(userTermAgreementRepository, never()).saveAll(any());
     }
 
-    @Test
-    void authenticationRejectsDuplicateAgreementIds() {
-        User guest = guestWithId(2L);
-        Term requiredTerm = activeTerm(1L, TermType.SERVICE, true);
-        when(socialAccountRepository.findByProviderAndProviderUserId(SocialProvider.KAKAO, "12345"))
-                .thenReturn(Optional.empty());
-        when(userRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(guest));
-        when(termRepository.findByActiveTrueOrderByIdAsc()).thenReturn(List.of(requiredTerm));
-
-        assertThatThrownBy(() -> service.authenticate(
-                kakaoProfile(),
-                2L,
-                List.of(
-                        new Consent(1L, true),
-                        new Consent(1L, true)
-                )
-        )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH026")
-        );
-
-        assertThat(guest.isGuest()).isTrue();
-        verify(socialAccountRepository, never()).saveAndFlush(any());
-    }
-
-    private SocialUserProfile kakaoProfile() {
-        return new SocialUserProfile(SocialProvider.KAKAO, "12345", null, "카카오유저");
-    }
-
-    private Term activeTerm(Long id, TermType termType, boolean required) {
+    private Term activeTerm(Long id, TermType termType) {
         Term term = Term.builder()
                 .termType(termType)
                 .title("약관")
                 .content("약관 본문")
-                .required(required)
+                .required(true)
                 .version("1.0.0")
                 .active(true)
                 .createdAt(LocalDateTime.now())
@@ -443,14 +282,9 @@ class SocialAccountServiceTest {
         return term;
     }
 
-    private User guestWithId(Long id) {
-        User user = User.createGuest(
-                "b8e2b515-76f0-4a6b-a94f-8a85f6b5bc7d",
-                "게스트",
-                LocalDateTime.now()
-        );
+    private User memberWithId(Long id, String nickname) {
+        User user = User.createMember(nickname, LocalDateTime.now());
         ReflectionTestUtils.setField(user, "id", id);
         return user;
     }
-
 }

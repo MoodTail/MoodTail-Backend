@@ -8,6 +8,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordChangeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.SocialSignupRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalEmailAvailabilityResponse;
@@ -42,10 +43,76 @@ public interface AuthControllerDocs {
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"state":"CFrzH3qHdj5bK5H7S9D0B_H9yYcDJSJt2bf6B8b6T4A","codeChallenge":"PKCE-S256-code-challenge","codeChallengeMethod":"S256","expiresInSeconds":300}}
             """;
     String KAKAO_LOGIN_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"userId":37,"email":"kakao-user@example.com","nickname":"무드테일","provider":"KAKAO","isNewUser":true,"grantType":"Bearer","accessToken":"member-access-token"}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "status": "LOGIN_COMPLETED",
+                "userId": 37,
+                "email": "kakao-user@example.com",
+                "nickname": "무드테일",
+                "provider": "KAKAO",
+                "signupToken": null,
+                "signupTokenExpiresInSeconds": null,
+                "grantType": "Bearer",
+                "accessToken": "member-access-token"
+              }
+            }
             """;
     String GOOGLE_LOGIN_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"userId":38,"email":"google-user@example.com","nickname":"무드테일","provider":"GOOGLE","isNewUser":false,"grantType":"Bearer","accessToken":"member-access-token"}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "status": "SIGNUP_REQUIRED",
+                "userId": null,
+                "email": "google-user@example.com",
+                "nickname": null,
+                "provider": "GOOGLE",
+                "signupToken": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "signupTokenExpiresInSeconds": 600,
+                "grantType": null,
+                "accessToken": null
+              }
+            }
+            """;
+    String SOCIAL_SIGNUP_SUCCESS_EXAMPLE = """
+            {
+              "timestamp": "2026-07-24T14:32:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "status": "SIGNUP_COMPLETED",
+                "userId": 38,
+                "email": "google-user@example.com",
+                "nickname": "무드테일",
+                "provider": "GOOGLE",
+                "signupToken": null,
+                "signupTokenExpiresInSeconds": null,
+                "grantType": "Bearer",
+                "accessToken": "member-access-token"
+              }
+            }
+            """;
+    String SOCIAL_SIGNUP_RECOVERED_LOGIN_EXAMPLE = """
+            {
+              "timestamp": "2026-07-24T14:32:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "status": "LOGIN_COMPLETED",
+                "userId": 38,
+                "email": "google-user@example.com",
+                "nickname": "무드테일",
+                "provider": "GOOGLE",
+                "signupToken": null,
+                "signupTokenExpiresInSeconds": null,
+                "grantType": "Bearer",
+                "accessToken": "member-access-token"
+              }
+            }
             """;
     String LOCAL_SIGNUP_SUCCESS_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"userId":39,"email":"user@example.com","nickname":"무드테일","isNewUser":true,"grantType":"Bearer","accessToken":"member-access-token"}}
@@ -75,6 +142,8 @@ public interface AuthControllerDocs {
             + "refreshToken이고 Path=/api/v1/auth, HttpOnly가 적용됩니다. Max-Age는 Refresh Token "
             + "유효기간을 따르며, Domain은 설정된 경우에만 포함되고 Secure와 SameSite는 배포 환경 "
             + "설정을 따릅니다. 다른 출처의 프론트엔드는 credentials를 포함해 요청해야 합니다.";
+    String SOCIAL_LOGIN_COOKIE_DESCRIPTION = "status가 LOGIN_COMPLETED인 기존 회원에게만 발급됩니다. "
+            + REFRESH_COOKIE_ISSUED_DESCRIPTION;
     String REFRESH_COOKIE_CLEARED_DESCRIPTION = "Refresh Token 삭제 쿠키입니다. 발급할 때와 동일한 이름, "
             + "Path, Domain, Secure, SameSite 속성에 Max-Age=0을 적용합니다.";
     String REFRESH_COOKIE_ISSUED_EXAMPLE = "refreshToken=<refresh-token>; Path=/api/v1/auth; "
@@ -93,6 +162,9 @@ public interface AuthControllerDocs {
             """;
     String COMMON406_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON406","message":"요청 본문 형식이 올바르지 않습니다."}
+            """;
+    String USER400_EXAMPLE = """
+            {"timestamp":"2026-07-24T14:30:00","code":"USER400","message":"닉네임 입력값이 올바르지 않습니다."}
             """;
     String COMMON500_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON500","message":"서버 에러가 발생했습니다."}
@@ -196,6 +268,9 @@ public interface AuthControllerDocs {
     String AUTH043_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"AUTH043","message":"로그인 또는 회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."}
             """;
+    String AUTH044_EXAMPLE = """
+            {"timestamp":"2026-07-24T14:30:00","code":"AUTH044","message":"소셜 회원가입 정보가 만료되었거나 유효하지 않습니다."}
+            """;
 
     @Operation(
             operationId = "guestLogin",
@@ -232,9 +307,12 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "createOAuthState",
             summary = "OAuth state 및 PKCE challenge 발급",
-            description = "현재 게스트와 제공자에 연결된 일회성 state와 PKCE S256 challenge를 반환합니다. "
+            description = "게스트 로그인 없이도 일회성 state와 PKCE S256 challenge를 반환합니다. "
+                    + "게스트 Access Token을 선택적으로 보내면 이후 로그인 완료 시 해당 게스트의 인증 "
+                    + "세션만 종료하며 데이터는 승계하지 않습니다. "
                     + "프론트엔드는 소셜 인가 요청에 state, code_challenge, code_challenge_method=S256을 "
-                    + "전달해야 합니다. 같은 게스트와 제공자에 새 state를 발급하면 이전 state는 무효화됩니다."
+                    + "전달해야 합니다. 게스트 인증으로 같은 제공자의 새 state를 발급하면 이전 state는 "
+                    + "무효화되며, 익명 요청의 state는 서로 독립적으로 관리됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - OAuth state 발급 성공",
@@ -243,12 +321,10 @@ public interface AuthControllerDocs {
             @ApiResponse(responseCode = "400", description = "COMMON400 - 지원하지 않는 소셜 제공자",
                     content = @Content(examples = @ExampleObject(name = "COMMON400", value = COMMON400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010/AUTH019 - 인증 토큰 또는 게스트 세션 오류",
+                    description = "AUTH006/AUTH010 - 선택 Access Token 오류",
                     content = @Content(examples = {
-                            @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
-                            @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE),
-                            @ExampleObject(name = "AUTH019", value = AUTH019_EXAMPLE)
+                            @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403", description = "AUTH009/AUTH020 - 게스트 권한 또는 사용자 상태 오류",
                     content = @Content(examples = {
@@ -265,7 +341,7 @@ public interface AuthControllerDocs {
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE)))
     })
-    @SecurityRequirement(name = "bearerAuth")
+    @SecurityRequirements
     BaseResponse<OAuthStateResponse> createOAuthState(
             @Parameter(
                     description = "소셜 로그인 제공자",
@@ -274,46 +350,41 @@ public interface AuthControllerDocs {
             )
             String provider,
             @Parameter(hidden = true) PrincipalDetails principal,
+            @Parameter(hidden = true) HttpServletRequest request,
             @Parameter(hidden = true) HttpServletResponse response
     );
 
     @Operation(
             operationId = "kakaoLogin",
-            summary = "카카오 회원가입 또는 로그인",
-            description = "카카오 인가 코드와 일회성 state를 검증합니다. 기존 카카오 계정이면 로그인하고, "
-                    + "미가입 계정이면 닉네임과 활성 필수 약관 동의로 회원가입합니다. 신규 계정은 게스트를 "
-                    + "회원으로 전환해 기존 데이터를 유지하며, 기존 계정 로그인은 현재 게스트 세션만 회원 "
-                    + "세션으로 교체합니다. 최초 가입일 때만 agreements가 필요합니다. state는 한 번 "
-                    + "소비되므로 실패 후 재시도할 때 새 state를 발급받아야 합니다. 성공 시 Access Token은 "
-                    + "본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다."
+            summary = "카카오 OAuth 인증 및 로그인 분기",
+            description = "카카오 인가 코드와 일회성 state를 검증합니다. 기존 계정이면 status가 "
+                    + "LOGIN_COMPLETED이고 Access Token과 Refresh Token 쿠키를 발급합니다. 신규 계정이면 "
+                    + "status가 SIGNUP_REQUIRED이고 소셜 가입 완료 API에 사용할 10분짜리 signupToken을 "
+                    + "반환하며, 이 단계에서는 회원이나 로그인 토큰을 만들지 않습니다."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "COMMON200 - 카카오 회원가입 또는 로그인 성공",
+            @ApiResponse(responseCode = "200", description = "COMMON200 - 기존 로그인 또는 신규 가입 필요",
                     useReturnTypeSchema = true,
-                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                    headers = @Header(name = "Set-Cookie", description = SOCIAL_LOGIN_COOKIE_DESCRIPTION,
                             schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = KAKAO_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/AUTH024/AUTH026 - 요청 형식·필수 약관 동의 오류",
+                    description = "COMMON402/COMMON406 - 요청 값 또는 JSON 형식 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
-                            @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
-                            @ExampleObject(name = "AUTH024", value = AUTH024_EXAMPLE),
-                            @ExampleObject(name = "AUTH026", value = AUTH026_EXAMPLE)
+                            @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
-                    description = "AUTH016/AUTH018/AUTH019 - 카카오 인증 정보, state 또는 게스트 세션 오류",
+                    description = "AUTH016/AUTH018 - 카카오 인증 정보 또는 state 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH016", value = AUTH016_EXAMPLE),
-                            @ExampleObject(name = "AUTH018", value = AUTH018_EXAMPLE),
-                            @ExampleObject(name = "AUTH019", value = AUTH019_EXAMPLE)
+                            @ExampleObject(name = "AUTH018", value = AUTH018_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403", description = "AUTH020 - 비활성 또는 탈퇴 계정",
                     content = @Content(examples = @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE))),
-            @ApiResponse(responseCode = "500", description = "AUTH017/AUTH025/COMMON500 - OAuth·약관 설정 또는 서버 오류",
+            @ApiResponse(responseCode = "500", description = "AUTH017/COMMON500 - OAuth 설정 또는 서버 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH017", value = AUTH017_EXAMPLE),
-                            @ExampleObject(name = "AUTH025", value = AUTH025_EXAMPLE),
                             @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "502", description = "AUTH030 - 카카오 응답 처리 실패",
@@ -334,41 +405,35 @@ public interface AuthControllerDocs {
 
     @Operation(
             operationId = "googleLogin",
-            summary = "구글 회원가입 또는 로그인",
-            description = "구글 인가 코드와 일회성 state를 검증합니다. 기존 구글 계정이면 로그인하고, "
-                    + "미가입 계정이면 닉네임과 활성 필수 약관 동의로 회원가입합니다. 신규 계정은 게스트를 "
-                    + "회원으로 전환해 기존 데이터를 유지하며, 기존 계정 로그인은 현재 게스트 세션만 회원 "
-                    + "세션으로 교체합니다. 최초 가입일 때만 agreements가 필요합니다. state는 한 번 "
-                    + "소비되므로 실패 후 재시도할 때 새 state를 발급받아야 합니다. 성공 시 Access Token은 "
-                    + "본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다."
+            summary = "구글 OAuth 인증 및 로그인 분기",
+            description = "구글 인가 코드와 일회성 state를 검증합니다. 기존 계정이면 status가 "
+                    + "LOGIN_COMPLETED이고 Access Token과 Refresh Token 쿠키를 발급합니다. 신규 계정이면 "
+                    + "status가 SIGNUP_REQUIRED이고 소셜 가입 완료 API에 사용할 10분짜리 signupToken을 "
+                    + "반환하며, 이 단계에서는 회원이나 로그인 토큰을 만들지 않습니다."
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "COMMON200 - 구글 회원가입 또는 로그인 성공",
+            @ApiResponse(responseCode = "200", description = "COMMON200 - 기존 로그인 또는 신규 가입 필요",
                     useReturnTypeSchema = true,
-                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                    headers = @Header(name = "Set-Cookie", description = SOCIAL_LOGIN_COOKIE_DESCRIPTION,
                             schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = GOOGLE_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/AUTH024/AUTH026 - 요청 형식·필수 약관 동의 오류",
+                    description = "COMMON402/COMMON406 - 요청 값 또는 JSON 형식 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
-                            @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
-                            @ExampleObject(name = "AUTH024", value = AUTH024_EXAMPLE),
-                            @ExampleObject(name = "AUTH026", value = AUTH026_EXAMPLE)
+                            @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
-                    description = "AUTH016/AUTH018/AUTH019 - 구글 인증 정보, state 또는 게스트 세션 오류",
+                    description = "AUTH016/AUTH018 - 구글 인증 정보 또는 state 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH016", value = AUTH016_EXAMPLE),
-                            @ExampleObject(name = "AUTH018", value = AUTH018_EXAMPLE),
-                            @ExampleObject(name = "AUTH019", value = AUTH019_EXAMPLE)
+                            @ExampleObject(name = "AUTH018", value = AUTH018_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403", description = "AUTH020 - 비활성 또는 탈퇴 계정",
                     content = @Content(examples = @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE))),
-            @ApiResponse(responseCode = "500", description = "AUTH017/AUTH025/COMMON500 - OAuth·약관 설정 또는 서버 오류",
+            @ApiResponse(responseCode = "500", description = "AUTH017/COMMON500 - OAuth 설정 또는 서버 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH017", value = AUTH017_EXAMPLE),
-                            @ExampleObject(name = "AUTH025", value = AUTH025_EXAMPLE),
                             @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "502", description = "AUTH030 - 구글 응답 처리 실패",
@@ -384,6 +449,60 @@ public interface AuthControllerDocs {
     @SecurityRequirements
     BaseResponse<SocialLoginResponse> googleLogin(
             SocialLoginRequest request,
+            @Parameter(hidden = true) HttpServletResponse response
+    );
+
+    @Operation(
+            operationId = "socialSignup",
+            summary = "소셜 신규 회원가입 완료",
+            description = "OAuth 인증 API가 SIGNUP_REQUIRED로 반환한 일회성 signupToken과 새 UI에서 입력한 "
+                    + "닉네임·약관 동의를 제출합니다. 검증이 끝난 뒤에만 회원과 소셜 계정을 생성하고 Access "
+                    + "Token과 Refresh Token 쿠키를 발급합니다. 동일한 소셜 계정의 가입이 먼저 완료된 경우 "
+                    + "LOGIN_COMPLETED로 기존 계정 로그인을 완료합니다. 게스트 데이터는 승계하지 않습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200",
+                    description = "COMMON200 - 소셜 회원가입 완료 또는 기존 소셜 계정 로그인 완료",
+                    useReturnTypeSchema = true,
+                    headers = @Header(name = "Set-Cookie", description = REFRESH_COOKIE_ISSUED_DESCRIPTION,
+                            schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
+                    content = @Content(examples = {
+                            @ExampleObject(
+                                    name = "SIGNUP_COMPLETED",
+                                    value = SOCIAL_SIGNUP_SUCCESS_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "LOGIN_COMPLETED",
+                                    value = SOCIAL_SIGNUP_RECOVERED_LOGIN_EXAMPLE
+                            )
+                    })),
+            @ApiResponse(responseCode = "400",
+                    description = "COMMON402/COMMON406/USER400/AUTH024/AUTH026 - 요청·닉네임·약관 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
+                            @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
+                            @ExampleObject(name = "USER400", value = USER400_EXAMPLE),
+                            @ExampleObject(name = "AUTH024", value = AUTH024_EXAMPLE),
+                            @ExampleObject(name = "AUTH026", value = AUTH026_EXAMPLE)
+                    })),
+            @ApiResponse(responseCode = "401", description = "AUTH044 - 가입 토큰 만료·재사용·오류",
+                    content = @Content(examples = @ExampleObject(name = "AUTH044", value = AUTH044_EXAMPLE))),
+            @ApiResponse(responseCode = "403", description = "AUTH020 - 이미 가입된 비활성 계정",
+                    content = @Content(examples = @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE))),
+            @ApiResponse(responseCode = "500", description = "AUTH025/COMMON500 - 약관 설정 또는 서버 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "AUTH025", value = AUTH025_EXAMPLE),
+                            @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)
+                    })),
+            @ApiResponse(responseCode = "503", description = "AUTH028/AUTH041 - 인증 저장소·세션 발급 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE),
+                            @ExampleObject(name = "AUTH041", value = AUTH041_EXAMPLE)
+                    }))
+    })
+    @SecurityRequirements
+    BaseResponse<SocialLoginResponse> socialSignup(
+            SocialSignupRequest request,
             @Parameter(hidden = true) HttpServletResponse response
     );
 

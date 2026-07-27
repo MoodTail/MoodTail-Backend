@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.HexFormat;
 
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
@@ -34,15 +35,16 @@ public class OAuthStateService {
     private final RedisRepository redisRepository;
     private final AuthProperties authProperties;
 
-    public OAuthState issue(Long guestUserId, SocialProvider provider) {
-        if (guestUserId == null || provider == null) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+    public OAuthState issue(Long guestUserId, String clientAddress, SocialProvider provider) {
+        if (provider == null) {
+            throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
+        String requestOwnerKey = createRequestOwnerKey(guestUserId, clientAddress);
         AuthProperties.RateLimit rateLimit = authProperties.oauth().stateRateLimit();
         boolean acquired = required(
                 "acquire OAuth state rate-limit slot",
                 () -> redisRepository.acquireOAuthStateSlot(
-                        guestUserId,
+                        requestOwnerKey,
                         provider.name(),
                         rateLimit.maxAttempts(),
                         Duration.ofMillis(rateLimit.windowMillis())
@@ -55,11 +57,15 @@ public class OAuthStateService {
         String state = generateState();
         String codeVerifier = generateCodeVerifier();
         String codeChallenge = createCodeChallenge(codeVerifier);
+        String stateOwnerKey = guestUserId == null
+                ? "anonymous-state:" + state
+                : requestOwnerKey;
         Duration ttl = Duration.ofMillis(authProperties.oauth().stateExpirationMillis());
         required(
                 "save OAuth state",
                 () -> redisRepository.saveOAuthState(
                         state,
+                        stateOwnerKey,
                         guestUserId,
                         provider.name(),
                         codeVerifier,
@@ -78,14 +84,18 @@ public class OAuthStateService {
                 () -> redisRepository.consumeOAuthStateSession(state, provider.name())
         )
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE));
-        Long guestUserId = session.guestUserId();
-        if (guestUserId == null) {
-            throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
-        }
         if (!PkceCodeVerifierValidator.isValid(session.codeVerifier())) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
-        return new ConsumedOAuthState(guestUserId, session.codeVerifier());
+        return new ConsumedOAuthState(session.guestUserId(), session.codeVerifier());
+    }
+
+    private String createRequestOwnerKey(Long guestUserId, String clientAddress) {
+        if (guestUserId != null) {
+            return "guest:" + guestUserId;
+        }
+        String address = StringUtils.hasText(clientAddress) ? clientAddress : "unknown";
+        return "anonymous:" + HexFormat.of().formatHex(sha256(address.getBytes(StandardCharsets.UTF_8)));
     }
 
     private String generateState() {
@@ -101,10 +111,13 @@ public class OAuthStateService {
     }
 
     private String createCodeChallenge(String codeVerifier) {
+        byte[] digest = sha256(codeVerifier.getBytes(StandardCharsets.US_ASCII));
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+    }
+
+    private byte[] sha256(byte[] value) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(codeVerifier.getBytes(StandardCharsets.US_ASCII));
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(digest);
+            return MessageDigest.getInstance("SHA-256").digest(value);
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 is not available", e);
         }

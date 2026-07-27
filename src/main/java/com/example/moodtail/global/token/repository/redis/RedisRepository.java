@@ -12,11 +12,22 @@ public interface RedisRepository {
 
 	void deleteRefreshJti(Long userId);
 
-	void saveOAuthState(String state, Long guestUserId, String provider, String codeVerifier, Duration ttl);
+	void saveOAuthState(
+			String state,
+			String ownerKey,
+			Long guestUserId,
+			String provider,
+			String codeVerifier,
+			Duration ttl
+	);
 
 	Optional<OAuthStateSession> consumeOAuthStateSession(String state, String provider);
 
-	boolean acquireOAuthStateSlot(Long guestUserId, String provider, int maxAttempts, Duration window);
+	boolean acquireOAuthStateSlot(String ownerKey, String provider, int maxAttempts, Duration window);
+
+	void saveSocialSignupToken(String token, SocialSignupSession session, Duration ttl);
+
+	Optional<SocialSignupSession> consumeSocialSignupToken(String token);
 
 	boolean acquireGuestLoginSlot(String fingerprint, int maxAttempts, Duration window);
 
@@ -51,6 +62,14 @@ public interface RedisRepository {
 	void deletePasswordResetToken(String token);
 
 	record OAuthStateSession(Long guestUserId, String codeVerifier) {
+	}
+
+	record SocialSignupSession(
+			String provider,
+			String providerUserId,
+			String email,
+			Long guestUserId
+	) {
 	}
 
 	record PasswordResetTokenSession(Long localAccountId, int passwordVersion) {

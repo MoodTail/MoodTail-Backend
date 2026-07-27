@@ -56,12 +56,13 @@ public class SecurityConfig {
 						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 						.requestMatchers("/error").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/v1/auth/oauth-states/*").hasRole("GUEST")
 						.requestMatchers(HttpMethod.DELETE, "/api/v1/auth").hasRole("USER")
 						.requestMatchers(HttpMethod.POST,
 								"/api/v1/auth/guest",
+								"/api/v1/auth/oauth-states/*",
 								"/api/v1/auth/kakao",
 								"/api/v1/auth/google",
+								"/api/v1/auth/signup/social",
 								"/api/v1/auth/login/local",
 								"/api/v1/auth/signup/local",
 								"/api/v1/auth/password-reset/codes",

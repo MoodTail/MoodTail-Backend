@@ -97,6 +97,11 @@ public enum AuthErrorStatus implements BaseCodeInterface {
             HttpStatus.TOO_MANY_REQUESTS,
             "AUTH043",
             "로그인 또는 회원가입 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+    ),
+    INVALID_SOCIAL_SIGNUP_TOKEN(
+            HttpStatus.UNAUTHORIZED,
+            "AUTH044",
+            "소셜 회원가입 정보가 만료되었거나 유효하지 않습니다."
     );
 
     private final HttpStatus httpStatus;
