@@ -565,8 +565,8 @@ public interface AuthControllerDocs {
                             schema = @Schema(type = "string", example = REFRESH_COOKIE_ISSUED_EXAMPLE)),
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = GUEST_LOGIN_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = """
-                    COMMON402 - guestUuid 누락 또는 UUID 형식 오류
-                    COMMON406 - 요청 본문 JSON 형식 오류
+                    COMMON402 - guestUuid 누락
+                    COMMON406 - guestUuid UUID 역직렬화 또는 요청 본문 JSON 형식 오류
                     """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),

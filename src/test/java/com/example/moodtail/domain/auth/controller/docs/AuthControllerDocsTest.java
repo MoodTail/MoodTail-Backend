@@ -121,11 +121,21 @@ class AuthControllerDocsTest {
                         .as(method.getName() + " HTTP " + response.responseCode())
                         .doesNotMatch("(?s).*\\b[A-Z]+\\d{3}/[A-Z]+\\d{3}\\b.*");
 
+                List<String> descriptionLines = response.description().lines()
+                        .map(String::trim)
+                        .filter(line -> !line.isEmpty())
+                        .toList();
+
                 for (Content content : response.content()) {
                     for (ExampleObject example : content.examples()) {
-                        assertThat(response.description())
+                        assertThat(descriptionLines)
                                 .as(method.getName() + " " + example.name())
-                                .contains(example.name());
+                                .anySatisfy(line -> {
+                                    assertThat(line).startsWith(example.name() + " - ");
+                                    assertThat(line)
+                                            .doesNotMatch("^" + example.name()
+                                                    + "\\s*-\\s*.*\\b[A-Z]+\\d{3}\\b.*$");
+                                });
                         assertThat(objectMapper.readTree(example.value()).path("code").asText())
                                 .as(method.getName() + " " + example.name())
                                 .isEqualTo(example.name());
