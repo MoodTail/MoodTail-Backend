@@ -10,7 +10,6 @@ import com.example.moodtail.domain.cocktail.service.DailyCocktailService;
 import com.example.moodtail.domain.recommendation.service.CustomCocktailRecommendationService;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
-import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -55,22 +54,16 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
         return BaseResponse.onSuccess(cocktailService.getCocktailDetail(cocktailId, principalDetails));
     }
 
+    @Override
     @GetMapping("/favorites")
-    @Operation(
-            summary = "칵테일 즐겨찾기 목록 조회",
-            description = "인증된 사용자가 즐겨찾기한 칵테일 목록을 반환합니다."
-    )
     public BaseResponse<CocktailFavoriteListResponse> getFavoriteCocktails(
             @AuthenticationPrincipal PrincipalDetails principalDetails
     ) {
         return BaseResponse.onSuccess(cocktailService.getFavoriteCocktails(principalDetails));
     }
 
+    @Override
     @PostMapping("/{cocktailId}/favorites")
-    @Operation(
-            summary = "칵테일 즐겨찾기 추가",
-            description = "인증된 사용자가 칵테일을 즐겨찾기에 추가합니다."
-    )
     public BaseResponse<CocktailFavoriteResponse> addFavorite(
             @PathVariable Long cocktailId,
             @AuthenticationPrincipal PrincipalDetails principalDetails
@@ -78,11 +71,8 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
         return BaseResponse.onSuccess(cocktailService.addFavorite(cocktailId, principalDetails));
     }
 
+    @Override
     @DeleteMapping("/{cocktailId}/favorites")
-    @Operation(
-            summary = "칵테일 즐겨찾기 삭제",
-            description = "인증된 사용자가 칵테일을 즐겨찾기에서 삭제합니다."
-    )
     public BaseResponse<CocktailFavoriteResponse> removeFavorite(
             @PathVariable Long cocktailId,
             @AuthenticationPrincipal PrincipalDetails principalDetails

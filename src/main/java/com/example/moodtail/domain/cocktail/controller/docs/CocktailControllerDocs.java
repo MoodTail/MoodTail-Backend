@@ -2,6 +2,8 @@ package com.example.moodtail.domain.cocktail.controller.docs;
 
 import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteListResponse;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CustomCocktailRecommendationResponse;
 import com.example.moodtail.domain.cocktail.dto.response.DailyCocktailResponse;
@@ -280,6 +282,194 @@ public interface CocktailControllerDocs {
             )
     })
     BaseResponse<CocktailDetailResponse> getCocktailDetail(
+            @Parameter(description = "칵테일 ID", example = "15")
+            Long cocktailId,
+
+            @Parameter(hidden = true)
+            PrincipalDetails principalDetails
+    );
+
+    String FAVORITE_LIST_SUCCESS_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "COMMON200",
+                "message": "요청에 성공했습니다.",
+                "result": {
+                  "cocktails": [
+                    {
+                      "cocktailId": 15,
+                      "name": "모히또",
+                      "description": "가볍고 청량한 럼 베이스 칵테일",
+                      "imageUrl": "https://cdn.moodtail.com/images/mojito.png",
+                      "isFavorite": true
+                    }
+                  ]
+                }
+              }
+              """;
+
+    String FAVORITE_ADD_SUCCESS_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "COMMON200",
+                "message": "요청에 성공했습니다.",
+                "result": {
+                  "cocktailId": 15,
+                  "name": "모히또"
+                }
+              }
+              """;
+
+    String FAVORITE_REMOVE_SUCCESS_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "COMMON200",
+                "message": "요청에 성공했습니다.",
+                "result": {
+                  "cocktailId": 15,
+                  "name": "모히또"
+                }
+              }
+              """;
+
+    String COCKTAIL_409_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "COCKTAIL_409",
+                "message": "이미 즐겨찾기에 추가된 칵테일입니다."
+              }
+              """;
+
+    String FAVORITE_404_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "FAVORITE_404",
+                "message": "즐겨찾기에 추가되지 않은 칵테일입니다."
+              }
+              """;
+
+    @Operation(
+            operationId = "getFavoriteCocktails",
+            summary = "칵테일 즐겨찾기 목록 조회",
+            description = "인증된 사용자가 즐겨찾기한 칵테일 목록을 반환합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "COMMON200 - 즐겨찾기 목록 조회 성공",
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = FAVORITE_LIST_SUCCESS_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = """
+                              COMMON401 - 인증 정보가 없음
+                              AUTH006 - 액세스 토큰이 만료됐거나 유효하지 않음
+                              """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
+                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE)
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE))
+            )
+    })
+    BaseResponse<CocktailFavoriteListResponse> getFavoriteCocktails(
+            @Parameter(hidden = true)
+            PrincipalDetails principalDetails
+    );
+
+    @Operation(
+            operationId = "addFavorite",
+            summary = "칵테일 즐겨찾기 추가",
+            description = "인증된 사용자가 칵테일을 즐겨찾기에 추가합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "COMMON200 - 즐겨찾기 추가 성공",
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = FAVORITE_ADD_SUCCESS_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = """
+                              COMMON401 - 인증 정보가 없음
+                              AUTH006 - 액세스 토큰이 만료됐거나 유효하지 않음
+                              """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
+                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE)
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "COCKTAIL_404 - 칵테일을 찾을 수 없음",
+                    content = @Content(examples = @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "COCKTAIL_409 - 이미 즐겨찾기에 추가된 칵테일",
+                    content = @Content(examples = @ExampleObject(name = "COCKTAIL_409", value = COCKTAIL_409_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE))
+            )
+    })
+    BaseResponse<CocktailFavoriteResponse> addFavorite(
+            @Parameter(description = "칵테일 ID", example = "15")
+            Long cocktailId,
+
+            @Parameter(hidden = true)
+            PrincipalDetails principalDetails
+    );
+
+    @Operation(
+            operationId = "removeFavorite",
+            summary = "칵테일 즐겨찾기 삭제",
+            description = "인증된 사용자가 칵테일을 즐겨찾기에서 삭제합니다.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "COMMON200 - 즐겨찾기 삭제 성공",
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = FAVORITE_REMOVE_SUCCESS_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = """
+                              COMMON401 - 인증 정보가 없음
+                              AUTH006 - 액세스 토큰이 만료됐거나 유효하지 않음
+                              """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
+                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE)
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "COCKTAIL_404/FAVORITE_404 - 칵테일 또는 즐겨찾기를 찾을 수 없음",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE),
+                            @ExampleObject(name = "FAVORITE_404", value = FAVORITE_404_EXAMPLE)
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE))
+            )
+    })
+    BaseResponse<CocktailFavoriteResponse> removeFavorite(
             @Parameter(description = "칵테일 ID", example = "15")
             Long cocktailId,
 
