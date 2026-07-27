@@ -66,7 +66,7 @@ public class LocalAccountService {
                 }
                 List<Term> agreedTerms = termAgreementService.validateAgreements(consents);
                 LocalDateTime now = LocalDateTime.now();
-                User user = createOrUpgradeUser(guestUserId, normalizedNickname, now);
+                User user = userRepository.save(User.createMember(normalizedNickname, now));
                 LocalAccount account = localAccountRepository.saveAndFlush(
                         LocalAccount.create(user, normalizedEmail, passwordHash, now)
                 );
@@ -215,19 +215,6 @@ public class LocalAccountService {
     ) {
         return (long) account.getPasswordVersion() == (long) expectedPasswordVersion + 1L
                 && passwordEncoder.matches(requestedPassword, account.getPasswordHash());
-    }
-
-    private User createOrUpgradeUser(Long guestUserId, String nickname, LocalDateTime now) {
-        if (guestUserId == null) {
-            return userRepository.save(User.createMember(nickname, now));
-        }
-        User guest = userRepository.findByIdForUpdate(guestUserId)
-                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guest.isGuest() || !guest.isAvailableForAuthentication()) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-        }
-        guest.upgradeToUser(nickname, now);
-        return guest;
     }
 
     private void validateActive(User user) {
