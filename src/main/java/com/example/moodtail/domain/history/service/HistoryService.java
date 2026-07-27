@@ -334,6 +334,8 @@ public class HistoryService {
                 record.getId(),
                 record.getCocktail().getId(),
                 record.getCocktail().getNameKo(),
+                record.getCocktail().getShortDescription(),
+                record.getCocktail().getAlcoholDegree(),
                 imageUrl(record.getCocktail().getImage())
         );
     }

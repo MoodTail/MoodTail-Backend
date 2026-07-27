@@ -2,6 +2,7 @@ package com.example.moodtail.domain.history.dto.response;
 
 import com.example.moodtail.domain.image.entity.ImageSourceType;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -35,6 +36,8 @@ public record HistoryDateResponse(
             Long recordId,
             Long cocktailId,
             String cocktailName,
+            String shortDescription,
+            BigDecimal alcoholDegree,
             String cocktailImageUrl
     ) {
     }

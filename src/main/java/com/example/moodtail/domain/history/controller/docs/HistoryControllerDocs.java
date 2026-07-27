@@ -103,12 +103,16 @@ public interface HistoryControllerDocs {
                     "recordId": 31,
                     "cocktailId": 10,
                     "cocktailName": "모히또",
+                    "shortDescription": "민트와 라임의 청량한 만남",
+                    "alcoholDegree": 20.0,
                     "cocktailImageUrl": "https://cdn.moodtail.com/cocktails/mojito.png"
                   },
                   {
                     "recordId": 32,
                     "cocktailId": 11,
                     "cocktailName": "마가리타",
+                    "shortDescription": null,
+                    "alcoholDegree": null,
                     "cocktailImageUrl": null
                   }
                 ],
