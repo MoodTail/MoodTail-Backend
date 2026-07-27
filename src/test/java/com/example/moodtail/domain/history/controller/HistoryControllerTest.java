@@ -42,6 +42,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -238,6 +239,18 @@ class HistoryControllerTest {
                         .param("sourceType", "GALLERY"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("HISTORY_PHOTO_409"));
+    }
+
+    @Test
+    void returnsCommonValidationErrorWhenHistoryPhotoIsMissing() throws Exception {
+        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+                        .param("sourceType", "CAMERA"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"))
+                .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(historyPhotoService, never()).add(any(), any(), any(), any());
     }
 
     @Test

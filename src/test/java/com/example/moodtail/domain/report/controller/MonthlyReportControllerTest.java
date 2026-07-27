@@ -26,7 +26,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -99,7 +101,12 @@ class MonthlyReportControllerTest {
         mockMvc.perform(multipart("/api/v1/reports/monthly/share-image")
                         .param("year", "2026")
                         .param("month", "7"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"))
+                .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(shareImageService, never()).uploadShareImage(any(), anyInt(), anyInt(), any());
     }
 
     @Test
