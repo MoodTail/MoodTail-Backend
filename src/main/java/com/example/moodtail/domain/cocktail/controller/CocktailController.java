@@ -46,11 +46,8 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
         ));
     }
 
+    @Override
     @GetMapping("/{cocktailId}")
-    @Operation(
-            summary = "칵테일 정보/레시피 상세조회",
-            description = "칵테일 정보, 레시피, 재료, 즐겨찾기 여부를 반환합니다. 인증이 필요하지 않습니다."
-    )
     public BaseResponse<CocktailDetailResponse> getCocktailDetail(
             @PathVariable Long cocktailId,
             @AuthenticationPrincipal PrincipalDetails principalDetails

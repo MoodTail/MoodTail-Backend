@@ -1,6 +1,7 @@
 package com.example.moodtail.domain.cocktail.controller.docs;
 
 import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
+import com.example.moodtail.domain.cocktail.dto.response.CocktailDetailResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CustomCocktailRecommendationResponse;
 import com.example.moodtail.domain.cocktail.dto.response.DailyCocktailResponse;
@@ -193,6 +194,98 @@ public interface CocktailControllerDocs {
                 "message": "서버 오류가 발생했습니다."
               }
               """;
+
+    String COCKTAIL_DETAIL_SUCCESS_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "COMMON200",
+                "message": "요청에 성공했습니다.",
+                "result": {
+                  "cocktailId": 15,
+                  "name": "모히또",
+                  "shortDescription": "가볍고 청량한 럼 베이스 칵테일",
+                  "imageUrl": "https://cdn.moodtail.com/images/mojito.png",
+                  "alcoholIntensity": 2.0,
+                  "sweetness": 3.0,
+                  "sourness": 4.0,
+                  "refreshing": 5.0,
+                  "bitterness": 1.0,
+                  "isFavorite": false,
+                  "recipeSteps": [
+                    {
+                      "stepOrder": 1,
+                      "description": "라임과 설탕을 넣고 으깬다"
+                    }
+                  ],
+                  "cocktailIngredients": [
+                    {
+                      "name": "화이트 럼",
+                      "amountText": "50ML",
+                      "sortOrder": 1
+                    }
+                  ]
+                }
+              }
+              """;
+
+    String COCKTAIL_404_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "COCKTAIL_404",
+                "message": "해당 칵테일을 찾을 수 없습니다."
+              }
+              """;
+
+    String RECIPE_404_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "RECIPE_404",
+                "message": "해당 레시피를 찾을 수 없습니다."
+              }
+              """;
+
+    String INGREDIENT_404_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "INGREDIENT_404",
+                "message": "해당 재료를 찾을 수 없습니다."
+              }
+              """;
+
+    @Operation(
+            operationId = "getCocktailDetail",
+            summary = "칵테일 정보/레시피 상세조회",
+            description = "칵테일 정보, 레시피, 재료, 즐겨찾기 여부를 반환합니다. 인증이 필요하지 않습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "COMMON200 - 칵테일 상세 조회 성공",
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = COCKTAIL_DETAIL_SUCCESS_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "COCKTAIL_404/RECIPE_404/INGREDIENT_404 - 칵테일, 레시피 또는 재료를 찾을 수 없음",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE),
+                            @ExampleObject(name = "RECIPE_404", value = RECIPE_404_EXAMPLE),
+                            @ExampleObject(name = "INGREDIENT_404", value = INGREDIENT_404_EXAMPLE)
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE))
+            )
+    })
+    BaseResponse<CocktailDetailResponse> getCocktailDetail(
+            @Parameter(description = "칵테일 ID", example = "15")
+            Long cocktailId,
+
+            @Parameter(hidden = true)
+            PrincipalDetails principalDetails
+    );
 
     @Operation(
             operationId = "getCocktails",
