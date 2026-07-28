@@ -25,8 +25,8 @@ public interface PairRecommendationShareImageControllerDocs {
     String AUTH006_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"AUTH006","message":"유효하지 않은 액세스 토큰입니다."}
             """;
-    String INVITE_CODE_404_EXAMPLE = """
-            {"timestamp":"2026-07-29T14:30:00","code":"INVITE_CODE_404","message":"초대 코드에 해당하는 사용자를 찾을 수 없습니다."}
+    String INVITE_CODE404_EXAMPLE = """
+            {"timestamp":"2026-07-29T14:30:00","code":"INVITE_CODE404","message":"초대 코드에 해당하는 사용자를 찾을 수 없습니다."}
             """;
     String MOOD_TEST_404_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"MOOD_TEST_404","message":"테스트 결과를 찾을 수 없습니다."}
@@ -69,9 +69,9 @@ public interface PairRecommendationShareImageControllerDocs {
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "404",
-                    description = "INVITE_CODE_404/MOOD_TEST_404 - 존재하지 않는 초대 코드 또는 테스트 결과 없음",
+                    description = "INVITE_CODE404/MOOD_TEST_404 - 존재하지 않는 초대 코드 또는 테스트 결과 없음",
                     content = @Content(examples = {
-                            @ExampleObject(name = "INVITE_CODE_404", value = INVITE_CODE_404_EXAMPLE),
+                            @ExampleObject(name = "INVITE_CODE404", value = INVITE_CODE404_EXAMPLE),
                             @ExampleObject(name = "MOOD_TEST_404", value = MOOD_TEST_404_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "413", description = "IMAGE413 - 이미지 파일이 5MB를 초과함",

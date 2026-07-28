@@ -74,10 +74,10 @@ public interface RecommendationControllerDocs {
               }
               """;
 
-    String INVITE_CODE_404_EXAMPLE = """
+    String INVITE_CODE404_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "INVITE_CODE_404",
+                "code": "INVITE_CODE404",
                 "message": "초대 코드에 해당하는 사용자를 찾을 수 없습니다."
               }
               """;
@@ -106,10 +106,10 @@ public interface RecommendationControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "MOOD_TEST_404/INVITE_CODE_404 - 테스트 결과 또는 초대 코드에 해당하는 사용자를 찾을 수 없음",
+                    description = "MOOD_TEST_404/INVITE_CODE404 - 테스트 결과 또는 초대 코드에 해당하는 사용자를 찾을 수 없음",
                     content = @Content(examples = {
                             @ExampleObject(name = "MOOD_TEST_404", value = MOOD_TEST_404_EXAMPLE),
-                            @ExampleObject(name = "INVITE_CODE_404", value = INVITE_CODE_404_EXAMPLE)
+                            @ExampleObject(name = "INVITE_CODE404", value = INVITE_CODE404_EXAMPLE)
                     })
             ),
             @ApiResponse(
