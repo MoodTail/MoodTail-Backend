@@ -675,58 +675,126 @@ public interface HistoryControllerDocs {
     @Operation(
             operationId = "addHistoryPhoto",
             summary = "날짜별 히스토리 사진 추가",
-            description = "선택 날짜에 JPG, PNG 또는 WEBP 사진을 추가합니다. 파일당 최대 5MB이며 날짜별 "
-                    + "최대 5장까지 저장할 수 있습니다. sourceType은 CAMERA 또는 GALLERY만 허용하고 미래 "
-                    + "날짜에는 업로드할 수 없습니다."
+            description = """
+                    `multipart/form-data` 요청으로 선택 날짜에 사진 한 장을 추가합니다.
+
+                    - `image`: JPG, PNG 또는 WEBP 형식의 5MB 이하 이미지
+                    - `sourceType`: `CAMERA` 또는 `GALLERY`
+                    - 사용자별 같은 날짜에 기존에 저장된 사진을 포함하여 최대 5장까지 저장 가능
+
+                    같은 날짜에 사진이 이미 5장 있으면 여섯 번째 사진은 저장하지 않고
+                    `HISTORY_PHOTO_409`를 반환합니다. 미래 날짜에는 사진을 추가할 수 없습니다.
+                    """
     )
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "COMMON200 - 히스토리 사진 추가 성공",
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "COMMON200 - 히스토리 사진 추가 성공",
                     useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = PHOTO_CREATE_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400",
-                    description = "COMMON402/HISTORY_400/IMAGE400 - 필수 파트, 날짜, 출처 또는 이미지 형식 오류",
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = PHOTO_CREATE_SUCCESS_EXAMPLE
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = """
+                            COMMON402 - image 파트 또는 sourceType 폼 파라미터 누락
+                            HISTORY_400 - 날짜 형식 오류 또는 미래 날짜
+                            IMAGE400 - 빈 파일, 지원하지 않는 이미지 형식 또는 sourceType 값 오류
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE),
                             @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "409", description = "HISTORY_PHOTO_409 - 날짜별 사진 5장 초과",
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "HISTORY_PHOTO_409 - 기존 저장 사진을 포함해 사용자·날짜별 5장에 "
+                            + "도달한 상태에서 추가 업로드",
                     content = @Content(examples = @ExampleObject(
                             name = "HISTORY_PHOTO_409",
                             value = HISTORY_PHOTO_409_EXAMPLE
-                    ))),
-            @ApiResponse(responseCode = "413", description = "IMAGE413 - 이미지 파일 5MB 초과",
-                    content = @Content(examples = @ExampleObject(name = "IMAGE413", value = IMAGE413_EXAMPLE))),
-            @ApiResponse(responseCode = "503",
-                    description = "AUTH028/HISTORY_PHOTO_503 - 인증 저장소 또는 사진 저장소 장애",
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "413",
+                    description = "IMAGE413 - 업로드 이미지가 파일당 5MB 초과",
+                    content = @Content(examples = @ExampleObject(
+                            name = "IMAGE413",
+                            value = IMAGE413_EXAMPLE
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = """
+                            AUTH028 - 인증 저장소 일시 장애
+                            HISTORY_PHOTO_503 - 사진 저장소 일시 장애
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE),
                             @ExampleObject(name = "HISTORY_PHOTO_503", value = HISTORY_PHOTO_503_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
-                    content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))
+                    })
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON500",
+                            value = COMMON500_EXAMPLE
+                    ))
+            )
     })
     BaseResponse<HistoryPhotoResponse> addHistoryPhoto(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "사진 기록 날짜(yyyy-MM-dd)", example = "2026-07-05") String date,
-            @Parameter(description = "JPG, PNG 또는 WEBP 이미지(최대 5MB)") MultipartFile image,
             @Parameter(
-                    description = "사진 출처",
-                    schema = @Schema(allowableValues = {"CAMERA", "GALLERY"}),
+                    description = "사진 기록 날짜(yyyy-MM-dd, 미래 날짜 불가)",
+                    required = true,
+                    example = "2026-07-05"
+            )
+            String date,
+
+            @Parameter(
+                    description = "JPG, PNG 또는 WEBP 형식의 이미지 한 장(파일당 최대 5MB)",
+                    required = true,
+                    schema = @Schema(type = "string", format = "binary")
+            )
+            MultipartFile image,
+
+            @Parameter(
+                    description = "multipart/form-data의 문자열 폼 파라미터. 사진 출처",
+                    required = true,
+                    schema = @Schema(
+                            type = "string",
+                            allowableValues = {"CAMERA", "GALLERY"}
+                    ),
                     example = "CAMERA"
             )
             String sourceType
