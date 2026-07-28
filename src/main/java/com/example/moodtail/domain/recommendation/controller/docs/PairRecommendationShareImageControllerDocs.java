@@ -31,8 +31,8 @@ public interface PairRecommendationShareImageControllerDocs {
     String MOOD_TEST_404_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"MOOD_TEST_404","message":"테스트 결과를 찾을 수 없습니다."}
             """;
-    String RECOMMENDATION_422_EXAMPLE = """
-            {"timestamp":"2026-07-29T14:30:00","code":"RECOMMENDATION_422","message":"추천 결과를 산출할 수 없습니다."}
+    String RECOMMENDATION422_EXAMPLE = """
+            {"timestamp":"2026-07-29T14:30:00","code":"RECOMMENDATION422","message":"추천 결과를 산출할 수 없습니다."}
             """;
     String IMAGE400_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"IMAGE400","message":"이미지 파일 형식이 올바르지 않습니다."}
@@ -40,8 +40,8 @@ public interface PairRecommendationShareImageControllerDocs {
     String IMAGE413_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"IMAGE413","message":"이미지 파일은 5MB 이하여야 합니다."}
             """;
-    String PAIR_IMAGE_503_EXAMPLE = """
-            {"timestamp":"2026-07-29T14:30:00","code":"PAIR_IMAGE_503","message":"페어 추천 공유 이미지를 일시적으로 저장할 수 없습니다."}
+    String PAIR_IMAGE503_EXAMPLE = """
+            {"timestamp":"2026-07-29T14:30:00","code":"PAIR_IMAGE503","message":"페어 추천 공유 이미지를 일시적으로 저장할 수 없습니다."}
             """;
     String COMMON500_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"COMMON500","message":"서버 에러가 발생했습니다."}
@@ -76,10 +76,10 @@ public interface PairRecommendationShareImageControllerDocs {
                     })),
             @ApiResponse(responseCode = "413", description = "IMAGE413 - 이미지 파일이 5MB를 초과함",
                     content = @Content(examples = @ExampleObject(name = "IMAGE413", value = IMAGE413_EXAMPLE))),
-            @ApiResponse(responseCode = "422", description = "RECOMMENDATION_422 - 타협 추천 산출 불가",
-                    content = @Content(examples = @ExampleObject(name = "RECOMMENDATION_422", value = RECOMMENDATION_422_EXAMPLE))),
-            @ApiResponse(responseCode = "503", description = "PAIR_IMAGE_503 - 공유 이미지를 S3에 저장하지 못함",
-                    content = @Content(examples = @ExampleObject(name = "PAIR_IMAGE_503", value = PAIR_IMAGE_503_EXAMPLE))),
+            @ApiResponse(responseCode = "422", description = "RECOMMENDATION422 - 타협 추천 산출 불가",
+                    content = @Content(examples = @ExampleObject(name = "RECOMMENDATION422", value = RECOMMENDATION422_EXAMPLE))),
+            @ApiResponse(responseCode = "503", description = "PAIR_IMAGE503 - 공유 이미지를 S3에 저장하지 못함",
+                    content = @Content(examples = @ExampleObject(name = "PAIR_IMAGE503", value = PAIR_IMAGE503_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
                     content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))
     })

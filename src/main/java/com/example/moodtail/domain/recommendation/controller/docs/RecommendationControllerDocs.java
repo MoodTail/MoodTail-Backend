@@ -82,10 +82,10 @@ public interface RecommendationControllerDocs {
               }
               """;
 
-    String RECOMMENDATION_422_EXAMPLE = """
+    String RECOMMENDATION422_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "RECOMMENDATION_422",
+                "code": "RECOMMENDATION422",
                 "message": "추천 결과를 산출할 수 없습니다."
               }
               """;
@@ -114,8 +114,8 @@ public interface RecommendationControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "422",
-                    description = "RECOMMENDATION_422 - 추천 결과를 산출할 수 없음",
-                    content = @Content(examples = @ExampleObject(name = "RECOMMENDATION_422", value = RECOMMENDATION_422_EXAMPLE))
+                    description = "RECOMMENDATION422 - 추천 결과를 산출할 수 없음",
+                    content = @Content(examples = @ExampleObject(name = "RECOMMENDATION422", value = RECOMMENDATION422_EXAMPLE))
             )
     })
     BaseResponse<PairRecommendationResponse> recommendPair(
