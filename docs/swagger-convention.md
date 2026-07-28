@@ -171,7 +171,7 @@ private double sweetness;
 ```json
 {
   "success": true,
-  "code": "COMMON_200",
+  "code": "COMMON200",
   "message": "요청에 성공했습니다.",
   "data": {}
 }
@@ -182,7 +182,7 @@ private double sweetness;
 ```json
 {
   "success": false,
-  "code": "MOOD_TEST_400",
+  "code": "MOOD_TEST400",
   "message": "테스트 답변이 올바르지 않습니다.",
   "data": null
 }
@@ -193,13 +193,13 @@ private double sweetness;
 도메인별 특수 에러만 ControllerDocs에 명시한다.
 
 ```text
-AUTH_401             인증이 필요함
-MEMBER_404           회원을 찾을 수 없음
-MOOD_TEST_400        테스트 답변 누락 또는 잘못된 답변 값
-RECOMMENDATION_422   추천 결과 산출 불가
-COCKTAIL_404         칵테일을 찾을 수 없음
-HISTORY_409          일일 저장 정책 위반
-REPORT_409           리포트 생성 데이터 부족
+AUTH401             인증이 필요함
+MEMBER404           회원을 찾을 수 없음
+MOOD_TEST400        테스트 답변 누락 또는 잘못된 답변 값
+RECOMMENDATION422    추천 결과 산출 불가
+COCKTAIL404          칵테일을 찾을 수 없음
+HISTORY409           일일 저장 정책 위반
+REPORT409            리포트 생성 데이터 부족
 ```
 
 ## 8. Moodtail API 예시 기준
@@ -262,7 +262,7 @@ REPORT_409           리포트 생성 데이터 부족
 월간 리포트 API는 데이터 부족 조건을 명시한다.
 
 ```text
-월간 기록이 5건 미만이면 REPORT_409를 반환한다.
+월간 기록이 5건 미만이면 REPORT409를 반환한다.
 ```
 
 ## 9. 인증 문서 작성 규칙
