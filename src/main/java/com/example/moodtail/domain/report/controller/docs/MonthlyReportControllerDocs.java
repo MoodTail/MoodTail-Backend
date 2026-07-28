@@ -54,14 +54,14 @@ public interface MonthlyReportControllerDocs {
     String AUTH028_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"AUTH028","message":"인증 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."}
             """;
-    String REPORT_400_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"REPORT_400","message":"월간 리포트 요청 값이 올바르지 않습니다."}
+    String REPORT400_EXAMPLE = """
+            {"timestamp":"2026-07-24T14:30:00","code":"REPORT400","message":"월간 리포트 요청 값이 올바르지 않습니다."}
             """;
-    String REPORT_409_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"REPORT_409","message":"월간 리포트 생성에 필요한 데이터가 부족합니다."}
+    String REPORT409_EXAMPLE = """
+            {"timestamp":"2026-07-24T14:30:00","code":"REPORT409","message":"월간 리포트 생성에 필요한 데이터가 부족합니다."}
             """;
-    String REPORT_IMAGE_503_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"REPORT_IMAGE_503","message":"월간 리포트 공유 이미지를 일시적으로 저장할 수 없습니다."}
+    String REPORT_IMAGE503_EXAMPLE = """
+            {"timestamp":"2026-07-24T14:30:00","code":"REPORT_IMAGE503","message":"월간 리포트 공유 이미지를 일시적으로 저장할 수 없습니다."}
             """;
     String IMAGE400_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"IMAGE400","message":"이미지 파일 형식이 올바르지 않습니다."}
@@ -88,11 +88,11 @@ public interface MonthlyReportControllerDocs {
                             value = MONTHLY_REPORT_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON405/REPORT_400 - 누락·타입 오류 또는 유효하지 않은 연도·월",
+                    description = "COMMON402/COMMON405/REPORT400 - 누락·타입 오류 또는 유효하지 않은 연도·월",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
-                            @ExampleObject(name = "REPORT_400", value = REPORT_400_EXAMPLE)
+                            @ExampleObject(name = "REPORT400", value = REPORT400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
@@ -108,8 +108,8 @@ public interface MonthlyReportControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "409", description = "REPORT_409 - 해당 월 테스트 결과 5건 미만",
-                    content = @Content(examples = @ExampleObject(name = "REPORT_409", value = REPORT_409_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "REPORT409 - 해당 월 테스트 결과 5건 미만",
+                    content = @Content(examples = @ExampleObject(name = "REPORT409", value = REPORT409_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
@@ -137,11 +137,11 @@ public interface MonthlyReportControllerDocs {
                             value = SHARE_IMAGE_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON405/REPORT_400/IMAGE400 - 파라미터·날짜 또는 이미지 형식 오류",
+                    description = "COMMON402/COMMON405/REPORT400/IMAGE400 - 파라미터·날짜 또는 이미지 형식 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
-                            @ExampleObject(name = "REPORT_400", value = REPORT_400_EXAMPLE),
+                            @ExampleObject(name = "REPORT400", value = REPORT400_EXAMPLE),
                             @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
@@ -158,15 +158,15 @@ public interface MonthlyReportControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "409", description = "REPORT_409 - 해당 월 테스트 결과 5건 미만",
-                    content = @Content(examples = @ExampleObject(name = "REPORT_409", value = REPORT_409_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "REPORT409 - 해당 월 테스트 결과 5건 미만",
+                    content = @Content(examples = @ExampleObject(name = "REPORT409", value = REPORT409_EXAMPLE))),
             @ApiResponse(responseCode = "413", description = "IMAGE413 - 이미지 파일 5MB 초과",
                     content = @Content(examples = @ExampleObject(name = "IMAGE413", value = IMAGE413_EXAMPLE))),
             @ApiResponse(responseCode = "503",
-                    description = "AUTH028/REPORT_IMAGE_503 - 인증 저장소 또는 공유 이미지 저장소 장애",
+                    description = "AUTH028/REPORT_IMAGE503 - 인증 저장소 또는 공유 이미지 저장소 장애",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE),
-                            @ExampleObject(name = "REPORT_IMAGE_503", value = REPORT_IMAGE_503_EXAMPLE)
+                            @ExampleObject(name = "REPORT_IMAGE503", value = REPORT_IMAGE503_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
                     content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))

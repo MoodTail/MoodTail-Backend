@@ -68,6 +68,6 @@ class MonthlyReportShareImageServiceTest {
 
         assertThatThrownBy(() -> shareImageService.uploadShareImage(USER_ID, 2026, 7, image))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_IMAGE_503"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_IMAGE503"));
     }
 }
