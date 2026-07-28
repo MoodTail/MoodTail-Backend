@@ -4,6 +4,7 @@ import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommenda
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CustomCocktailRecommendationResponse;
 import com.example.moodtail.domain.cocktail.dto.response.DailyCocktailResponse;
+import com.example.moodtail.domain.cocktail.dto.request.DailyCocktailRequest;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
@@ -407,5 +408,7 @@ public interface CocktailControllerDocs {
                     })
             )
     })
-    BaseResponse<DailyCocktailResponse> getDailyCocktail();
+    BaseResponse<DailyCocktailResponse> getDailyCocktail(
+            DailyCocktailRequest request
+    );
 }
