@@ -230,26 +230,26 @@ public interface CocktailControllerDocs {
               }
               """;
 
-    String COCKTAIL_404_EXAMPLE = """
+    String COCKTAIL404_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "COCKTAIL_404",
+                "code": "COCKTAIL404",
                 "message": "해당 칵테일을 찾을 수 없습니다."
               }
               """;
 
-    String RECIPE_404_EXAMPLE = """
+    String RECIPE404_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "RECIPE_404",
+                "code": "RECIPE404",
                 "message": "해당 레시피를 찾을 수 없습니다."
               }
               """;
 
-    String INGREDIENT_404_EXAMPLE = """
+    String INGREDIENT404_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "INGREDIENT_404",
+                "code": "INGREDIENT404",
                 "message": "해당 재료를 찾을 수 없습니다."
               }
               """;
@@ -268,11 +268,11 @@ public interface CocktailControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "COCKTAIL_404/RECIPE_404/INGREDIENT_404 - 칵테일, 레시피 또는 재료를 찾을 수 없음",
+                    description = "COCKTAIL404/RECIPE404/INGREDIENT404 - 칵테일, 레시피 또는 재료를 찾을 수 없음",
                     content = @Content(examples = {
-                            @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE),
-                            @ExampleObject(name = "RECIPE_404", value = RECIPE_404_EXAMPLE),
-                            @ExampleObject(name = "INGREDIENT_404", value = INGREDIENT_404_EXAMPLE)
+                            @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE),
+                            @ExampleObject(name = "RECIPE404", value = RECIPE404_EXAMPLE),
+                            @ExampleObject(name = "INGREDIENT404", value = INGREDIENT404_EXAMPLE)
                     })
             ),
             @ApiResponse(
@@ -332,18 +332,18 @@ public interface CocktailControllerDocs {
               }
               """;
 
-    String COCKTAIL_409_EXAMPLE = """
+    String COCKTAIL409_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "COCKTAIL_409",
+                "code": "COCKTAIL409",
                 "message": "이미 즐겨찾기에 추가된 칵테일입니다."
               }
               """;
 
-    String FAVORITE_404_EXAMPLE = """
+    String FAVORITE404_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "FAVORITE_404",
+                "code": "FAVORITE404",
                 "message": "즐겨찾기에 추가되지 않은 칵테일입니다."
               }
               """;
@@ -409,13 +409,13 @@ public interface CocktailControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "COCKTAIL_404 - 칵테일을 찾을 수 없음",
-                    content = @Content(examples = @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE))
+                    description = "COCKTAIL404 - 칵테일을 찾을 수 없음",
+                    content = @Content(examples = @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE))
             ),
             @ApiResponse(
                     responseCode = "409",
-                    description = "COCKTAIL_409 - 이미 즐겨찾기에 추가된 칵테일",
-                    content = @Content(examples = @ExampleObject(name = "COCKTAIL_409", value = COCKTAIL_409_EXAMPLE))
+                    description = "COCKTAIL409 - 이미 즐겨찾기에 추가된 칵테일",
+                    content = @Content(examples = @ExampleObject(name = "COCKTAIL409", value = COCKTAIL409_EXAMPLE))
             ),
             @ApiResponse(
                     responseCode = "500",
@@ -457,10 +457,10 @@ public interface CocktailControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "404",
-                    description = "COCKTAIL_404/FAVORITE_404 - 칵테일 또는 즐겨찾기를 찾을 수 없음",
+                    description = "COCKTAIL404/FAVORITE404 - 칵테일 또는 즐겨찾기를 찾을 수 없음",
                     content = @Content(examples = {
-                            @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE),
-                            @ExampleObject(name = "FAVORITE_404", value = FAVORITE_404_EXAMPLE)
+                            @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE),
+                            @ExampleObject(name = "FAVORITE404", value = FAVORITE404_EXAMPLE)
                     })
             ),
             @ApiResponse(

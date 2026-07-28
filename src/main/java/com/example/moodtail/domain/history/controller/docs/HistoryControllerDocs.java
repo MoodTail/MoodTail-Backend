@@ -344,10 +344,10 @@ public interface HistoryControllerDocs {
               "message": "사진 저장소를 일시적으로 사용할 수 없습니다."
             }
             """;
-    String COCKTAIL_404_EXAMPLE = """
+    String COCKTAIL404_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "COCKTAIL_404",
+              "code": "COCKTAIL404",
               "message": "해당 칵테일을 찾을 수 없습니다."
             }
             """;
@@ -567,8 +567,8 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "COCKTAIL_404 - 칵테일 없음",
-                    content = @Content(examples = @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "COCKTAIL404 - 칵테일 없음",
+                    content = @Content(examples = @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE))),
             @ApiResponse(responseCode = "409", description = "HISTORY_409 - 같은 날짜·칵테일 기록 중복",
                     content = @Content(examples = @ExampleObject(name = "HISTORY_409", value = HISTORY_409_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
@@ -616,10 +616,10 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY_404/COCKTAIL_404 - 기록 또는 칵테일 없음",
+            @ApiResponse(responseCode = "404", description = "HISTORY_404/COCKTAIL404 - 기록 또는 칵테일 없음",
                     content = @Content(examples = {
                             @ExampleObject(name = "HISTORY_404", value = HISTORY_404_EXAMPLE),
-                            @ExampleObject(name = "COCKTAIL_404", value = COCKTAIL_404_EXAMPLE)
+                            @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "409", description = "HISTORY_409 - 변경 후 날짜·칵테일 중복",
                     content = @Content(examples = @ExampleObject(name = "HISTORY_409", value = HISTORY_409_EXAMPLE))),
