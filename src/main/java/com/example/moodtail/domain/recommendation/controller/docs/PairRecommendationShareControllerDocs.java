@@ -36,18 +36,18 @@ public interface PairRecommendationShareControllerDocs {
               }
               """;
 
-    String SHARE_400_SIZE_EXAMPLE = """
+    String SHARE400_SIZE_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "SHARE_400",
+                "code": "SHARE400",
                 "message": "추천 칵테일은 정확히 3개여야 합니다."
               }
               """;
 
-    String SHARE_400_COCKTAIL_EXAMPLE = """
+    String SHARE400_COCKTAIL_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "SHARE_400",
+                "code": "SHARE400",
                 "message": "존재하지 않는 칵테일이 포함되어 있습니다."
               }
               """;
@@ -86,12 +86,12 @@ public interface PairRecommendationShareControllerDocs {
                     responseCode = "400",
                     description = """
                               COMMON402 - 요청 값 검증 실패
-                              SHARE_400 - 추천 칵테일 개수 불일치 또는 존재하지 않는 칵테일 포함
+                              SHARE400 - 추천 칵테일 개수 불일치 또는 존재하지 않는 칵테일 포함
                               """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
-                            @ExampleObject(name = "SHARE_400 (개수 불일치)", value = SHARE_400_SIZE_EXAMPLE),
-                            @ExampleObject(name = "SHARE_400 (칵테일 없음)", value = SHARE_400_COCKTAIL_EXAMPLE)
+                            @ExampleObject(name = "SHARE400 (개수 불일치)", value = SHARE400_SIZE_EXAMPLE),
+                            @ExampleObject(name = "SHARE400 (칵테일 없음)", value = SHARE400_COCKTAIL_EXAMPLE)
                     })
             ),
             @ApiResponse(

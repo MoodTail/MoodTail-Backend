@@ -238,7 +238,7 @@ class HistoryControllerTest {
                         .file(image)
                         .param("sourceType", "GALLERY"))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("HISTORY_PHOTO_409"));
+                .andExpect(jsonPath("$.code").value("HISTORY_PHOTO409"));
     }
 
     @Test

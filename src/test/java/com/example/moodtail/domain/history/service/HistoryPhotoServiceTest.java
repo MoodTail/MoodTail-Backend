@@ -153,7 +153,7 @@ class HistoryPhotoServiceTest {
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
-                                .isEqualTo("HISTORY_PHOTO_409")
+                                .isEqualTo("HISTORY_PHOTO409")
                 );
 
         verify(storageService, never()).uploadImage(any(), anyString());
@@ -174,7 +174,7 @@ class HistoryPhotoServiceTest {
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
-                                .isEqualTo("HISTORY_PHOTO_409")
+                                .isEqualTo("HISTORY_PHOTO409")
                 );
 
         verify(userRepository).findByIdForUpdate(1L);
@@ -193,7 +193,7 @@ class HistoryPhotoServiceTest {
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
-                                .isEqualTo("HISTORY_PHOTO_503")
+                                .isEqualTo("HISTORY_PHOTO503")
                 );
     }
 
@@ -280,7 +280,7 @@ class HistoryPhotoServiceTest {
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-12", file, "CAMERA"))
                 .isInstanceOfSatisfying(
                         RestApiException.class,
-                        exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400")
+                        exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY400")
                 );
 
         verify(storageService, never()).uploadImage(any(), anyString());
