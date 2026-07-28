@@ -295,52 +295,52 @@ public interface HistoryControllerDocs {
               "message": "인증 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."
             }
             """;
-    String HISTORY_400_EXAMPLE = """
+    String HISTORY400_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_400",
+              "code": "HISTORY400",
               "message": "히스토리 요청 값이 올바르지 않습니다."
             }
             """;
-    String HISTORY_409_EXAMPLE = """
+    String HISTORY409_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_409",
+              "code": "HISTORY409",
               "message": "해당 날짜에 같은 칵테일 음주 기록이 이미 있습니다."
             }
             """;
-    String HISTORY_404_EXAMPLE = """
+    String HISTORY404_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_404",
+              "code": "HISTORY404",
               "message": "히스토리 기록을 찾을 수 없습니다."
             }
             """;
-    String HISTORY_TEST_404_EXAMPLE = """
+    String HISTORY_TEST404_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_TEST_404",
+              "code": "HISTORY_TEST404",
               "message": "저장된 테스트 결과를 찾을 수 없습니다."
             }
             """;
-    String HISTORY_PHOTO_409_EXAMPLE = """
+    String HISTORY_PHOTO409_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_PHOTO_409",
+              "code": "HISTORY_PHOTO409",
               "message": "날짜별 사진은 최대 5장까지 저장할 수 있습니다."
             }
             """;
-    String HISTORY_PHOTO_404_EXAMPLE = """
+    String HISTORY_PHOTO404_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_PHOTO_404",
+              "code": "HISTORY_PHOTO404",
               "message": "히스토리 사진을 찾을 수 없습니다."
             }
             """;
-    String HISTORY_PHOTO_503_EXAMPLE = """
+    String HISTORY_PHOTO503_EXAMPLE = """
             {
               "timestamp": "2026-07-24T14:30:00",
-              "code": "HISTORY_PHOTO_503",
+              "code": "HISTORY_PHOTO503",
               "message": "사진 저장소를 일시적으로 사용할 수 없습니다."
             }
             """;
@@ -379,11 +379,11 @@ public interface HistoryControllerDocs {
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = CALENDAR_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON405/HISTORY_400 - 누락·타입 오류 또는 유효하지 않은 연도·월",
+                    description = "COMMON402/COMMON405/HISTORY400 - 누락·타입 오류 또는 유효하지 않은 연도·월",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
-                            @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE)
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
@@ -422,8 +422,8 @@ public interface HistoryControllerDocs {
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = DATE_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
-                    description = "HISTORY_400 - 날짜 형식 오류, MySQL 지원 범위 밖 또는 미래 날짜",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE))),
+                    description = "HISTORY400 - 날짜 형식 오류, MySQL 지원 범위 밖 또는 미래 날짜",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
                     content = @Content(examples = {
@@ -452,7 +452,7 @@ public interface HistoryControllerDocs {
             operationId = "getTestResultDetail",
             summary = "저장된 테스트 결과 상세 조회",
             description = "본인의 테스트 결과에 저장된 무드 타입, 1~5 맛 프로필과 당시 추천 칵테일을 "
-                    + "조회합니다. 존재하지 않거나 다른 회원 소유인 결과는 동일하게 HISTORY_TEST_404를 반환합니다."
+                    + "조회합니다. 존재하지 않거나 다른 회원 소유인 결과는 동일하게 HISTORY_TEST404를 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 테스트 결과 상세 조회 성공",
@@ -461,8 +461,8 @@ public interface HistoryControllerDocs {
                             name = "COMMON200",
                             value = TEST_RESULT_DETAIL_SUCCESS_EXAMPLE
                     ))),
-            @ApiResponse(responseCode = "400", description = "HISTORY_400 - 0 이하의 테스트 결과 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = "HISTORY400 - 0 이하의 테스트 결과 ID",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
                     content = @Content(examples = {
@@ -477,10 +477,10 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY_TEST_404 - 결과 없음 또는 다른 회원 소유",
+            @ApiResponse(responseCode = "404", description = "HISTORY_TEST404 - 결과 없음 또는 다른 회원 소유",
                     content = @Content(examples = @ExampleObject(
-                            name = "HISTORY_TEST_404",
-                            value = HISTORY_TEST_404_EXAMPLE
+                            name = "HISTORY_TEST404",
+                            value = HISTORY_TEST404_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),
@@ -496,7 +496,7 @@ public interface HistoryControllerDocs {
             operationId = "getHistoryDetail",
             summary = "음주 기록 상세 조회",
             description = "본인의 음주 기록에 연결된 칵테일과 기록 날짜를 조회합니다. 존재하지 않거나 다른 "
-                    + "회원 소유인 기록은 동일하게 HISTORY_404를 반환합니다."
+                    + "회원 소유인 기록은 동일하게 HISTORY404를 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 상세 조회 성공",
@@ -505,8 +505,8 @@ public interface HistoryControllerDocs {
                             name = "COMMON200",
                             value = DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE
                     ))),
-            @ApiResponse(responseCode = "400", description = "HISTORY_400 - 0 이하의 음주 기록 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = "HISTORY400 - 0 이하의 음주 기록 ID",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
                     content = @Content(examples = {
@@ -521,8 +521,8 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY_404 - 기록 없음 또는 다른 회원 소유",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_404", value = HISTORY_404_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "HISTORY404 - 기록 없음 또는 다른 회원 소유",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY404", value = HISTORY404_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
@@ -547,11 +547,11 @@ public interface HistoryControllerDocs {
                             value = DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/HISTORY_400 - 필드·JSON·날짜 오류",
+                    description = "COMMON402/COMMON406/HISTORY400 - 필드·JSON·날짜 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
-                            @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE)
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
@@ -569,8 +569,8 @@ public interface HistoryControllerDocs {
                     })),
             @ApiResponse(responseCode = "404", description = "COCKTAIL404 - 칵테일 없음",
                     content = @Content(examples = @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE))),
-            @ApiResponse(responseCode = "409", description = "HISTORY_409 - 같은 날짜·칵테일 기록 중복",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_409", value = HISTORY_409_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "HISTORY409 - 같은 날짜·칵테일 기록 중복",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY409", value = HISTORY409_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
@@ -586,7 +586,7 @@ public interface HistoryControllerDocs {
             summary = "음주 기록 수정",
             description = "칵테일 또는 기록 날짜 중 변경할 필드만 전달합니다. 두 필드를 모두 생략하거나 미래 "
                     + "날짜로 변경할 수 없습니다. 변경 결과가 같은 날짜의 다른 동일 칵테일 기록과 중복되면 "
-                    + "HISTORY_409를 반환합니다."
+                    + "HISTORY409를 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 수정 성공",
@@ -596,11 +596,11 @@ public interface HistoryControllerDocs {
                             value = DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/HISTORY_400 - ID·JSON·빈 수정 요청·날짜 오류",
+                    description = "COMMON402/COMMON406/HISTORY400 - ID·JSON·빈 수정 요청·날짜 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
-                            @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE)
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
@@ -616,13 +616,13 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY_404/COCKTAIL404 - 기록 또는 칵테일 없음",
+            @ApiResponse(responseCode = "404", description = "HISTORY404/COCKTAIL404 - 기록 또는 칵테일 없음",
                     content = @Content(examples = {
-                            @ExampleObject(name = "HISTORY_404", value = HISTORY_404_EXAMPLE),
+                            @ExampleObject(name = "HISTORY404", value = HISTORY404_EXAMPLE),
                             @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "409", description = "HISTORY_409 - 변경 후 날짜·칵테일 중복",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_409", value = HISTORY_409_EXAMPLE))),
+            @ApiResponse(responseCode = "409", description = "HISTORY409 - 변경 후 날짜·칵테일 중복",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY409", value = HISTORY409_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
@@ -638,14 +638,14 @@ public interface HistoryControllerDocs {
             operationId = "deleteHistory",
             summary = "음주 기록 삭제",
             description = "본인의 음주 기록 한 건을 삭제합니다. 존재하지 않거나 다른 회원 소유인 기록은 "
-                    + "동일하게 HISTORY_404를 반환합니다."
+                    + "동일하게 HISTORY404를 반환합니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 삭제 성공",
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400", description = "HISTORY_400 - 0 이하의 음주 기록 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = "HISTORY400 - 0 이하의 음주 기록 ID",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
                     content = @Content(examples = {
@@ -660,8 +660,8 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY_404 - 기록 없음 또는 다른 회원 소유",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_404", value = HISTORY_404_EXAMPLE))),
+            @ApiResponse(responseCode = "404", description = "HISTORY404 - 기록 없음 또는 다른 회원 소유",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY404", value = HISTORY404_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
@@ -684,10 +684,10 @@ public interface HistoryControllerDocs {
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = PHOTO_CREATE_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/HISTORY_400/IMAGE400 - 필수 파트, 날짜, 출처 또는 이미지 형식 오류",
+                    description = "COMMON402/HISTORY400/IMAGE400 - 필수 파트, 날짜, 출처 또는 이미지 형식 오류",
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
-                            @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE),
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE),
                             @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
@@ -704,18 +704,18 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "409", description = "HISTORY_PHOTO_409 - 날짜별 사진 5장 초과",
+            @ApiResponse(responseCode = "409", description = "HISTORY_PHOTO409 - 날짜별 사진 5장 초과",
                     content = @Content(examples = @ExampleObject(
-                            name = "HISTORY_PHOTO_409",
-                            value = HISTORY_PHOTO_409_EXAMPLE
+                            name = "HISTORY_PHOTO409",
+                            value = HISTORY_PHOTO409_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "413", description = "IMAGE413 - 이미지 파일 5MB 초과",
                     content = @Content(examples = @ExampleObject(name = "IMAGE413", value = IMAGE413_EXAMPLE))),
             @ApiResponse(responseCode = "503",
-                    description = "AUTH028/HISTORY_PHOTO_503 - 인증 저장소 또는 사진 저장소 장애",
+                    description = "AUTH028/HISTORY_PHOTO503 - 인증 저장소 또는 사진 저장소 장애",
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE),
-                            @ExampleObject(name = "HISTORY_PHOTO_503", value = HISTORY_PHOTO_503_EXAMPLE)
+                            @ExampleObject(name = "HISTORY_PHOTO503", value = HISTORY_PHOTO503_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
                     content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))
@@ -742,8 +742,8 @@ public interface HistoryControllerDocs {
             @ApiResponse(responseCode = "200", description = "COMMON200 - 히스토리 사진 삭제 성공",
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400", description = "HISTORY_400 - 날짜 형식 오류 또는 0 이하의 사진 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY_400", value = HISTORY_400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = "HISTORY400 - 날짜 형식 오류 또는 0 이하의 사진 ID",
+                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
                     content = @Content(examples = {
@@ -758,10 +758,10 @@ public interface HistoryControllerDocs {
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY_PHOTO_404 - 사진 없음, 날짜 불일치 또는 다른 회원 소유",
+            @ApiResponse(responseCode = "404", description = "HISTORY_PHOTO404 - 사진 없음, 날짜 불일치 또는 다른 회원 소유",
                     content = @Content(examples = @ExampleObject(
-                            name = "HISTORY_PHOTO_404",
-                            value = HISTORY_PHOTO_404_EXAMPLE
+                            name = "HISTORY_PHOTO404",
+                            value = HISTORY_PHOTO404_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "503", description = "AUTH028 - 인증 저장소 일시 장애",
                     content = @Content(examples = @ExampleObject(name = "AUTH028", value = AUTH028_EXAMPLE))),

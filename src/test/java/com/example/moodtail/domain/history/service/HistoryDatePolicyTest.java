@@ -22,6 +22,6 @@ class HistoryDatePolicyTest {
     void rejectsAYearBelowTheSupportedRange() {
         assertThatThrownBy(() -> HistoryDatePolicy.parseYearMonth(999, 12))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY400"));
     }
 }
