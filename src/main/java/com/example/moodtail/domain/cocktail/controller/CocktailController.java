@@ -3,6 +3,7 @@ package com.example.moodtail.domain.cocktail.controller;
 import com.example.moodtail.domain.cocktail.controller.docs.CocktailControllerDocs;
 import com.example.moodtail.domain.cocktail.controller.docs.CocktailTrendControllerDocs;
 import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
+import com.example.moodtail.domain.cocktail.dto.request.DailyCocktailRequest;
 import com.example.moodtail.domain.cocktail.dto.response.*;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
 import com.example.moodtail.domain.cocktail.service.CocktailTrendService;
@@ -106,9 +107,14 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
 
     @Override
     @GetMapping("/today")
-    public BaseResponse<DailyCocktailResponse> getDailyCocktail() {
+    public BaseResponse<DailyCocktailResponse> getDailyCocktail(
+            @Valid @ModelAttribute DailyCocktailRequest request
+            ) {
         return BaseResponse.onSuccess(
-                dailyCocktailService.getOrCreateTodayCocktail()
+                dailyCocktailService.getOrCreateTodayCocktail(
+                        request.latitude(),
+                        request.longitude()
+                )
         );
     }
 

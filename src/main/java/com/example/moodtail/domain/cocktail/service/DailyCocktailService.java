@@ -34,7 +34,10 @@ public class DailyCocktailService {
     private final WeatherWeightCalculator weatherWeightCalculator;
     private final DailyCocktailRecommender dailyCocktailRecommender;
 
-    public DailyCocktailResponse getOrCreateTodayCocktail() {
+    public DailyCocktailResponse getOrCreateTodayCocktail(
+            double latitude,
+            double longitude
+    ) {
         LocalDate today = LocalDate.now(SEOUL_ZONE_ID);
 
         return dailyRepository.findByRecommendationDate(today)
