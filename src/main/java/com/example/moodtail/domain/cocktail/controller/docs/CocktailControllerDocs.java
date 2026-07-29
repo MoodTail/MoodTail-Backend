@@ -173,7 +173,7 @@ public interface CocktailControllerDocs {
               }
               """;
 
-    String WEATHER503_EXAMPLE = """
+    String WEATHER_PROVIDER_UNAVAILABLE_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
                 "code": "WEATHER503",
@@ -181,10 +181,10 @@ public interface CocktailControllerDocs {
               }
               """;
 
-    String WEATHER503_1_EXAMPLE = """
+    String WEATHER_RATE_LIMIT_EXCEEDED_EXAMPLE = """
               {
                 "timestamp": "2026-07-22T14:30:00",
-                "code": "WEATHER503_1",
+                "code": "WEATHER503",
                 "message": "날씨 API 호출 한도를 초과했습니다. 잠시 후 다시 시도해 주세요."
               }
               """;
@@ -675,17 +675,16 @@ public interface CocktailControllerDocs {
             @ApiResponse(
                     responseCode = "503",
                     description = """
-                              WEATHER503 - 날씨 서비스 이용 불가
-                              WEATHER503_1 - 날씨 API 호출 한도 초과
+                              WEATHER503 - 날씨 서비스 이용 불가, 날씨 API 호출 한도 초과
                               """,
                     content = @Content(examples = {
                             @ExampleObject(
-                                    name = "WEATHER503",
-                                    value = WEATHER503_EXAMPLE
+                                    name = "WEATHER_PROVIDER_UNAVAILABLE",
+                                    value = WEATHER_PROVIDER_UNAVAILABLE_EXAMPLE
                             ),
                             @ExampleObject(
-                                    name = "WEATHER503_1",
-                                    value = WEATHER503_1_EXAMPLE
+                                    name = "WEATHER_RATE_LIMIT_EXCEEDED",
+                                    value = WEATHER_RATE_LIMIT_EXCEEDED_EXAMPLE
                             )
                     })
             )
