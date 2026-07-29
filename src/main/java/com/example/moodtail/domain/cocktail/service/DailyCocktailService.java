@@ -2,21 +2,19 @@ package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.DailyCocktailResponse;
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
-import com.example.moodtail.domain.cocktail.entity.DailyCocktailRecommendation;
+import com.example.moodtail.domain.cocktail.entity.Region;
+import com.example.moodtail.domain.cocktail.model.DailyCocktailCacheValue;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
-import com.example.moodtail.domain.cocktail.repository.DailyCocktailRecommendationRepository;
-import com.example.moodtail.domain.recommendation.calculator.WeatherWeightCalculator;
-import com.example.moodtail.domain.recommendation.model.CocktailRecommendationResult;
-import com.example.moodtail.domain.recommendation.model.WeatherTasteVector;
-import com.example.moodtail.domain.recommendation.service.DailyCocktailRecommender;
-import com.example.moodtail.domain.weather.dto.response.WeatherResponse;
-import com.example.moodtail.domain.weather.service.WeatherService;
+import com.example.moodtail.domain.cocktail.repository.redis.DailyCocktailRedisRepository;
+import com.example.moodtail.domain.weather.service.ReverseGeocodingService;
+import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -24,15 +22,10 @@ public class DailyCocktailService {
     private static final ZoneId SEOUL_ZONE_ID =
             ZoneId.of("Asia/Seoul");
 
-    private static final double SEOUL_LATITUDE = 37.5665;
-    private static final double SEOUL_LONGITUDE = 126.9780;
-
-    private final DailyCocktailRecommendationRepository dailyRepository;
-    private final DailyCocktailPersistenceService persistenceService;
+    private final ReverseGeocodingService reverseGeocodingService;
+    private final DailyCocktailRedisRepository dailyCocktailRedisRepository;
+    private final DailyCocktailGenerationService generationService;
     private final CocktailRepository cocktailRepository;
-    private final WeatherService weatherService;
-    private final WeatherWeightCalculator weatherWeightCalculator;
-    private final DailyCocktailRecommender dailyCocktailRecommender;
 
     public DailyCocktailResponse getOrCreateTodayCocktail(
             double latitude,
@@ -40,47 +33,52 @@ public class DailyCocktailService {
     ) {
         LocalDate today = LocalDate.now(SEOUL_ZONE_ID);
 
-        return dailyRepository.findByRecommendationDate(today)
-                .map(recommendation -> DailyCocktailResponse.from(recommendation, false))
-                .orElseGet(() -> createTodayCocktail(today));
+        Region region =
+                reverseGeocodingService.resolve(
+                        latitude,
+                        longitude
+                );
+
+        Optional<DailyCocktailCacheValue> cached =
+                dailyCocktailRedisRepository.find(
+                        today,
+                        region
+                );
+
+        if (cached.isPresent()) {
+            return createResponse(
+                    cached.get(),
+                    false
+            );
+        }
+
+        DailyCocktailCacheValue created =
+                generationService.generate(
+                        today,
+                        region
+                );
+
+        return createResponse(
+                created,
+                true
+        );
     }
 
-    private DailyCocktailResponse createTodayCocktail(LocalDate today) {
-        WeatherResponse weatherResponse =
-                weatherService.getCurrentWeather(
-                        SEOUL_LATITUDE,
-                        SEOUL_LONGITUDE
+    private DailyCocktailResponse createResponse(
+            DailyCocktailCacheValue cacheValue,
+            boolean recommendationSaved
+    ) {
+        Cocktail cocktail =
+                cocktailRepository.findByIdWithImage(
+                        cacheValue.cocktailId()
+                ).orElseThrow(() ->
+                        new RestApiException(CocktailErrorStatus.COCKTAIL_NOT_FOUND)
                 );
 
-        WeatherTasteVector weatherTasteVector =
-                weatherWeightCalculator.calculate(
-                        weatherResponse.weather(),
-                        weatherResponse.temperature(),
-                        weatherResponse.humidity(),
-                        today.getDayOfWeek()
-                );
-
-        List<Cocktail> candidates =
-                cocktailRepository.findAllByOrderByIdAsc();
-
-        CocktailRecommendationResult result =
-                dailyCocktailRecommender.recommend(
-                        weatherTasteVector,
-                        candidates
-                );
-
-        DailyCocktailRecommendation recommendation =
-                DailyCocktailRecommendation.create(
-                        today,
-                        result.cocktail(),
-                        weatherResponse,
-                        result.similarity()
-                );
-
-        DailyCocktailRecommendation saved =
-                persistenceService.save(recommendation);
-
-        return DailyCocktailResponse.from(saved, true);
-
+        return DailyCocktailResponse.from(
+                cacheValue,
+                cocktail,
+                recommendationSaved
+        );
     }
 }

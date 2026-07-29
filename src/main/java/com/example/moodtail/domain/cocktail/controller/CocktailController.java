@@ -14,6 +14,7 @@ import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -108,7 +109,9 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
     @Override
     @GetMapping("/today")
     public BaseResponse<DailyCocktailResponse> getDailyCocktail(
-            @Valid @ModelAttribute DailyCocktailRequest request
+            @Valid @ModelAttribute
+            @ParameterObject
+            DailyCocktailRequest request
             ) {
         return BaseResponse.onSuccess(
                 dailyCocktailService.getOrCreateTodayCocktail(
