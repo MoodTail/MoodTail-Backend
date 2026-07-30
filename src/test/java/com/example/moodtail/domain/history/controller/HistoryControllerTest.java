@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.history.controller;
 
+import com.example.moodtail.domain.history.dto.request.HistoryCreateRequest;
 import com.example.moodtail.domain.history.dto.request.HistoryUpdateRequest;
 import com.example.moodtail.domain.history.dto.response.HistoryCalendarResponse;
 import com.example.moodtail.domain.history.dto.response.HistoryCreateResponse;
@@ -164,7 +165,10 @@ class HistoryControllerTest {
     @Test
     void routesCreateUpdateAndDeleteUsingSpecificationPaths() throws Exception {
         when(historyService.create(eq(USER_ID), any())).thenReturn(
-                new HistoryCreateResponse(31L, LocalDate.of(2026, 7, 5))
+                List.of(
+                        new HistoryCreateResponse(31L, 10L, LocalDate.of(2026, 7, 5)),
+                        new HistoryCreateResponse(32L, 11L, LocalDate.of(2026, 7, 5))
+                )
         );
         when(historyService.update(eq(USER_ID), eq(31L), any())).thenReturn(
                 new HistoryUpdateResponse(31L)
@@ -174,12 +178,16 @@ class HistoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "cocktailId": 10,
+                                  "cocktailIds": [10, 11],
                                   "recordDate": "2026-07-05"
                                 }
                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.recordId").value(31));
+                .andExpect(jsonPath("$.result.length()").value(2))
+                .andExpect(jsonPath("$.result[0].recordId").value(31))
+                .andExpect(jsonPath("$.result[0].cocktailId").value(10))
+                .andExpect(jsonPath("$.result[1].recordId").value(32))
+                .andExpect(jsonPath("$.result[1].cocktailId").value(11));
         mockMvc.perform(patch("/api/v1/history/drinking-records/31")
                         .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"cocktailId\":11}"))
@@ -189,10 +197,33 @@ class HistoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"));
 
-        ArgumentCaptor<HistoryUpdateRequest> captor = ArgumentCaptor.forClass(HistoryUpdateRequest.class);
-        verify(historyService).update(eq(USER_ID), eq(31L), captor.capture());
-        assertThat(captor.getValue().cocktailId()).isEqualTo(11L);
-        assertThat(captor.getValue().recordDate()).isNull();
+        ArgumentCaptor<HistoryCreateRequest> createCaptor =
+                ArgumentCaptor.forClass(HistoryCreateRequest.class);
+        verify(historyService).create(eq(USER_ID), createCaptor.capture());
+        assertThat(createCaptor.getValue().cocktailIds()).containsExactly(10L, 11L);
+        assertThat(createCaptor.getValue().recordDate()).isEqualTo(LocalDate.of(2026, 7, 5));
+
+        ArgumentCaptor<HistoryUpdateRequest> updateCaptor =
+                ArgumentCaptor.forClass(HistoryUpdateRequest.class);
+        verify(historyService).update(eq(USER_ID), eq(31L), updateCaptor.capture());
+        assertThat(updateCaptor.getValue().cocktailId()).isEqualTo(11L);
+        assertThat(updateCaptor.getValue().recordDate()).isNull();
+    }
+
+    @Test
+    void rejectsEmptyCocktailIdsBeforeCallingService() throws Exception {
+        mockMvc.perform(post("/api/v1/history/drinking-records")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cocktailIds": [],
+                                  "recordDate": "2026-07-05"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"));
+
+        verify(historyService, never()).create(any(), any());
     }
 
     @Test

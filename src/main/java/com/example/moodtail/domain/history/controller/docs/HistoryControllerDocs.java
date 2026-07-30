@@ -23,6 +23,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @Tag(name = "Histories", description = "회원의 월간·날짜별 히스토리, 음주 기록 및 사진 API")
 @SecurityRequirement(name = "bearerAuth")
 public interface HistoryControllerDocs {
@@ -182,10 +184,18 @@ public interface HistoryControllerDocs {
               "timestamp": "2026-07-24T14:30:00",
               "code": "COMMON200",
               "message": "요청에 성공했습니다.",
-              "result": {
-                "recordId": 31,
-                "recordDate": "2026-07-05"
-              }
+              "result": [
+                {
+                  "recordId": 31,
+                  "cocktailId": 10,
+                  "recordDate": "2026-07-05"
+                },
+                {
+                  "recordId": 32,
+                  "cocktailId": 11,
+                  "recordDate": "2026-07-05"
+                }
+              ]
             }
             """;
     String DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE = """
@@ -536,9 +546,11 @@ public interface HistoryControllerDocs {
 
     @Operation(
             operationId = "createHistory",
-            summary = "음주 기록 생성",
-            description = "선택 날짜에 마신 칵테일을 기록합니다. 같은 날짜에 서로 다른 칵테일은 여러 건 "
-                    + "기록할 수 있지만 같은 칵테일은 중복 등록할 수 없습니다. 미래 날짜는 기록할 수 없습니다."
+            summary = "음주 기록 일괄 생성",
+            description = "선택 날짜에 마신 칵테일 여러 개를 한 번에 기록합니다. 같은 날짜에 서로 다른 "
+                    + "칵테일은 여러 건 기록할 수 있지만, 요청 목록이나 기존 기록에 같은 칵테일이 있으면 "
+                    + "전체 요청을 저장하지 않고 HISTORY409를 반환합니다. 존재하지 않는 칵테일이 하나라도 "
+                    + "있으면 전체 요청을 저장하지 않으며, 미래 날짜는 기록할 수 없습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 생성 성공",
@@ -577,7 +589,7 @@ public interface HistoryControllerDocs {
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
                     content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))
     })
-    BaseResponse<HistoryCreateResponse> createHistory(
+    BaseResponse<List<HistoryCreateResponse>> createHistory(
             @Parameter(hidden = true) PrincipalDetails principal,
             HistoryCreateRequest request
     );

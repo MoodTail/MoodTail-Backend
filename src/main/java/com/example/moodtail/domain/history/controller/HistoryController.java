@@ -30,6 +30,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/history")
@@ -77,7 +79,7 @@ public class HistoryController implements HistoryControllerDocs {
 
     @Override
     @PostMapping("/drinking-records")
-    public BaseResponse<HistoryCreateResponse> createHistory(
+    public BaseResponse<List<HistoryCreateResponse>> createHistory(
             @AuthenticationPrincipal PrincipalDetails principal,
             @Valid @RequestBody HistoryCreateRequest request
     ) {
