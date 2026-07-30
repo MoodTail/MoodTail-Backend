@@ -32,12 +32,9 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -70,7 +67,7 @@ class LocalAccountServiceTest {
     }
 
     @Test
-    void signupCreatesMemberWithoutChangingGuestAndEndsOnlyGuestSession() {
+    void signupCreatesMemberAndIssuesMemberSession() {
         when(localAccountRepository.existsByEmail("user@example.com")).thenReturn(false);
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
             User member = invocation.getArgument(0);
@@ -79,7 +76,7 @@ class LocalAccountServiceTest {
         });
         when(localAccountRepository.saveAndFlush(any(LocalAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
+        when(tokenSessionService.issueSession(9L, UserRole.USER))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
         LocalAuthenticationResult authentication = service.signup(
@@ -87,8 +84,7 @@ class LocalAccountServiceTest {
                 "password123!",
                 "password123!",
                 "무드테일러",
-                List.of(new Consent(1L, true)),
-                2L
+                List.of(new Consent(1L, true))
         );
         LocalAuthUser result = authentication.user();
 
@@ -96,11 +92,10 @@ class LocalAccountServiceTest {
         assertThat(result.email()).isEqualTo("user@example.com");
         assertThat(result.nickname()).isEqualTo("무드테일러");
         assertThat(result.role()).isEqualTo(UserRole.USER);
-        verify(userRepository, never()).findByIdForUpdate(2L);
         verify(termAgreementService).recordValidatedAgreements(any(), any(), any());
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(9L, UserRole.USER, 2L);
+        order.verify(tokenSessionService).issueSession(9L, UserRole.USER);
     }
 
     @Test
@@ -116,7 +111,7 @@ class LocalAccountServiceTest {
                 .thenReturn(Optional.of(account));
 
         assertThatThrownBy(() -> service.login(
-                "user@example.com", "wrong-password", null
+                "user@example.com", "wrong-password"
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
         );
@@ -130,7 +125,7 @@ class LocalAccountServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.login(
-                "unknown@example.com", "wrong-password", null
+                "unknown@example.com", "wrong-password"
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
         );
@@ -150,7 +145,7 @@ class LocalAccountServiceTest {
                 .thenReturn(Optional.of(account));
 
         assertThatThrownBy(() -> service.login(
-                "user@example.com", "correct-password", null
+                "user@example.com", "correct-password"
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
         );
@@ -161,7 +156,7 @@ class LocalAccountServiceTest {
         String oversizedUtf8Password = "가".repeat(25);
 
         assertThatThrownBy(() -> service.login(
-                "user@example.com", oversizedUtf8Password, null
+                "user@example.com", oversizedUtf8Password
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH011")
         );
@@ -181,15 +176,14 @@ class LocalAccountServiceTest {
                 "password123!",
                 "password123!",
                 "무드테일러",
-                List.of(new Consent(1L, true)),
-                2L
+                List.of(new Consent(1L, true))
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH034")
         );
     }
 
     @Test
-    void loginKeepsGuestDataSeparateAndReplacesOnlyItsSession() {
+    void loginIssuesMemberSession() {
         User user = member(9L);
         LocalAccount account = LocalAccount.create(
                 user,
@@ -199,15 +193,15 @@ class LocalAccountServiceTest {
         );
         when(localAccountRepository.findByEmailForUpdate("user@example.com"))
                 .thenReturn(Optional.of(account));
-        when(tokenSessionService.issueSessionReplacingGuest(9L, UserRole.USER, 2L))
+        when(tokenSessionService.issueSession(9L, UserRole.USER))
                 .thenReturn(new TokenInfo("access", "refresh"));
 
-        LocalAuthUser result = service.login("user@example.com", "correct-password", 2L).user();
+        LocalAuthUser result = service.login("user@example.com", "correct-password").user();
 
         assertThat(result.userId()).isEqualTo(9L);
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(9L, UserRole.USER, 2L);
+        order.verify(tokenSessionService).issueSession(9L, UserRole.USER);
     }
 
     @Test

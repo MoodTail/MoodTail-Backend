@@ -13,13 +13,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.RedisConnectionFailureException;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -64,20 +61,6 @@ class TokenSessionServiceTest {
         service.issueSession(7L, UserRole.USER);
 
         verify(redisRepository).saveRefreshJti(7L, "issued-jti");
-    }
-
-    @Test
-    void guestRevocationFailureDoesNotDiscardIssuedTargetSession() {
-        when(jwtProvider.generateToken(7L, UserRole.USER))
-                .thenReturn(new TokenInfo("access", "refresh"));
-        when(jwtProvider.getRefreshTokenClaims("refresh")).thenReturn(refreshClaims("issued-jti"));
-        doThrow(new RedisConnectionFailureException("redis unavailable"))
-                .when(redisRepository).deleteRefreshJti(2L);
-
-        service.issueSessionReplacingGuest(7L, UserRole.USER, 2L);
-
-        verify(redisRepository).saveRefreshJti(7L, "issued-jti");
-        verify(redisRepository, never()).deleteRefreshJti(7L);
     }
 
     @Test

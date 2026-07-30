@@ -50,8 +50,7 @@ public class LocalAccountService {
             String password,
             String passwordConfirm,
             String nickname,
-            List<Consent> consents,
-            Long guestUserId
+            List<Consent> consents
     ) {
         String normalizedEmail = normalizeEmail(email);
         String normalizedNickname = normalizeNickname(nickname);
@@ -82,18 +81,17 @@ public class LocalAccountService {
         if (authenticatedUser == null) {
             throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
         }
-        return completeAuthentication(authenticatedUser, guestUserId);
+        return completeAuthentication(authenticatedUser);
     }
 
     public LocalAuthenticationResult login(
             String email,
-            String password,
-            Long guestUserId
+            String password
     ) {
         String normalizedEmail = normalizeEmail(email);
         validateLoginPasswordInput(password);
         LocalAuthUser authenticatedUser = loginInTransaction(normalizedEmail, password);
-        return completeAuthentication(authenticatedUser, guestUserId);
+        return completeAuthentication(authenticatedUser);
     }
 
     public void changePassword(
@@ -185,15 +183,11 @@ public class LocalAccountService {
         return attempt.user();
     }
 
-    private LocalAuthenticationResult completeAuthentication(LocalAuthUser user, Long guestUserId) {
+    private LocalAuthenticationResult completeAuthentication(LocalAuthUser user) {
         try {
             return new LocalAuthenticationResult(
                     user,
-                    tokenSessionService.issueSessionReplacingGuest(
-                        user.userId(),
-                        user.role(),
-                        guestUserId
-                    )
+                    tokenSessionService.issueSession(user.userId(), user.role())
             );
         } catch (RestApiException exception) {
             if (isAuthInfrastructureFailure(exception)) {

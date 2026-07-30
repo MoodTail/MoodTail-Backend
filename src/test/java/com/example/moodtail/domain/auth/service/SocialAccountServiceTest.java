@@ -33,7 +33,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
@@ -73,7 +72,7 @@ class SocialAccountServiceTest {
                 tokenSessionService
         );
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        lenient().when(tokenSessionService.issueSessionReplacingGuest(anyLong(), any(), any()))
+        lenient().when(tokenSessionService.issueSession(any(), any()))
                 .thenReturn(new TokenInfo("access", "refresh"));
     }
 
@@ -91,35 +90,11 @@ class SocialAccountServiceTest {
                 "google-id"
         )).thenReturn(Optional.of(account));
 
-        Optional<SocialAuthenticationResult> result = service.loginExisting(
-                googleProfile(),
-                null
-        );
+        Optional<SocialAuthenticationResult> result = service.loginExisting(googleProfile());
 
         assertThat(result).isPresent();
         assertThat(result.orElseThrow().user().userId()).isEqualTo(99L);
-        verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, null);
-        verify(userRepository, never()).save(any());
-    }
-
-    @Test
-    void existingSocialAccountOnlyReplacesGuestSession() {
-        User existingUser = memberWithId(99L, "기존회원");
-        SocialAccount account = SocialAccount.create(
-                existingUser,
-                SocialProvider.GOOGLE,
-                "google-id",
-                "user@example.com"
-        );
-        when(socialAccountRepository.findByProviderAndProviderUserId(
-                SocialProvider.GOOGLE,
-                "google-id"
-        )).thenReturn(Optional.of(account));
-
-        service.loginExisting(googleProfile(), 2L);
-
-        verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, 2L);
-        verify(userRepository, never()).findByIdForUpdate(2L);
+        verify(tokenSessionService).issueSession(99L, UserRole.USER);
         verify(userRepository, never()).save(any());
     }
 
@@ -140,18 +115,16 @@ class SocialAccountServiceTest {
 
         SocialAuthenticationResult result = service.register(
                 googleProfile(),
-                2L,
                 List.of(requiredTerm)
         );
 
         assertThat(result.user().userId()).isEqualTo(100L);
         assertThat(result.user().isNewUser()).isTrue();
         assertThat(result.user().nickname()).isEqualTo("새회원");
-        verify(userRepository, never()).findByIdForUpdate(2L);
         verify(userTermAgreementRepository).saveAll(any());
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(100L, UserRole.USER, 2L);
+        order.verify(tokenSessionService).issueSession(100L, UserRole.USER);
     }
 
     @Test
@@ -168,17 +141,17 @@ class SocialAccountServiceTest {
         });
         when(socialAccountRepository.saveAndFlush(any(SocialAccount.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
-        when(tokenSessionService.issueSessionReplacingGuest(100L, UserRole.USER, 2L))
+        when(tokenSessionService.issueSession(100L, UserRole.USER))
                 .thenThrow(new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE));
 
-        assertThatThrownBy(() -> service.register(googleProfile(), 2L, List.of(requiredTerm)))
+        assertThatThrownBy(() -> service.register(googleProfile(), List.of(requiredTerm)))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH041")
                 );
 
         InOrder order = inOrder(transactionManager, tokenSessionService);
         order.verify(transactionManager).commit(any());
-        order.verify(tokenSessionService).issueSessionReplacingGuest(100L, UserRole.USER, 2L);
+        order.verify(tokenSessionService).issueSession(100L, UserRole.USER);
     }
 
     @Test
@@ -196,7 +169,7 @@ class SocialAccountServiceTest {
                 "google-id"
         )).thenReturn(Optional.of(account));
 
-        assertThatThrownBy(() -> service.loginExisting(googleProfile(), null))
+        assertThatThrownBy(() -> service.loginExisting(googleProfile()))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH020")
                 );
@@ -226,13 +199,12 @@ class SocialAccountServiceTest {
 
         SocialAuthenticationResult result = service.register(
                 googleProfile(),
-                null,
                 List.of(requiredTerm)
         );
 
         assertThat(result.user().userId()).isEqualTo(99L);
         assertThat(result.user().isNewUser()).isFalse();
-        verify(tokenSessionService).issueSessionReplacingGuest(99L, UserRole.USER, null);
+        verify(tokenSessionService).issueSession(99L, UserRole.USER);
     }
 
     @Test
@@ -254,7 +226,6 @@ class SocialAccountServiceTest {
 
         assertThatThrownBy(() -> service.register(
                 googleProfile(),
-                null,
                 List.of(requiredTerm)
         )).isSameAs(databaseFailure);
     }
