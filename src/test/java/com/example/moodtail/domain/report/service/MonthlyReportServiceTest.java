@@ -173,7 +173,7 @@ class MonthlyReportServiceTest {
 
         assertThatThrownBy(() -> monthlyReportService.getMonthlyReport(USER_ID, 2026, 7))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_409"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT409"));
 
         verify(historyRepository, never()).findFrequentCocktails(any(), any(), any(), any());
     }
@@ -182,7 +182,7 @@ class MonthlyReportServiceTest {
     void rejectsFutureMonthBeforeQueryingRepositories() {
         assertThatThrownBy(() -> monthlyReportService.getMonthlyReport(USER_ID, 2026, 8))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_400"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT400"));
 
         verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
     }
@@ -191,7 +191,7 @@ class MonthlyReportServiceTest {
     void rejectsUnsupportedYearWithTheReportErrorContract() {
         assertThatThrownBy(() -> monthlyReportService.getMonthlyReport(USER_ID, 999, 12))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_400"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT400"));
 
         verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
         verify(historyRepository, never()).findFrequentCocktails(any(), any(), any(), any());
@@ -201,7 +201,7 @@ class MonthlyReportServiceTest {
     void rejectsInvalidMonthWithTheReportErrorContract() {
         assertThatThrownBy(() -> monthlyReportService.getMonthlyReport(USER_ID, 2026, 13))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_400"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT400"));
 
         verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
         verify(historyRepository, never()).findFrequentCocktails(any(), any(), any(), any());

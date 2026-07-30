@@ -266,7 +266,7 @@ class HistoryServiceTest {
     void rejectsFutureCalendarWithoutQueryingRepositories() {
         assertThatThrownBy(() -> historyService.getCalendar(USER_ID, 2026, 8))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY400"));
 
         verify(moodTestResultRepository, never()).findAllWithMoodType(any(), any(), any());
     }
@@ -303,7 +303,7 @@ class HistoryServiceTest {
                 USER_ID,
                 new HistoryCreateRequest(7L, recordDate)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_409")
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
 
         verify(userRepository, never()).findById(any());
@@ -326,7 +326,7 @@ class HistoryServiceTest {
                 USER_ID,
                 new HistoryCreateRequest(7L, LocalDate.of(2026, 7, 10))
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_409")
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
     }
 
@@ -386,7 +386,7 @@ class HistoryServiceTest {
                 31L,
                 new HistoryUpdateRequest(null, null)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400"));
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY400"));
 
         verify(historyRepository, never()).findOwnedForUpdate(any(), any());
     }
@@ -417,7 +417,7 @@ class HistoryServiceTest {
                 31L,
                 new HistoryUpdateRequest(null, occupiedDate)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_409")
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
 
         assertThat(record.getRecordDate()).isEqualTo(LocalDate.of(2026, 7, 9));
@@ -450,7 +450,7 @@ class HistoryServiceTest {
                 31L,
                 new HistoryUpdateRequest(8L, null)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
-                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_409")
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
 
         assertThat(record.getCocktail()).isSameAs(original);
@@ -480,14 +480,14 @@ class HistoryServiceTest {
 
         assertThatThrownBy(() -> historyService.getTestResultDetail(USER_ID, 10L))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_TEST_404"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_TEST404"));
     }
 
     @Test
     void rejectsNonPositiveResourceIdBeforeQueryingRepository() {
         assertThatThrownBy(() -> historyService.getDetail(USER_ID, 0L))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY_400"));
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY400"));
 
         verify(historyRepository, never()).findWithDetailsByIdAndUserId(any(), any());
     }

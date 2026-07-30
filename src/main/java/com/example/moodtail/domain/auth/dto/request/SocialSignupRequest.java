@@ -26,8 +26,15 @@ public record SocialSignupRequest(
         @NotBlank(message = "닉네임은 필수입니다.")
         String nickname,
 
+        @Schema(
+                description = "현재 활성 약관에 대한 동의 목록. 모든 필수 약관 동의가 포함되어야 합니다.",
+                example = "[{\"termId\":1,\"agreed\":true},{\"termId\":2,\"agreed\":true}]"
+        )
         @NotEmpty(message = "약관 동의 목록은 필수입니다.")
         @Size(max = 20, message = "약관 동의 항목이 너무 많습니다.")
-        List<@NotNull(message = "약관 동의 항목은 null일 수 없습니다.") @Valid TermAgreementRequest> agreements
+        List<
+                @NotNull(message = "약관 동의 항목은 null일 수 없습니다.")
+                @Valid TermAgreementRequest
+        > agreements
 ) {
 }

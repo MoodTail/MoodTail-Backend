@@ -9,11 +9,11 @@ import org.springframework.http.HttpStatus;
 @Getter
 @AllArgsConstructor
 public enum ReportErrorStatus implements BaseCodeInterface {
-    INVALID_REQUEST(HttpStatus.BAD_REQUEST, "REPORT_400", "월간 리포트 요청 값이 올바르지 않습니다."),
-    INSUFFICIENT_DATA(HttpStatus.CONFLICT, "REPORT_409", "월간 리포트 생성에 필요한 데이터가 부족합니다."),
+    INVALID_REQUEST(HttpStatus.BAD_REQUEST, "REPORT400", "월간 리포트 요청 값이 올바르지 않습니다."),
+    INSUFFICIENT_DATA(HttpStatus.CONFLICT, "REPORT409", "월간 리포트 생성에 필요한 데이터가 부족합니다."),
     SHARE_IMAGE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE,
-            "REPORT_IMAGE_503",
+            "REPORT_IMAGE503",
             "월간 리포트 공유 이미지를 일시적으로 저장할 수 없습니다."
     );
 

@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.auth.dto.request;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -10,24 +11,49 @@ import jakarta.validation.constraints.Size;
 import java.util.List;
 
 public record LocalSignupRequest(
+        @Schema(description = "가입할 로컬 계정 이메일", format = "email", example = "user@example.com")
         @NotBlank(message = "이메일은 필수입니다.")
         @Email(message = "이메일 형식이 올바르지 않습니다.")
         @Size(max = 320, message = "이메일은 320자 이하여야 합니다.")
         String email,
 
+        @Schema(
+                description = "영문자와 숫자를 포함한 8자 이상 비밀번호. "
+                        + "UTF-8 기준 최대 72바이트입니다.",
+                example = "moodtail1234",
+                accessMode = Schema.AccessMode.WRITE_ONLY
+        )
         @NotBlank(message = "비밀번호는 필수입니다.")
         @Size(max = 72, message = "비밀번호가 너무 깁니다.")
         String password,
 
+        @Schema(
+                description = "비밀번호 확인 값. password와 정확히 일치해야 합니다.",
+                example = "moodtail1234",
+                accessMode = Schema.AccessMode.WRITE_ONLY
+        )
         @NotBlank(message = "비밀번호 확인은 필수입니다.")
         @Size(max = 72, message = "비밀번호 확인 값이 너무 깁니다.")
         String passwordConfirm,
 
+        @Schema(
+                description = "앞뒤 공백 제거 후 2~10자인 닉네임",
+                minLength = 2,
+                maxLength = 10,
+                example = "무드테일"
+        )
         @NotBlank(message = "닉네임은 필수입니다.")
         String nickname,
 
+        @Schema(
+                description = "현재 활성 약관에 대한 동의 목록. 모든 필수 약관 동의가 포함되어야 합니다.",
+                example = "[{\"termId\":1,\"agreed\":true},{\"termId\":2,\"agreed\":true}]"
+        )
         @NotEmpty(message = "약관 동의 목록은 필수입니다.")
         @Size(max = 20, message = "약관 동의 항목이 너무 많습니다.")
-        List<@NotNull(message = "약관 동의 항목은 null일 수 없습니다.") @Valid TermAgreementRequest> agreements
+        List<
+                @NotNull(message = "약관 동의 항목은 null일 수 없습니다.")
+                @Valid TermAgreementRequest
+        > agreements
 ) {
 }
