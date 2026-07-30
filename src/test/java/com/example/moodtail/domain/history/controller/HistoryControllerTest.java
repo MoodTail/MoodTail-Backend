@@ -10,7 +10,6 @@ import com.example.moodtail.domain.history.dto.response.HistoryTestResultDetailR
 import com.example.moodtail.domain.history.dto.response.HistoryUpdateResponse;
 import com.example.moodtail.domain.history.service.HistoryPhotoService;
 import com.example.moodtail.domain.history.service.HistoryService;
-import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.ExceptionAdvice;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -26,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockPart;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -203,20 +203,19 @@ class HistoryControllerTest {
                 "image/jpeg",
                 new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
         );
-        when(historyPhotoService.add(eq(USER_ID), eq("2026-07-05"), any(), eq("CAMERA"))).thenReturn(
+        when(historyPhotoService.add(eq(USER_ID), eq("2026-07-05"), any())).thenReturn(
                 new HistoryPhotoResponse(
                         3L,
                         LocalDate.of(2026, 7, 5),
-                        ImageSourceType.CAMERA,
                         "https://cdn.example/photo.jpg"
                 )
         );
-        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+        mockMvc.perform(multipart("/api/v1/history/photos")
                         .file(image)
-                        .param("sourceType", "CAMERA"))
+                        .part(textPart("date", "2026-07-05")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.recordDate").value("2026-07-05"))
-                .andExpect(jsonPath("$.result.sourceType").value("CAMERA"));
+                .andExpect(jsonPath("$.result.sourceType").doesNotExist());
         mockMvc.perform(delete("/api/v1/history/dates/2026-07-05/photos/3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"));
@@ -232,25 +231,39 @@ class HistoryControllerTest {
         );
         doThrow(new RestApiException(PHOTO_LIMIT_EXCEEDED))
                 .when(historyPhotoService)
-                .add(eq(USER_ID), eq("2026-07-05"), any(), eq("GALLERY"));
+                .add(eq(USER_ID), eq("2026-07-05"), any());
 
-        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+        mockMvc.perform(multipart("/api/v1/history/photos")
                         .file(image)
-                        .param("sourceType", "GALLERY"))
+                        .part(textPart("date", "2026-07-05")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("HISTORY_PHOTO409"));
     }
 
     @Test
-    void returnsCommonValidationErrorWhenHistoryPhotoIsMissing() throws Exception {
-        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
-                        .param("sourceType", "CAMERA"))
+    void returnsCommonValidationErrorWhenHistoryPhotoMultipartPartIsMissing() throws Exception {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "history.jpg",
+                "image/jpeg",
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
+        );
+
+        mockMvc.perform(multipart("/api/v1/history/photos")
+                        .part(textPart("date", "2026-07-05")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON402"))
                 .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
                 .andExpect(jsonPath("$.result").doesNotExist());
 
-        verify(historyPhotoService, never()).add(any(), any(), any(), any());
+        mockMvc.perform(multipart("/api/v1/history/photos")
+                        .file(image))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"))
+                .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(historyPhotoService, never()).add(any(), any(), any());
     }
 
     @Test
@@ -259,6 +272,10 @@ class HistoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cocktailId\":0}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    private MockPart textPart(String name, String value) {
+        return new MockPart(name, value.getBytes(StandardCharsets.UTF_8));
     }
 
     private static class FixedPrincipalResolver implements HandlerMethodArgumentResolver {

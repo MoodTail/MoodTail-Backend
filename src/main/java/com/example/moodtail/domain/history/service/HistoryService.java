@@ -353,7 +353,6 @@ public class HistoryService {
     private HistoryDateResponse.Photo toPhoto(HistoryPhoto photo) {
         return new HistoryDateResponse.Photo(
                 photo.getId(),
-                photo.getImage().getSourceType(),
                 photo.getImage().getImageUrl()
         );
     }

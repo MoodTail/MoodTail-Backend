@@ -19,14 +19,12 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.Locale;
 
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.INVALID_REQUEST;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_LIMIT_EXCEEDED;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_STORAGE_UNAVAILABLE;
-import static com.example.moodtail.global.common.exception.code.status.ImageErrorStatus.INVALID_IMAGE;
 
 @Service
 @Slf4j
@@ -35,6 +33,8 @@ public class HistoryPhotoService {
 
     private static final String PHOTO_DIRECTORY = "history/photos";
     private static final int MAX_PHOTOS_PER_DATE = 5;
+    // The shared images table still requires one of its legacy non-null source values.
+    private static final ImageSourceType HISTORY_PHOTO_SOURCE_TYPE = ImageSourceType.GALLERY;
 
     private final HistoryPhotoRepository historyPhotoRepository;
     private final ImageRepository imageRepository;
@@ -46,12 +46,10 @@ public class HistoryPhotoService {
     public HistoryPhotoResponse add(
             Long userId,
             String dateValue,
-            MultipartFile image,
-            String sourceTypeValue
+            MultipartFile image
     ) {
         LocalDate recordDate = HistoryDatePolicy.parse(dateValue);
         HistoryDatePolicy.validateRecordDate(recordDate, LocalDate.now(clock));
-        ImageSourceType sourceType = parseSourceType(sourceTypeValue);
         validatePhotoLimit(userId, recordDate);
 
         String imageUrl;
@@ -62,7 +60,7 @@ public class HistoryPhotoService {
             throw new RestApiException(PHOTO_STORAGE_UNAVAILABLE);
         }
         try {
-            return transactionTemplate.execute(status -> persist(userId, recordDate, imageUrl, sourceType));
+            return transactionTemplate.execute(status -> persist(userId, recordDate, imageUrl));
         } catch (RuntimeException exception) {
             deleteStoredImageSafely(imageUrl);
             throw exception;
@@ -90,15 +88,14 @@ public class HistoryPhotoService {
     private HistoryPhotoResponse persist(
             Long userId,
             LocalDate recordDate,
-            String imageUrl,
-            ImageSourceType sourceType
+            String imageUrl
     ) {
         User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
         validatePhotoLimit(userId, recordDate);
-        Image image = imageRepository.save(Image.create(imageUrl, sourceType));
+        Image image = imageRepository.save(Image.create(imageUrl, HISTORY_PHOTO_SOURCE_TYPE));
         HistoryPhoto photo = historyPhotoRepository.save(HistoryPhoto.create(user, recordDate, image));
-        return new HistoryPhotoResponse(photo.getId(), recordDate, sourceType, imageUrl);
+        return new HistoryPhotoResponse(photo.getId(), recordDate, imageUrl);
     }
 
     private void validatePhotoLimit(Long userId, LocalDate recordDate) {
@@ -130,21 +127,6 @@ public class HistoryPhotoService {
             storageService.deleteImage(imageUrl);
         } catch (RuntimeException exception) {
             log.error("Failed to delete history photo from storage: imageUrl={}", imageUrl, exception);
-        }
-    }
-
-    private ImageSourceType parseSourceType(String value) {
-        if (value == null || value.isBlank()) {
-            throw new RestApiException(INVALID_IMAGE);
-        }
-        try {
-            ImageSourceType sourceType = ImageSourceType.valueOf(value.trim().toUpperCase(Locale.ROOT));
-            if (sourceType == ImageSourceType.SYSTEM) {
-                throw new RestApiException(INVALID_IMAGE);
-            }
-            return sourceType;
-        } catch (IllegalArgumentException exception) {
-            throw new RestApiException(INVALID_IMAGE);
         }
     }
 

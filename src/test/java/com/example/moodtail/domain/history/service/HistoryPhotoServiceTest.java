@@ -89,7 +89,7 @@ class HistoryPhotoServiceTest {
         when(imageRepository.save(any(Image.class)))
                 .thenThrow(new IllegalStateException("database failure"));
 
-        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
                 .isInstanceOf(RuntimeException.class);
 
         verify(storageService).deleteImage(url);
@@ -107,7 +107,7 @@ class HistoryPhotoServiceTest {
                 .when(storageService)
                 .deleteImage(url);
 
-        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
                 .isSameAs(databaseFailure);
     }
 
@@ -125,17 +125,16 @@ class HistoryPhotoServiceTest {
             return photo;
         });
 
-        var response = photoService.add(1L, "2026-07-10", file, "camera");
+        var response = photoService.add(1L, "2026-07-10", file);
 
         assertThat(response.photoId()).isEqualTo(3L);
         assertThat(response.recordDate()).isEqualTo(RECORD_DATE);
         assertThat(response.imageUrl()).isEqualTo(url);
-        assertThat(response.sourceType()).isEqualTo(ImageSourceType.CAMERA);
 
         ArgumentCaptor<Image> imageCaptor = ArgumentCaptor.forClass(Image.class);
         verify(imageRepository).save(imageCaptor.capture());
         assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(url);
-        assertThat(imageCaptor.getValue().getSourceType()).isEqualTo(ImageSourceType.CAMERA);
+        assertThat(imageCaptor.getValue().getSourceType()).isEqualTo(ImageSourceType.GALLERY);
         InOrder persistenceOrder = inOrder(historyPhotoRepository, storageService, userRepository);
         persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
         persistenceOrder.verify(storageService).uploadImage(file, "history/photos");
@@ -149,7 +148,7 @@ class HistoryPhotoServiceTest {
         MultipartFile file = mock(MultipartFile.class);
         when(historyPhotoRepository.countByUserIdAndRecordDate(1L, RECORD_DATE)).thenReturn(5L);
 
-        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "GALLERY"))
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
@@ -170,7 +169,7 @@ class HistoryPhotoServiceTest {
         when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
 
-        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "CAMERA"))
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
@@ -189,7 +188,7 @@ class HistoryPhotoServiceTest {
         when(storageService.uploadImage(file, "history/photos"))
                 .thenThrow(new S3StorageException("storage unavailable"));
 
-        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file, "camera"))
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode())
@@ -277,7 +276,7 @@ class HistoryPhotoServiceTest {
     void rejectsFutureDateBeforeUploadingImage() {
         MultipartFile file = mock(MultipartFile.class);
 
-        assertThatThrownBy(() -> photoService.add(1L, "2026-07-12", file, "CAMERA"))
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-12", file))
                 .isInstanceOfSatisfying(
                         RestApiException.class,
                         exception -> assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY400")
