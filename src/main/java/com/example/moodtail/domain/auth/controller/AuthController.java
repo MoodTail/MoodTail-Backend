@@ -9,6 +9,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordChangeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.SocialSignupRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalEmailAvailabilityResponse;
@@ -40,6 +41,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.StringUtils;
 
 @RestController
 @RequiredArgsConstructor
@@ -71,10 +73,15 @@ public class AuthController implements AuthControllerDocs {
     public BaseResponse<OAuthStateResponse> createOAuthState(
             @PathVariable String provider,
             @AuthenticationPrincipal PrincipalDetails principal,
+            HttpServletRequest request,
             HttpServletResponse response
     ) {
         preventCaching(response);
-        return BaseResponse.onSuccess(authService.createOAuthState(provider, principal.getUserId()));
+        return BaseResponse.onSuccess(authService.createOAuthState(
+                provider,
+                optionalGuestUserId(principal, request),
+                authHttpSupport.clientAddress(request)
+        ));
     }
 
     @Override
@@ -93,6 +100,16 @@ public class AuthController implements AuthControllerDocs {
             HttpServletResponse response
     ) {
         return socialLogin("google", request, response);
+    }
+
+    @Override
+    @PostMapping("/signup/social")
+    public BaseResponse<SocialLoginResponse> socialSignup(
+            @Valid @RequestBody SocialSignupRequest request,
+            HttpServletResponse response
+    ) {
+        preventCaching(response);
+        return authenticated(authService.socialSignup(request), response);
     }
 
     @Override
@@ -230,7 +247,11 @@ public class AuthController implements AuthControllerDocs {
             HttpServletResponse response
     ) {
         preventCaching(response);
-        return authenticated(authService.socialLogin(provider, request), response);
+        AuthResult<SocialLoginResponse> result = authService.socialLogin(provider, request);
+        if (StringUtils.hasText(result.refreshToken())) {
+            authHttpSupport.setRefreshTokenCookie(response, result.refreshToken());
+        }
+        return BaseResponse.onSuccess(result.response());
     }
 
     private <T> BaseResponse<T> authenticated(

@@ -4,20 +4,20 @@ import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
+import com.example.moodtail.domain.recommendation.calculator.TasteContributionCalculator;
 import com.example.moodtail.domain.recommendation.calculator.TasteSimilarityCalculator;
 import com.example.moodtail.domain.recommendation.dto.response.CompromiseProfileResponse;
 import com.example.moodtail.domain.recommendation.dto.response.PairRecommendationResponse;
 import com.example.moodtail.domain.recommendation.dto.response.RecommendedCocktailResponse;
-import com.example.moodtail.domain.recommendation.model.RecommendationItemCommand;
 import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.user.service.InviteCodeService;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus;
-import com.example.moodtail.global.common.exception.code.status.RecommendationErrorStatus;
+import com.example.moodtail.global.common.exception.code.status.UserErrorStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -31,14 +31,10 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
-@SuppressWarnings("unchecked")
 class PairRecommendationServiceTest {
 
     @Mock
@@ -48,9 +44,10 @@ class PairRecommendationServiceTest {
     private CocktailRepository cocktailRepository;
 
     @Mock
-    private PairRecommendationPersistenceService pairRecommendationPersistenceService;
+    private InviteCodeService inviteCodeService;
 
     private final TasteSimilarityCalculator tasteSimilarityCalculator = new TasteSimilarityCalculator();
+    private final TasteContributionCalculator tasteContributionCalculator = new TasteContributionCalculator();
 
     private PairRecommendationService service;
 
@@ -60,13 +57,15 @@ class PairRecommendationServiceTest {
                 moodTestResultRepository,
                 cocktailRepository,
                 tasteSimilarityCalculator,
-                pairRecommendationPersistenceService
+                tasteContributionCalculator,
+                inviteCodeService
         );
     }
 
     @Test
-    void recommendsPairByResultIdAndSavesSortedByDistance() {
-        User me = userWithId(1L);
+    void recommendsPairByPartnerInviteCode() {
+        User me = userWithId(1L, "나닉네임");
+        User partner = userWithId(2L, "상대닉네임");
         TasteProfile myProfile = TasteProfile.of(
                 new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
                 new BigDecimal("2.0"), new BigDecimal("2.0")
@@ -75,9 +74,8 @@ class PairRecommendationServiceTest {
                 new BigDecimal("4.0"), new BigDecimal("4.0"), new BigDecimal("4.0"),
                 new BigDecimal("4.0"), new BigDecimal("4.0")
         );
-        User partner = userWithId(2L);
-        MoodTestResult myResult = resultOwnedBy(me, 10L, myProfile);
-        MoodTestResult partnerResult = resultWithShareToken(partner, "partner-share-token", partnerProfile);
+        MoodTestResult myResult = latestResultOf(me, 10L, myProfile);
+        MoodTestResult partnerResult = latestResultOf(partner, 20L, partnerProfile);
 
         TasteProfile compromise = myProfile.average(partnerProfile);
 
@@ -95,14 +93,18 @@ class PairRecommendationServiceTest {
                 new BigDecimal("5.0"), new BigDecimal("5.0"), new BigDecimal("5.0"),
                 new BigDecimal("5.0"), new BigDecimal("5.0"));
 
-        when(moodTestResultRepository.findById(10L)).thenReturn(Optional.of(myResult));
-        when(moodTestResultRepository.findByShareToken("partner-share-token")).thenReturn(Optional.of(partnerResult));
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
+        when(inviteCodeService.findUserByInviteCode("MOOD-4821")).thenReturn(partner);
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(2L)).thenReturn(Optional.of(partnerResult));
         when(cocktailRepository.findAll())
                 .thenReturn(List.of(excluded, farthest, close, perfectMatch, farther));
 
-        PairRecommendationResponse response = service.recommendPair(1L, 10L, null, "partner-share-token");
+        PairRecommendationResponse response = service.recommendPair(1L, "MOOD-4821");
 
-        assertThat(response.recommendationSaved()).isTrue();
+        assertThat(response.myNickname()).isEqualTo("나닉네임");
+        assertThat(response.partnerNickname()).isEqualTo("상대닉네임");
+        assertThat(response.myProfile()).isEqualTo(CompromiseProfileResponse.from(myProfile));
+        assertThat(response.partnerProfile()).isEqualTo(CompromiseProfileResponse.from(partnerProfile));
         assertThat(response.compromiseProfile()).isEqualTo(CompromiseProfileResponse.from(compromise));
 
         List<RecommendedCocktailResponse> recommendations = response.recommendations();
@@ -113,81 +115,56 @@ class PairRecommendationServiceTest {
         assertThat(recommendations)
                 .extracting(RecommendedCocktailResponse::ranking)
                 .containsExactly(1, 2, 3);
-        assertThat(recommendations)
-                .extracting(RecommendedCocktailResponse::matchScore)
-                .isSortedAccordingTo((a, b) -> b - a);
         assertThat(recommendations.get(0).matchScore()).isEqualTo(100);
 
-        List<Cocktail> candidates = List.of(perfectMatch, close, farther, farthest);
-        for (RecommendedCocktailResponse recommendation : recommendations) {
-            Cocktail matching = candidates.stream()
-                    .filter(c -> c.getId().equals(recommendation.cocktailId()))
-                    .findFirst()
-                    .orElseThrow();
-            double distance = tasteSimilarityCalculator.calculateDistance(compromise, matching.toTasteProfile());
-            int expectedScore = tasteSimilarityCalculator.calculateMatchScore(distance);
-            assertThat(recommendation.matchScore()).isEqualTo(expectedScore);
-        }
-
-        ArgumentCaptor<List<RecommendationItemCommand>> commandsCaptor = ArgumentCaptor.forClass(List.class);
-        verify(pairRecommendationPersistenceService).saveCompromise(
-                eq(me), eq(myResult), eq(partnerResult), commandsCaptor.capture()
-        );
-        assertThat(commandsCaptor.getValue())
-                .extracting(RecommendationItemCommand::cocktailId)
-                .containsExactly(101L, 102L, 103L);
+        assertThat(response.tasteContributions()).hasSize(2);
     }
 
     @Test
-    void recommendsPairByShareTokenWithoutSavingRecommendation() {
-        User me = userWithId(1L);
-        User partner = userWithId(2L);
-        TasteProfile myProfile = TasteProfile.of(
-                new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0"),
-                new BigDecimal("3.0"), new BigDecimal("3.0")
-        );
-        TasteProfile partnerProfile = TasteProfile.of(
-                new BigDecimal("1.0"), new BigDecimal("1.0"), new BigDecimal("1.0"),
-                new BigDecimal("1.0"), new BigDecimal("1.0")
-        );
-        MoodTestResult myResult = resultWithShareToken(me, "my-share-token", myProfile);
-        MoodTestResult partnerResult = resultWithShareToken(partner, "partner-share-token", partnerProfile);
+    void throwsMoodTestNotFoundWhenMyLatestResultDoesNotExist() {
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.empty());
 
-        when(moodTestResultRepository.findByShareToken("my-share-token")).thenReturn(Optional.of(myResult));
-        when(moodTestResultRepository.findByShareToken("partner-share-token")).thenReturn(Optional.of(partnerResult));
-        when(cocktailRepository.findAll()).thenReturn(List.of(
-                cocktail(201L, "A", "A", new BigDecimal("2.0"), new BigDecimal("2.0"),
-                        new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0")),
-                cocktail(202L, "B", "B", new BigDecimal("2.1"), new BigDecimal("2.0"),
-                        new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0")),
-                cocktail(203L, "C", "C", new BigDecimal("2.2"), new BigDecimal("2.0"),
-                        new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0")),
-                cocktail(204L, "D", "D", new BigDecimal("2.3"), new BigDecimal("2.0"),
-                        new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"))
-        ));
-
-        PairRecommendationResponse response =
-                service.recommendPair(null, null, "my-share-token", "partner-share-token");
-
-        assertThat(response.recommendationSaved()).isFalse();
-        verify(pairRecommendationPersistenceService, never())
-                .saveCompromise(any(), any(), any(), any());
-    }
-
-    @Test
-    void throwsInvalidParameterWhenNeitherResultIdNorShareTokenIsProvided() {
-        assertThatThrownBy(() -> service.recommendPair(1L, null, null, "partner-share-token"))
+        assertThatThrownBy(() -> service.recommendPair(1L, "MOOD-4821"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode())
-                                .isEqualTo(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER.getCode().getCode())
+                                .isEqualTo(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND.getCode().getCode())
+                );
+        verifyNoInteractions(inviteCodeService);
+    }
+
+    @Test
+    void throwsInviteCodeNotFoundWhenPartnerInviteCodeDoesNotExist() {
+        User me = userWithId(1L, "나닉네임");
+        MoodTestResult myResult = latestResultOf(me, 10L, TasteProfile.of(
+                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
+                new BigDecimal("2.0"), new BigDecimal("2.0")
+        ));
+
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
+        when(inviteCodeService.findUserByInviteCode("INVALID-CODE"))
+                .thenThrow(new RestApiException(UserErrorStatus.INVITE_CODE_NOT_FOUND));
+
+        assertThatThrownBy(() -> service.recommendPair(1L, "INVALID-CODE"))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode())
+                                .isEqualTo(UserErrorStatus.INVITE_CODE_NOT_FOUND.getCode().getCode())
                 );
     }
 
     @Test
-    void throwsResultNotFoundWhenResultIdDoesNotExist() {
-        when(moodTestResultRepository.findById(999L)).thenReturn(Optional.empty());
+    void throwsMoodTestNotFoundWhenPartnerLatestResultDoesNotExist() {
+        User me = userWithId(1L, "나닉네임");
+        User partner = userWithId(2L, "상대닉네임");
+        MoodTestResult myResult = latestResultOf(me, 10L, TasteProfile.of(
+                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
+                new BigDecimal("2.0"), new BigDecimal("2.0")
+        ));
 
-        assertThatThrownBy(() -> service.recommendPair(1L, 999L, null, "partner-share-token"))
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
+        when(inviteCodeService.findUserByInviteCode("MOOD-4821")).thenReturn(partner);
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(2L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.recommendPair(1L, "MOOD-4821"))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND.getCode().getCode())
@@ -195,37 +172,19 @@ class PairRecommendationServiceTest {
     }
 
     @Test
-    void throwsInvalidParameterWhenPartnerShareTokenIsMissing() {
-        User me = userWithId(1L);
-        TasteProfile myProfile = TasteProfile.of(
-                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
-                new BigDecimal("2.0"), new BigDecimal("2.0")
-        );
-        MoodTestResult myResult = resultOwnedBy(me, 10L, myProfile);
-        when(moodTestResultRepository.findById(10L)).thenReturn(Optional.of(myResult));
-
-        assertThatThrownBy(() -> service.recommendPair(1L, 10L, null, null))
-                .isInstanceOfSatisfying(RestApiException.class, exception ->
-                        assertThat(exception.getErrorCode().getCode())
-                                .isEqualTo(RecommendationErrorStatus.RECOMMENDATION_INVALID_PARAMETER.getCode().getCode())
-                );
-    }
-
-    @Test
     void returnsOnlyAvailableCocktailsWhenFewerThanRecommendationLimitExist() {
-        // TODO: 추천 후보 칵테일이 3개 미만일 때의 정책은 아직 정해지지 않았다. 현재 구현은 있는 만큼만
-        // 쪽 책임으로 넘어가 있다(여기서는 mock이라 실패하지 않음). 정책이 정해지면 이 테스트를 갱신할 것.
-        User me = userWithId(1L);
-        User partner = userWithId(2L);
-        TasteProfile myProfile = TasteProfile.of(
+        User me = userWithId(1L, "나닉네임");
+        User partner = userWithId(2L, "상대닉네임");
+        TasteProfile profile = TasteProfile.of(
                 new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0"),
                 new BigDecimal("3.0"), new BigDecimal("3.0")
         );
-        MoodTestResult myResult = resultOwnedBy(me, 10L, myProfile);
-        MoodTestResult partnerResult = resultWithShareToken(partner, "partner-share-token", myProfile);
+        MoodTestResult myResult = latestResultOf(me, 10L, profile);
+        MoodTestResult partnerResult = latestResultOf(partner, 20L, profile);
 
-        when(moodTestResultRepository.findById(10L)).thenReturn(Optional.of(myResult));
-        when(moodTestResultRepository.findByShareToken("partner-share-token")).thenReturn(Optional.of(partnerResult));
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
+        when(inviteCodeService.findUserByInviteCode("MOOD-4821")).thenReturn(partner);
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(2L)).thenReturn(Optional.of(partnerResult));
         when(cocktailRepository.findAll()).thenReturn(List.of(
                 cocktail(301L, "A", "A", new BigDecimal("3.0"), new BigDecimal("3.0"),
                         new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0")),
@@ -233,7 +192,7 @@ class PairRecommendationServiceTest {
                         new BigDecimal("3.0"), new BigDecimal("3.0"), new BigDecimal("3.0"))
         ));
 
-        PairRecommendationResponse response = service.recommendPair(1L, 10L, null, "partner-share-token");
+        PairRecommendationResponse response = service.recommendPair(1L, "MOOD-4821");
 
         assertThat(response.recommendations()).hasSize(2);
         assertThat(response.recommendations())
@@ -241,21 +200,15 @@ class PairRecommendationServiceTest {
                 .containsExactly(1, 2);
     }
 
-    private User userWithId(long id) {
-        User user = User.createGuest("guest-" + id, "user-" + id, LocalDateTime.now());
+    private User userWithId(long id, String nickname) {
+        User user = User.createGuest("guest-" + id, nickname, LocalDateTime.now());
         ReflectionTestUtils.setField(user, "id", id);
         return user;
     }
 
-    private MoodTestResult resultOwnedBy(User owner, long id, TasteProfile profile) {
+    private MoodTestResult latestResultOf(User owner, long id, TasteProfile profile) {
         MoodTestResult result = MoodTestResult.create(owner, null, LocalDate.now(), profile);
         ReflectionTestUtils.setField(result, "id", id);
-        return result;
-    }
-
-    private MoodTestResult resultWithShareToken(User owner, String shareToken, TasteProfile profile) {
-        MoodTestResult result = MoodTestResult.create(owner, null, LocalDate.now(), profile);
-        ReflectionTestUtils.setField(result, "shareToken", shareToken);
         return result;
     }
 

@@ -7,6 +7,7 @@ import com.example.moodtail.domain.auth.dto.request.PasswordChangeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeRequest;
 import com.example.moodtail.domain.auth.dto.request.PasswordResetCodeVerifyRequest;
 import com.example.moodtail.domain.auth.dto.request.SocialLoginRequest;
+import com.example.moodtail.domain.auth.dto.request.SocialSignupRequest;
 import com.example.moodtail.domain.auth.dto.request.TermAgreementRequest;
 import com.example.moodtail.domain.auth.dto.response.GuestLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.LocalAuthResponse;
@@ -23,6 +24,10 @@ import com.example.moodtail.domain.auth.model.AuthResult;
 import com.example.moodtail.domain.auth.model.LocalAuthenticationResult;
 import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.model.SocialLoginUser;
+import com.example.moodtail.domain.auth.model.SocialSignupSession;
+import com.example.moodtail.domain.auth.model.SocialSignupTicket;
+import com.example.moodtail.domain.auth.validator.AuthNicknameValidator;
+import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.auth.validator.GuestLoginRateLimiter;
 import com.example.moodtail.domain.auth.validator.LocalAuthRateLimiter;
 import com.example.moodtail.global.auth.client.OAuthClient;
@@ -40,6 +45,7 @@ import org.springframework.util.StringUtils;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -50,6 +56,8 @@ public class AuthService {
 
     private final List<OAuthClient> oAuthClients;
     private final SocialAccountService socialAccountService;
+    private final SocialSignupSessionService socialSignupSessionService;
+    private final TermAgreementService termAgreementService;
     private final GuestUserService guestUserService;
     private final OAuthStateService oAuthStateService;
     private final GuestLoginRateLimiter guestLoginRateLimiter;
@@ -88,10 +96,14 @@ public class AuthService {
         );
     }
 
-    public OAuthStateResponse createOAuthState(String providerName, Long guestUserId) {
+    public OAuthStateResponse createOAuthState(
+            String providerName,
+            Long guestUserId,
+            String clientAddress
+    ) {
         SocialProvider provider = parseSocialProvider(providerName);
         findEnabledOAuthClient(provider);
-        return OAuthStateResponse.from(oAuthStateService.issue(guestUserId, provider));
+        return OAuthStateResponse.from(oAuthStateService.issue(guestUserId, clientAddress, provider));
     }
 
     public AuthResult<SocialLoginResponse> socialLogin(
@@ -106,25 +118,45 @@ public class AuthService {
                 request.state()
         );
 
-        SocialUserProfile requestedProfile = withRequestedNickname(authentication.profile(), request.nickname());
-        SocialAuthenticationResult completedLogin = socialAccountService.authenticate(
-                requestedProfile,
-                authentication.guestUserId(),
-                toConsents(request.agreements())
+        Optional<SocialAuthenticationResult> existingLogin = socialAccountService.loginExisting(
+                authentication.profile(),
+                authentication.guestUserId()
         );
-        SocialLoginUser socialLoginUser = completedLogin.user();
-        TokenInfo tokenInfo = completedLogin.tokenInfo();
+        if (existingLogin.isPresent()) {
+            return completedSocialAuthentication(existingLogin.get(), false);
+        }
+
+        SocialSignupTicket signupTicket = socialSignupSessionService.issue(
+                authentication.profile(),
+                authentication.guestUserId()
+        );
         return new AuthResult<>(
-                SocialLoginResponse.of(
-                        socialLoginUser.userId(),
-                        socialLoginUser.nickname(),
-                        socialLoginUser.provider(),
-                        socialLoginUser.socialEmail(),
-                        tokenInfo,
-                        socialLoginUser.isNewUser()
+                SocialLoginResponse.signupRequired(
+                        authentication.profile().email(),
+                        authentication.profile().provider(),
+                        signupTicket.value(),
+                        signupTicket.expiresInSeconds()
                 ),
-                tokenInfo.refreshToken()
+                null
         );
+    }
+
+    public AuthResult<SocialLoginResponse> socialSignup(SocialSignupRequest request) {
+        String nickname = AuthNicknameValidator.normalize(request.nickname());
+        List<Term> agreedTerms = termAgreementService.validateAgreements(toConsents(request.agreements()));
+        SocialSignupSession signupSession = socialSignupSessionService.consume(request.signupToken());
+        SocialUserProfile profile = new SocialUserProfile(
+                signupSession.provider(),
+                signupSession.providerUserId(),
+                signupSession.email(),
+                nickname
+        );
+        SocialAuthenticationResult completedSignup = socialAccountService.register(
+                profile,
+                signupSession.guestUserId(),
+                agreedTerms
+        );
+        return completedSocialAuthentication(completedSignup, true);
     }
 
     public AuthResult<LocalAuthResponse> localSignup(
@@ -272,18 +304,6 @@ public class AuthService {
         return new SocialProfileAuthentication(consumedState.guestUserId(), profile);
     }
 
-    private SocialUserProfile withRequestedNickname(SocialUserProfile profile, String requestedNickname) {
-        String nickname = StringUtils.hasText(requestedNickname)
-                ? requestedNickname
-                : profile.nickname();
-        return new SocialUserProfile(
-                profile.provider(),
-                profile.providerUserId(),
-                profile.email(),
-                nickname
-        );
-    }
-
     private void validateSocialUserProfile(SocialProvider provider, SocialUserProfile profile) {
         if (profile == null
                 || profile.provider() != provider
@@ -296,5 +316,29 @@ public class AuthService {
     }
 
     private record SocialProfileAuthentication(Long guestUserId, SocialUserProfile profile) {
+    }
+
+    private AuthResult<SocialLoginResponse> completedSocialAuthentication(
+            SocialAuthenticationResult completed,
+            boolean signupCompletion
+    ) {
+        SocialLoginUser user = completed.user();
+        TokenInfo tokenInfo = completed.tokenInfo();
+        SocialLoginResponse response = signupCompletion && user.isNewUser()
+                ? SocialLoginResponse.signupCompleted(
+                        user.userId(),
+                        user.nickname(),
+                        user.provider(),
+                        user.socialEmail(),
+                        tokenInfo
+                )
+                : SocialLoginResponse.loginCompleted(
+                        user.userId(),
+                        user.nickname(),
+                        user.provider(),
+                        user.socialEmail(),
+                        tokenInfo
+                );
+        return new AuthResult<>(response, tokenInfo.refreshToken());
     }
 }

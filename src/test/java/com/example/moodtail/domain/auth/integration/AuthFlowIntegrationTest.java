@@ -204,7 +204,7 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void guestToUnifiedSocialSignupAndLoginRunsThroughSecurityMysqlAndRedis() throws Exception {
+    void separatedSocialSignupAndExistingLoginRunThroughSecurityMysqlAndRedis() throws Exception {
         String firstGuestToken = guestLogin(UUID.randomUUID());
         JsonNode obsoleteState = issueState(firstGuestToken);
         JsonNode firstState = issueState(firstGuestToken);
@@ -224,12 +224,28 @@ class AuthFlowIntegrationTest {
         assertThat(objectMapper.readTree(obsoleteStateResponse.getBody()).path("code").asText())
                 .isEqualTo("AUTH018");
 
-        ResponseEntity<String> signupResponse = exchangeJson(
+        ResponseEntity<String> authenticationResponse = exchangeJson(
                 HttpMethod.POST,
                 "/api/v1/auth/google",
                 Map.of(
                         "authorizationCode", "first-google-code",
-                        "state", state,
+                        "state", state
+                ),
+                null
+        );
+        assertThat(authenticationResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode authenticationResult =
+                objectMapper.readTree(authenticationResponse.getBody()).path("result");
+        assertThat(authenticationResult.path("status").asText()).isEqualTo("SIGNUP_REQUIRED");
+        assertThat(authenticationResult.path("accessToken").isNull()).isTrue();
+        assertThat(authenticationResponse.getHeaders().getFirst(HttpHeaders.SET_COOKIE)).isNull();
+        assertThat(createChallenge(GOOGLE_STUB.lastCodeVerifier.get())).isEqualTo(codeChallenge);
+
+        ResponseEntity<String> signupResponse = exchangeJson(
+                HttpMethod.POST,
+                "/api/v1/auth/signup/social",
+                Map.of(
+                        "signupToken", authenticationResult.path("signupToken").asText(),
                         "nickname", "가입완료사용자",
                         "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
                 ),
@@ -237,14 +253,12 @@ class AuthFlowIntegrationTest {
         );
         assertThat(signupResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
         JsonNode signupResult = objectMapper.readTree(signupResponse.getBody()).path("result");
-        assertThat(signupResult.path("isNewUser").asBoolean()).isTrue();
-        assertThat(createChallenge(GOOGLE_STUB.lastCodeVerifier.get())).isEqualTo(codeChallenge);
+        assertThat(signupResult.path("status").asText()).isEqualTo("SIGNUP_COMPLETED");
         assertThat(signupResponse.getHeaders().getFirst(HttpHeaders.SET_COOKIE))
                 .contains("HttpOnly", "SameSite=Lax");
         String firstUserAccessToken = signupResult.path("accessToken").asText();
 
-        String secondGuestToken = guestLogin(UUID.randomUUID());
-        JsonNode secondState = issueState(secondGuestToken);
+        JsonNode secondState = issueState(null);
         JsonNode existingLogin = postJson(
                 "/api/v1/auth/google",
                 Map.of(
@@ -255,8 +269,8 @@ class AuthFlowIntegrationTest {
         ).path("result");
         String secondUserAccessToken = existingLogin.path("accessToken").asText();
 
-        assertThat(existingLogin.path("isNewUser").asBoolean()).isFalse();
-        assertThat(getCurrentUser(firstUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(existingLogin.path("status").asText()).isEqualTo("LOGIN_COMPLETED");
+        assertThat(getCurrentUser(firstUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(getCurrentUser(secondUserAccessToken).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'USER' and deleted_at is null",
@@ -269,19 +283,28 @@ class AuthFlowIntegrationTest {
     }
 
     @Test
-    void unifiedSocialSignupCommitsDatabaseBeforeRefreshSessionStorageAndCanRecoverByLogin() throws Exception {
-        String guestToken = guestLogin(UUID.randomUUID());
-        JsonNode state = issueState(guestToken);
+    void separatedSocialSignupCommitsDatabaseBeforeRefreshSessionStorageAndCanRecoverByLogin() throws Exception {
+        JsonNode state = issueState(null);
+        JsonNode authenticationResult = postJson(
+                "/api/v1/auth/google",
+                Map.of(
+                        "authorizationCode", "failure-google-code",
+                        "state", state.path("state").asText()
+                ),
+                null
+        ).path("result");
+        assertThat(authenticationResult.path("status").asText()).isEqualTo("SIGNUP_REQUIRED");
+
         doThrow(new RedisConnectionFailureException("forced integration failure"))
                 .doCallRealMethod()
                 .when(redisRepository).saveRefreshJti(anyLong(), anyString());
 
         ResponseEntity<String> signupResponse = exchangeJson(
                 HttpMethod.POST,
-                "/api/v1/auth/google",
+                "/api/v1/auth/signup/social",
                 Map.of(
-                        "authorizationCode", "failure-google-code",
-                        "state", state.path("state").asText(),
+                        "signupToken", authenticationResult.path("signupToken").asText(),
+                        "nickname", "가입완료사용자",
                         "agreements", new Object[]{Map.of("termId", requiredTermId, "agreed", true)}
                 ),
                 null
@@ -296,8 +319,7 @@ class AuthFlowIntegrationTest {
         assertThat(jdbcTemplate.queryForObject("select count(*) from social_accounts", Integer.class)).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("select count(*) from user_term_agreements", Integer.class)).isEqualTo(1);
 
-        String retryGuestToken = guestLogin(UUID.randomUUID());
-        JsonNode retryState = issueState(retryGuestToken);
+        JsonNode retryState = issueState(null);
         JsonNode recoveredLogin = postJson(
                 "/api/v1/auth/google",
                 Map.of(
@@ -307,14 +329,21 @@ class AuthFlowIntegrationTest {
                 null
         ).path("result");
 
-        assertThat(recoveredLogin.path("isNewUser").asBoolean()).isFalse();
+        assertThat(recoveredLogin.path("status").asText()).isEqualTo("LOGIN_COMPLETED");
         assertThat(getCurrentUser(recoveredLogin.path("accessToken").asText()).getStatusCode())
                 .isEqualTo(HttpStatus.OK);
     }
 
     @Test
-    void localSignupUpgradesItsGuestWhileExistingLoginKeepsTheSecondGuestSeparate() throws Exception {
-        String signupGuestToken = guestLogin(UUID.randomUUID());
+    void localSignupAndLoginKeepGuestUsersSeparateAndEndOnlyTheirSessions() throws Exception {
+        UUID signupGuestUuid = UUID.randomUUID();
+        GuestSession signupGuestSession = guestLoginSession(signupGuestUuid);
+        String signupGuestToken = signupGuestSession.accessToken();
+        Long signupGuestUserId = jdbcTemplate.queryForObject(
+                "select id from users where guest_uuid = ?",
+                Long.class,
+                signupGuestUuid.toString()
+        );
         JsonNode signup = postJson(
                 "/api/v1/auth/signup/local",
                 Map.of(
@@ -327,9 +356,14 @@ class AuthFlowIntegrationTest {
                 signupGuestToken
         ).path("result");
         assertThat(signup.path("isNewUser").asBoolean()).isTrue();
+        assertThat(signup.path("userId").asLong()).isNotEqualTo(signupGuestUserId);
+        assertThat(getCurrentUser(signupGuestToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertRefreshSessionEnded(signupGuestSession.refreshCookie());
         String signupAccessToken = signup.path("accessToken").asText();
 
-        String loginGuestToken = guestLogin(UUID.randomUUID());
+        UUID loginGuestUuid = UUID.randomUUID();
+        GuestSession loginGuestSession = guestLoginSession(loginGuestUuid);
+        String loginGuestToken = loginGuestSession.accessToken();
         JsonNode login = postJson(
                 "/api/v1/auth/login/local",
                 Map.of(
@@ -341,6 +375,8 @@ class AuthFlowIntegrationTest {
 
         assertThat(login.path("userId").asLong()).isEqualTo(signup.path("userId").asLong());
         assertThat(login.path("isNewUser").asBoolean()).isFalse();
+        assertThat(getCurrentUser(loginGuestToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertRefreshSessionEnded(loginGuestSession.refreshCookie());
         assertThat(getCurrentUser(signupAccessToken).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(getCurrentUser(login.path("accessToken").asText()).getStatusCode()).isEqualTo(HttpStatus.OK);
         assertThat(jdbcTemplate.queryForObject(
@@ -350,7 +386,13 @@ class AuthFlowIntegrationTest {
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from users where role = 'GUEST' and deleted_at is null",
                 Integer.class
-        )).isEqualTo(1);
+        )).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject(
+                "select count(*) from users where guest_uuid in (?, ?) and role = 'GUEST' and deleted_at is null",
+                Integer.class,
+                signupGuestUuid.toString(),
+                loginGuestUuid.toString()
+        )).isEqualTo(2);
     }
 
     @Test
@@ -469,12 +511,31 @@ class AuthFlowIntegrationTest {
     }
 
     private String guestLogin(UUID guestUuid) throws Exception {
-        JsonNode result = postJson(
+        return guestLoginSession(guestUuid).accessToken();
+    }
+
+    private GuestSession guestLoginSession(UUID guestUuid) throws Exception {
+        ResponseEntity<String> response = exchangeJson(
+                HttpMethod.POST,
                 "/api/v1/auth/guest",
                 Map.of("guestUuid", guestUuid.toString()),
                 null
-        ).path("result");
-        return result.path("accessToken").asText();
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+        JsonNode result = objectMapper.readTree(response.getBody()).path("result");
+        return new GuestSession(result.path("accessToken").asText(), cookiePair(response));
+    }
+
+    private void assertRefreshSessionEnded(String refreshCookie) throws Exception {
+        ResponseEntity<String> response = exchangeCookieAuthenticated(
+                HttpMethod.POST,
+                "/api/v1/auth/reissue",
+                null,
+                null,
+                refreshCookie
+        );
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(objectMapper.readTree(response.getBody()).path("code").asText()).isEqualTo("AUTH007");
     }
 
     private JsonNode issueState(String guestAccessToken) throws Exception {
@@ -554,6 +615,9 @@ class AuthFlowIntegrationTest {
             throw new IllegalStateException(name + " is required for the auth integration test");
         }
         return value;
+    }
+
+    private record GuestSession(String accessToken, String refreshCookie) {
     }
 
     private static final class StubOAuthClient implements OAuthClient {

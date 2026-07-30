@@ -5,6 +5,8 @@ import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
+import com.example.moodtail.domain.collection.repository.CollectionShareRepository;
+import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.image.entity.Image;
 import com.example.moodtail.domain.image.repository.ImageRepository;
@@ -16,6 +18,7 @@ import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
+import com.example.moodtail.domain.recommendation.repository.SharedPairRecommendationRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
@@ -42,6 +45,7 @@ public class AccountWithdrawalService {
     private final UserRepository userRepository;
     private final RecommendationSessionRepository recommendationSessionRepository;
     private final RecommendationItemRepository recommendationItemRepository;
+    private final SharedPairRecommendationRepository sharedPairRecommendationRepository;
     private final WithdrawalHistoryRepository withdrawalHistoryRepository;
     private final ImageRepository imageRepository;
     private final CocktailRepository cocktailRepository;
@@ -56,6 +60,8 @@ public class AccountWithdrawalService {
     private final LocalAccountRepository localAccountRepository;
     private final TokenSessionService tokenSessionService;
     private final ImageService imageService;
+    private final UserUnlockedCocktailRepository userUnlockedCocktailRepository;
+    private final CollectionShareRepository collectionShareRepository;
 
     public void withdraw(Long userId) {
         WithdrawalResult result = deleteAccountData(userId);
@@ -99,12 +105,24 @@ public class AccountWithdrawalService {
                         .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
                         .toList();
 
+        String collectionShareImage =
+                collectionShareRepository.findThumbnailImageUrlByUserId(userId)
+                        .filter(imageUrl -> !imageUrl.isBlank())
+                        .orElse(null);
+
         deleteRecommendations(userId);
+        sharedPairRecommendationRepository.deleteAllByCreatorId(userId);
         withdrawalHistoryRepository.deletePhotosByUserId(userId);
         withdrawalHistoryRepository.deleteRecordsByUserId(userId);
         List<String> storageCleanupCandidates = new ArrayList<>(deleteUnreferencedHistoryImages(historyImages));
+        if (collectionShareImage != null) {
+            storageCleanupCandidates.add(collectionShareImage);
+        }
+
         cocktailFavoriteRepository.deleteAllByUserId(userId);
+        userUnlockedCocktailRepository.deleteAllByUserId(userId);
         userUnlockedMoodTypeRepository.deleteAllByUserId(userId);
+        collectionShareRepository.deleteByUserId(userId);
         inquiryRepository.anonymizeAllByUserId(userId);
         sharedMoodTestResultRepository.deleteAllByUserId(userId);
         storageCleanupCandidates.addAll(sharedResultImages);

@@ -13,6 +13,7 @@ import com.example.moodtail.domain.history.service.HistoryService;
 import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.ExceptionAdvice;
+import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,13 +32,17 @@ import org.springframework.web.context.request.NativeWebRequest;
 import org.springframework.web.method.support.HandlerMethodArgumentResolver;
 import org.springframework.web.method.support.ModelAndViewContainer;
 
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 
+import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_LIMIT_EXCEEDED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -78,10 +83,43 @@ class HistoryControllerTest {
     @Test
     void routesHistoryQueriesUsingSpecificationPaths() throws Exception {
         when(historyService.getCalendar(USER_ID, 2026, 7)).thenReturn(new HistoryCalendarResponse(
-                2026, 7, 0, 0, 5, false, List.of(), List.of()
+                2026,
+                7,
+                0,
+                0,
+                5,
+                false,
+                List.of(),
+                List.of(new HistoryCalendarResponse.Day(
+                        LocalDate.of(2026, 7, 8),
+                        false,
+                        false,
+                        2L,
+                        null
+                ))
         ));
         when(historyService.getByDate(USER_ID, "2026-07-05")).thenReturn(new HistoryDateResponse(
-                LocalDate.of(2026, 7, 5), null, null, List.of()
+                LocalDate.of(2026, 7, 5),
+                null,
+                List.of(
+                        new HistoryDateResponse.DrinkingRecordItem(
+                                31L,
+                                10L,
+                                "모히토",
+                                "민트와 라임의 청량한 만남",
+                                new BigDecimal("20.0"),
+                                "https://cdn.example/mojito.jpg"
+                        ),
+                        new HistoryDateResponse.DrinkingRecordItem(
+                                32L,
+                                11L,
+                                "네그로니",
+                                null,
+                                null,
+                                "https://cdn.example/negroni.jpg"
+                        )
+                ),
+                List.of()
         ));
         when(historyService.getDetail(USER_ID, 31L)).thenReturn(new HistoryDetailResponse(
                 31L, 10L, "모히토", null, LocalDate.of(2026, 7, 5)
@@ -98,10 +136,23 @@ class HistoryControllerTest {
 
         mockMvc.perform(get("/api/v1/history/calendar").param("year", "2026").param("month", "7"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.reportRequiredTestCount").value(5));
+                .andExpect(jsonPath("$.result.reportRequiredTestCount").value(5))
+                .andExpect(jsonPath("$.result.days[0].date").value("2026-07-08"))
+                .andExpect(jsonPath("$.result.days[0].hasTestResult").value(false))
+                .andExpect(jsonPath("$.result.days[0].hasDrinkingRecord").value(false))
+                .andExpect(jsonPath("$.result.days[0].photoCount").value(2));
         mockMvc.perform(get("/api/v1/history/dates/2026-07-05"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.date").value("2026-07-05"));
+                .andExpect(jsonPath("$.result.date").value("2026-07-05"))
+                .andExpect(jsonPath("$.result.drinkingRecords.length()").value(2))
+                .andExpect(jsonPath("$.result.drinkingRecords[0].recordId").value(31))
+                .andExpect(jsonPath("$.result.drinkingRecords[0].shortDescription")
+                        .value("민트와 라임의 청량한 만남"))
+                .andExpect(jsonPath("$.result.drinkingRecords[0].alcoholDegree").value(20.0))
+                .andExpect(jsonPath("$.result.drinkingRecords[1].recordId").value(32))
+                .andExpect(jsonPath("$.result.drinkingRecords[1].shortDescription").doesNotExist())
+                .andExpect(jsonPath("$.result.drinkingRecords[1].alcoholDegree").doesNotExist())
+                .andExpect(jsonPath("$.result.drinkingRecord").doesNotExist());
         mockMvc.perform(get("/api/v1/history/drinking-records/31"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.recordId").value(31));
@@ -169,6 +220,37 @@ class HistoryControllerTest {
         mockMvc.perform(delete("/api/v1/history/dates/2026-07-05/photos/3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"));
+    }
+
+    @Test
+    void returnsConflictWhenDailyPhotoLimitIsExceeded() throws Exception {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "history.jpg",
+                "image/jpeg",
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
+        );
+        doThrow(new RestApiException(PHOTO_LIMIT_EXCEEDED))
+                .when(historyPhotoService)
+                .add(eq(USER_ID), eq("2026-07-05"), any(), eq("GALLERY"));
+
+        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+                        .file(image)
+                        .param("sourceType", "GALLERY"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("HISTORY_PHOTO409"));
+    }
+
+    @Test
+    void returnsCommonValidationErrorWhenHistoryPhotoIsMissing() throws Exception {
+        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+                        .param("sourceType", "CAMERA"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"))
+                .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(historyPhotoService, never()).add(any(), any(), any(), any());
     }
 
     @Test

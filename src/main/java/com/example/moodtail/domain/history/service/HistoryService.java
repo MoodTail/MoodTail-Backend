@@ -54,7 +54,8 @@ import static com.example.moodtail.global.common.exception.code.status.GlobalErr
 public class HistoryService {
 
     private static final int MONTHLY_REPORT_REQUIRED_TEST_COUNT = 5;
-    private static final String USER_DATE_UNIQUE_CONSTRAINT = "uk_drinking_record_user_date";
+    private static final String USER_DATE_COCKTAIL_UNIQUE_CONSTRAINT =
+            "uk_drinking_record_user_date_cocktail";
 
     private final HistoryRepository historyRepository;
     private final HistoryPhotoRepository historyPhotoRepository;
@@ -86,13 +87,28 @@ public class HistoryService {
                 startDate,
                 endDate
         ));
+        long drinkingRecordCount = historyRepository.countByUserIdAndRecordDateBetween(
+                userId,
+                startDate,
+                endDate
+        );
+        Map<LocalDate, Long> photoCountByDate = new HashMap<>();
+        historyPhotoRepository.findPhotoCountsByUserIdAndRecordDateBetween(
+                userId,
+                startDate,
+                endDate
+        ).forEach(photoCount -> photoCountByDate.put(
+                photoCount.getRecordDate(),
+                photoCount.getPhotoCount()
+        ));
 
         Map<LocalDate, MoodTestResult> testResultByDate = new HashMap<>();
-        testResults.forEach(result -> testResultByDate.put(result.getResultDate(), result));
+        testResults.forEach(result -> testResultByDate.putIfAbsent(result.getResultDate(), result));
 
         Set<LocalDate> activeDates = new TreeSet<>();
         activeDates.addAll(testResultByDate.keySet());
         activeDates.addAll(drinkingRecordDates);
+        activeDates.addAll(photoCountByDate.keySet());
 
         List<HistoryCalendarResponse.Day> days = activeDates.stream()
                 .map(date -> {
@@ -101,6 +117,7 @@ public class HistoryService {
                             date,
                             result != null,
                             drinkingRecordDates.contains(date),
+                            photoCountByDate.getOrDefault(date, 0L),
                             result == null ? null : toCalendarMoodType(result.getMoodType())
                     );
                 })
@@ -120,7 +137,7 @@ public class HistoryService {
                 requestedMonth.getYear(),
                 requestedMonth.getMonthValue(),
                 testResults.size(),
-                drinkingRecordDates.size(),
+                drinkingRecordCount,
                 MONTHLY_REPORT_REQUIRED_TEST_COUNT,
                 reportAvailable,
                 monthlyResults,
@@ -136,8 +153,8 @@ public class HistoryService {
         MoodTestResult testResult = moodTestResultRepository
                 .findWithMoodTypeByUserIdAndResultDate(userId, date)
                 .orElse(null);
-        DrinkingRecord record = historyRepository.findWithDetailsByUserIdAndRecordDate(userId, date)
-                .orElse(null);
+        List<DrinkingRecord> records = historyRepository
+                .findAllWithDetailsByUserIdAndRecordDate(userId, date);
         List<HistoryPhoto> photos = historyPhotoRepository.findAllByUserIdAndRecordDate(userId, date);
 
         return new HistoryDateResponse(
@@ -146,7 +163,7 @@ public class HistoryService {
                         testResult.getId(),
                         toDateMoodType(testResult.getMoodType())
                 ),
-                record == null ? null : toDateRecord(record),
+                records.stream().map(this::toDateRecord).toList(),
                 photos.stream().map(this::toPhoto).toList()
         );
     }
@@ -198,7 +215,11 @@ public class HistoryService {
     public HistoryCreateResponse create(Long userId, HistoryCreateRequest request) {
         LocalDateTime now = LocalDateTime.now(clock);
         HistoryDatePolicy.validateRecordDate(request.recordDate(), now.toLocalDate());
-        if (historyRepository.existsByUserIdAndRecordDate(userId, request.recordDate())) {
+        if (historyRepository.existsByUserIdAndRecordDateAndCocktailId(
+                userId,
+                request.recordDate(),
+                request.cocktailId()
+        )) {
             throw new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
         }
 
@@ -230,23 +251,27 @@ public class HistoryService {
 
         DrinkingRecord record = historyRepository.findOwnedForUpdate(recordId, userId)
                 .orElseThrow(() -> new RestApiException(HISTORY_NOT_FOUND));
+        LocalDate targetDate = request.recordDate() == null
+                ? record.getRecordDate()
+                : request.recordDate();
         if (request.recordDate() != null) {
-            HistoryDatePolicy.validateRecordDate(request.recordDate(), LocalDate.now(clock));
-            if (!request.recordDate().equals(record.getRecordDate())
-                    && historyRepository.existsByUserIdAndRecordDateAndIdNot(
-                    userId,
-                    request.recordDate(),
-                    recordId
-            )) {
-                throw new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
-            }
-            record.updateRecordDate(request.recordDate());
+            HistoryDatePolicy.validateRecordDate(targetDate, LocalDate.now(clock));
         }
-        if (request.cocktailId() != null) {
-            Cocktail cocktail = cocktailRepository.findById(request.cocktailId())
-                    .orElseThrow(() -> new RestApiException(COCKTAIL_NOT_FOUND));
-            record.updateCocktail(cocktail);
+        Cocktail targetCocktail = request.cocktailId() == null
+                ? record.getCocktail()
+                : cocktailRepository.findById(request.cocktailId())
+                .orElseThrow(() -> new RestApiException(COCKTAIL_NOT_FOUND));
+
+        if (historyRepository.existsByUserIdAndRecordDateAndCocktailIdAndIdNot(
+                userId,
+                targetDate,
+                targetCocktail.getId(),
+                recordId
+        )) {
+            throw new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
         }
+        record.updateRecordDate(targetDate);
+        record.updateCocktail(targetCocktail);
         try {
             historyRepository.flush();
         } catch (DataIntegrityViolationException exception) {
@@ -276,7 +301,7 @@ public class HistoryService {
         while (current != null) {
             String message = current.getMessage();
             if (message != null
-                    && message.toLowerCase().contains(USER_DATE_UNIQUE_CONSTRAINT)) {
+                    && message.toLowerCase().contains(USER_DATE_COCKTAIL_UNIQUE_CONSTRAINT)) {
                 return new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
             }
             current = current.getCause();
@@ -309,6 +334,8 @@ public class HistoryService {
                 record.getId(),
                 record.getCocktail().getId(),
                 record.getCocktail().getNameKo(),
+                record.getCocktail().getShortDescription(),
+                record.getCocktail().getAlcoholDegree(),
                 imageUrl(record.getCocktail().getImage())
         );
     }

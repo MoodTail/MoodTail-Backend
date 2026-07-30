@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.INVALID_ROLE;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.LOGIN_USER_REQUIRED;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
+import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.INVITE_CODE_NOT_FOUND;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +36,11 @@ public class InviteCodeService {
         String inviteCode = inviteCodeGenerator.generateUnique();
         user.assignInviteCode(inviteCode);
         return inviteCode;
+    }
+
+    public User findUserByInviteCode(String inviteCode) {
+        return userRepository.findByInviteCode(inviteCode)
+                .orElseThrow(() -> new RestApiException(INVITE_CODE_NOT_FOUND));
     }
 
     private void validateRole(String role) {

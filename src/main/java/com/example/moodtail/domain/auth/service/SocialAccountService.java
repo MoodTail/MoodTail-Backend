@@ -1,7 +1,6 @@
 package com.example.moodtail.domain.auth.service;
 
 import com.example.moodtail.domain.auth.entity.SocialAccount;
-import com.example.moodtail.domain.auth.model.Consent;
 import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
@@ -35,32 +34,48 @@ public class SocialAccountService {
     private final TermAgreementService termAgreementService;
     private final TokenSessionService tokenSessionService;
 
-    public SocialAuthenticationResult authenticate(
+    public Optional<SocialAuthenticationResult> loginExisting(
+            SocialUserProfile profile,
+            Long guestUserId
+    ) {
+        validateProfile(profile);
+        Optional<SocialLoginUser> authenticatedUser = requiresNewTransactionTemplate()
+                .execute(status -> loginInTransaction(profile));
+        if (authenticatedUser == null) {
+            throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
+        }
+        return authenticatedUser.map(user -> completeAuthentication(user, guestUserId));
+    }
+
+    public SocialAuthenticationResult register(
             SocialUserProfile profile,
             Long guestUserId,
-            List<Consent> consents
+            List<Term> agreedTerms
     ) {
-        if (guestUserId == null) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
+        validateProfile(profile);
+        String nickname = AuthNicknameValidator.normalize(profile.nickname());
+        if (agreedTerms == null || agreedTerms.isEmpty()) {
+            throw new RestApiException(AuthErrorStatus.INVALID_TERM_AGREEMENT);
         }
-        if (profile == null || profile.provider() == null || !StringUtils.hasText(profile.providerUserId())) {
-            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
-        }
-        SocialLoginUser authenticatedUser = authenticateInTransaction(profile, guestUserId, consents);
+        SocialUserProfile normalizedProfile = new SocialUserProfile(
+                profile.provider(),
+                profile.providerUserId(),
+                profile.email(),
+                nickname
+        );
+        SocialLoginUser authenticatedUser = registerWithRecovery(normalizedProfile, agreedTerms);
         return completeAuthentication(authenticatedUser, guestUserId);
     }
 
-    private SocialLoginUser authenticateInTransaction(
+    private SocialLoginUser registerWithRecovery(
             SocialUserProfile profile,
-            Long guestUserId,
-            List<Consent> consents
+            List<Term> agreedTerms
     ) {
         TransactionTemplate transactionTemplate = requiresNewTransactionTemplate();
         try {
             SocialLoginUser result = transactionTemplate.execute(status ->
-                    loginInTransaction(profile).orElseGet(
-                            () -> registerInTransaction(profile, guestUserId, consents)
-                    )
+                    loginInTransaction(profile)
+                            .orElseGet(() -> registerInTransaction(profile, agreedTerms))
             );
             if (result == null) {
                 throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
@@ -105,28 +120,28 @@ public class SocialAccountService {
 
     private SocialLoginUser registerInTransaction(
             SocialUserProfile profile,
-            Long guestUserId,
-            List<Consent> consents
+            List<Term> agreedTerms
     ) {
-        User guestUser = userRepository.findByIdForUpdate(guestUserId)
-                .orElseThrow(() -> new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION));
-        if (!guestUser.isGuest() || !guestUser.isAvailableForAuthentication()) {
-            throw new RestApiException(AuthErrorStatus.INVALID_GUEST_SESSION);
-        }
-
-        String nickname = AuthNicknameValidator.normalize(profile.nickname());
-        List<Term> agreedTerms = termAgreementService.validateAgreements(consents);
         LocalDateTime now = LocalDateTime.now();
-        guestUser.upgradeToUser(nickname, now);
+        User user = userRepository.save(User.createMember(profile.nickname(), now));
         SocialAccount socialAccount = socialAccountRepository.saveAndFlush(SocialAccount.create(
-                guestUser,
+                user,
                 profile.provider(),
                 profile.providerUserId(),
                 profile.email()
         ));
-        termAgreementService.recordValidatedAgreements(guestUser, agreedTerms, now);
+        termAgreementService.recordValidatedAgreements(user, agreedTerms, now);
 
-        return createSocialLoginUser(guestUser, socialAccount, true);
+        return createSocialLoginUser(user, socialAccount, true);
+    }
+
+    private void validateProfile(SocialUserProfile profile) {
+        if (profile == null
+                || profile.provider() == null
+                || !StringUtils.hasText(profile.providerUserId())
+                || !StringUtils.hasText(profile.email())) {
+            throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
+        }
     }
 
     private void validateActive(User user) {

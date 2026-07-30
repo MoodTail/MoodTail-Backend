@@ -91,10 +91,10 @@ class SecurityConfigTest {
     }
 
     @Test
-    void oauthStateEndpointRequiresGuestRoleInTheSecurityFilter() throws Exception {
+    void oauthStateEndpointAllowsAnonymousAndGuestRequests() throws Exception {
         mockMvc.perform(post("/api/v1/auth/oauth-states/kakao"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("COMMON401"));
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
 
         mockMvc.perform(post("/api/v1/auth/oauth-states/kakao")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer guest-token"))
@@ -103,8 +103,8 @@ class SecurityConfigTest {
 
         mockMvc.perform(post("/api/v1/auth/oauth-states/kakao")
                         .header(HttpHeaders.AUTHORIZATION, "Bearer member-token"))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("AUTH009"));
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
     }
 
     @Test

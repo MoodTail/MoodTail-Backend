@@ -56,12 +56,13 @@ public class SecurityConfig {
 						.dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 						.requestMatchers("/error").permitAll()
 						.requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/v1/auth/oauth-states/*").hasRole("GUEST")
 						.requestMatchers(HttpMethod.DELETE, "/api/v1/auth").hasRole("USER")
 						.requestMatchers(HttpMethod.POST,
 								"/api/v1/auth/guest",
+								"/api/v1/auth/oauth-states/*",
 								"/api/v1/auth/kakao",
 								"/api/v1/auth/google",
+								"/api/v1/auth/signup/social",
 								"/api/v1/auth/login/local",
 								"/api/v1/auth/signup/local",
 								"/api/v1/auth/password-reset/codes",
@@ -76,8 +77,14 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.POST, "/api/v1/inquiries").permitAll()
 						.requestMatchers("/api/v1/tests/questions").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/tests/results/share/*").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/share/pair-recommendations/*").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/collections/share/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/share/results/*").permitAll()
+						.requestMatchers(HttpMethod.GET, "/share/pair/*").permitAll()
+						.requestMatchers(HttpMethod.GET, "/share/collections/*").permitAll()
 						.requestMatchers(HttpMethod.POST, "/api/v1/tests/results/share")
+								.hasAnyRole("GUEST", "USER")
+						.requestMatchers(HttpMethod.POST, "/api/v1/tests/collections/share")
 								.hasAnyRole("GUEST", "USER")
 						.requestMatchers("/api/v1/tests/results").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/cocktails/favorites")
@@ -87,7 +94,6 @@ public class SecurityConfig {
 								"/api/v1/cocktails",
 								"/api/v1/cocktails/*"
 						).permitAll()
-						.requestMatchers(HttpMethod.POST, "/api/v1/cocktails/recommends/pair").permitAll()
 						.requestMatchers("/api/v1/history/**", "/api/v1/reports/**").hasRole("USER")
 						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
 						.anyRequest().hasAnyRole("USER", "ADMIN")

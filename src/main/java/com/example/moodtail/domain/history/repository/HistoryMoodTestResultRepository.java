@@ -18,7 +18,7 @@ public interface HistoryMoodTestResultRepository extends Repository<MoodTestResu
               left join fetch moodType.characterImage
              where result.user.id = :userId
                and result.resultDate between :startDate and :endDate
-             order by result.resultDate, result.id
+             order by result.resultDate desc, result.id desc
             """)
     List<MoodTestResult> findAllWithMoodType(
             @Param("userId") Long userId,

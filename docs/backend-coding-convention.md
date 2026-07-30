@@ -370,21 +370,21 @@ ErrorCode
 에러 코드는 다음 형식을 따른다.
 
 ```text
-{DOMAIN}_{HTTP_STATUS}
+{DOMAIN}{HTTP_STATUS}
 ```
 
 Moodtail 에러 코드 예시는 다음과 같다.
 
 ```text
-COMMON_400
-AUTH_401
-MEMBER_404
-MOOD_TEST_400
-RECOMMENDATION_422
-COCKTAIL_404
-HISTORY_409
-REPORT_409
-SHARE_500
+COMMON400
+AUTH401
+MEMBER404
+MOOD_TEST400
+RECOMMENDATION422
+COCKTAIL404
+HISTORY409
+REPORT409
+SHARE500
 ```
 
 Controller에서 `try-catch`로 예외를 직접 처리하지 않는다.
@@ -392,11 +392,11 @@ Controller에서 `try-catch`로 예외를 직접 처리하지 않는다.
 검증 실패, 권한 실패, 비즈니스 정책 위반은 각각 명확한 ErrorCode로 구분한다.
 
 ```text
-MOOD_TEST_400       테스트 답변 누락 또는 잘못된 답변 값
-RECOMMENDATION_422  추천 결과 산출 불가
-COCKTAIL_404        칵테일을 찾을 수 없음
-HISTORY_409         같은 날짜에 이미 저장된 테스트 결과가 있음
-REPORT_409          월간 리포트 생성에 필요한 데이터 부족
+MOOD_TEST400       테스트 답변 누락 또는 잘못된 답변 값
+RECOMMENDATION422  추천 결과 산출 불가
+COCKTAIL404        칵테일을 찾을 수 없음
+HISTORY409         같은 날짜에 이미 저장된 테스트 결과가 있음
+REPORT409          월간 리포트 생성에 필요한 데이터 부족
 ```
 
 ## 9. DTO / Validation

@@ -16,6 +16,31 @@ public interface HistoryPhotoRepository extends JpaRepository<HistoryPhoto, Long
     boolean existsByImageId(Long imageId);
 
     @Query("""
+            select count(photo)
+              from HistoryPhoto photo
+             where photo.user.id = :userId
+               and photo.recordDate = :recordDate
+            """)
+    long countByUserIdAndRecordDate(
+            @Param("userId") Long userId,
+            @Param("recordDate") LocalDate recordDate
+    );
+
+    @Query("""
+            select photo.recordDate as recordDate,
+                   count(photo.id) as photoCount
+              from HistoryPhoto photo
+             where photo.user.id = :userId
+               and photo.recordDate between :startDate and :endDate
+             group by photo.recordDate
+            """)
+    List<PhotoCountByDate> findPhotoCountsByUserIdAndRecordDateBetween(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
+    @Query("""
             select photo
               from HistoryPhoto photo
               join fetch photo.image
@@ -42,4 +67,10 @@ public interface HistoryPhotoRepository extends JpaRepository<HistoryPhoto, Long
             @Param("userId") Long userId,
             @Param("recordDate") LocalDate recordDate
     );
+
+    interface PhotoCountByDate {
+        LocalDate getRecordDate();
+
+        long getPhotoCount();
+    }
 }

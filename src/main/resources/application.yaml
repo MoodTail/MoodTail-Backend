@@ -59,6 +59,7 @@ spring:
 
 server:
   port: 8080
+  forward-headers-strategy: native
 
 logging:
   level:
@@ -85,6 +86,7 @@ auth:
     same-site: ${JWT_COOKIE_SAME_SITE:Lax}
   oauth:
     state-expiration-millis: 300000
+    signup-token-expiration-millis: 600000
     connect-timeout-millis: 3000
     read-timeout-millis: 5000
     state-rate-limit:
