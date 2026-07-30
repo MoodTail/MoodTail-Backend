@@ -272,59 +272,125 @@ class HistoryServiceTest {
     }
 
     @Test
-    void createsDifferentCocktailOnDateWithNoMatchingCocktailRecord() {
+    void createsMultipleCocktailsInRequestOrder() {
         User user = User.createMember("회원", LocalDateTime.now(CLOCK));
-        Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+        Cocktail firstCocktail = org.mockito.Mockito.mock(Cocktail.class);
+        Cocktail secondCocktail = org.mockito.Mockito.mock(Cocktail.class);
         LocalDate recordDate = LocalDate.of(2026, 7, 10);
-        when(historyRepository.existsByUserIdAndRecordDateAndCocktailId(USER_ID, recordDate, 7L))
-                .thenReturn(false);
+        when(firstCocktail.getId()).thenReturn(7L);
+        when(secondCocktail.getId()).thenReturn(8L);
+        when(historyRepository.findExistingCocktailIds(
+                USER_ID,
+                recordDate,
+                List.of(7L, 8L)
+        )).thenReturn(List.of());
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(cocktailRepository.findById(7L)).thenReturn(Optional.of(cocktail));
-        when(historyRepository.saveAndFlush(any(DrinkingRecord.class))).thenAnswer(invocation -> {
-            DrinkingRecord record = invocation.getArgument(0);
-            ReflectionTestUtils.setField(record, "id", 31L);
-            return record;
+        when(cocktailRepository.findAllById(List.of(7L, 8L)))
+                .thenReturn(List.of(secondCocktail, firstCocktail));
+        when(historyRepository.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<DrinkingRecord> records = invocation.getArgument(0);
+            ReflectionTestUtils.setField(records.get(0), "id", 31L);
+            ReflectionTestUtils.setField(records.get(1), "id", 32L);
+            return records;
         });
         var response = historyService.create(
                 USER_ID,
-                new HistoryCreateRequest(7L, recordDate)
+                new HistoryCreateRequest(List.of(7L, 8L), recordDate)
         );
 
-        assertThat(response.recordId()).isEqualTo(31L);
+        assertThat(response).extracting(
+                com.example.moodtail.domain.history.dto.response.HistoryCreateResponse::recordId
+        ).containsExactly(31L, 32L);
+        assertThat(response).extracting(
+                com.example.moodtail.domain.history.dto.response.HistoryCreateResponse::cocktailId
+        ).containsExactly(7L, 8L);
     }
 
     @Test
-    void rejectsSameCocktailForTheSameUserAndDateBeforeLoadingEntities() {
+    void rejectsDuplicateCocktailIdsWithinRequestBeforeQueryingRepositories() {
+        assertThatThrownBy(() -> historyService.create(
+                USER_ID,
+                new HistoryCreateRequest(
+                        List.of(7L, 7L),
+                        LocalDate.of(2026, 7, 10)
+                )
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
+        );
+
+        verify(historyRepository, never()).findExistingCocktailIds(any(), any(), any());
+        verify(userRepository, never()).findById(any());
+        verify(cocktailRepository, never()).findAllById(any());
+        verify(historyRepository, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void rejectsCocktailAlreadyRecordedOnTheSameDateBeforeLoadingEntities() {
         LocalDate recordDate = LocalDate.of(2026, 7, 10);
-        when(historyRepository.existsByUserIdAndRecordDateAndCocktailId(USER_ID, recordDate, 7L))
-                .thenReturn(true);
+        when(historyRepository.findExistingCocktailIds(
+                USER_ID,
+                recordDate,
+                List.of(7L, 8L)
+        )).thenReturn(List.of(7L));
 
         assertThatThrownBy(() -> historyService.create(
                 USER_ID,
-                new HistoryCreateRequest(7L, recordDate)
+                new HistoryCreateRequest(List.of(7L, 8L), recordDate)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
 
         verify(userRepository, never()).findById(any());
-        verify(cocktailRepository, never()).findById(any());
-        verify(historyRepository, never()).saveAndFlush(any());
+        verify(cocktailRepository, never()).findAllById(any());
+        verify(historyRepository, never()).saveAllAndFlush(any());
+    }
+
+    @Test
+    void rejectsEntireRequestWhenAnyCocktailDoesNotExist() {
+        User user = User.createMember("회원", LocalDateTime.now(CLOCK));
+        Cocktail existingCocktail = org.mockito.Mockito.mock(Cocktail.class);
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        when(existingCocktail.getId()).thenReturn(7L);
+        when(historyRepository.findExistingCocktailIds(
+                USER_ID,
+                recordDate,
+                List.of(7L, 8L)
+        )).thenReturn(List.of());
+        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(cocktailRepository.findAllById(List.of(7L, 8L)))
+                .thenReturn(List.of(existingCocktail));
+
+        assertThatThrownBy(() -> historyService.create(
+                USER_ID,
+                new HistoryCreateRequest(List.of(7L, 8L), recordDate)
+        )).isInstanceOfSatisfying(RestApiException.class, exception ->
+                assertThat(exception.getErrorCode().getCode()).isEqualTo("COCKTAIL404")
+        );
+
+        verify(historyRepository, never()).saveAllAndFlush(any());
     }
 
     @Test
     void translatesOnlyTheUserDateCocktailUniqueConstraintRaceToDuplicateRecord() {
         User user = User.createMember("회원", LocalDateTime.now(CLOCK));
         Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        when(cocktail.getId()).thenReturn(7L);
+        when(historyRepository.findExistingCocktailIds(
+                USER_ID,
+                recordDate,
+                List.of(7L)
+        )).thenReturn(List.of());
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(cocktailRepository.findById(7L)).thenReturn(Optional.of(cocktail));
-        when(historyRepository.saveAndFlush(any(DrinkingRecord.class)))
+        when(cocktailRepository.findAllById(List.of(7L))).thenReturn(List.of(cocktail));
+        when(historyRepository.saveAllAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException(
                         "Duplicate entry for key 'uk_drinking_record_user_date_cocktail'"
                 ));
 
         assertThatThrownBy(() -> historyService.create(
                 USER_ID,
-                new HistoryCreateRequest(7L, LocalDate.of(2026, 7, 10))
+                new HistoryCreateRequest(List.of(7L), recordDate)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
@@ -334,15 +400,22 @@ class HistoryServiceTest {
     void mapsAnUnrelatedDatabaseIntegrityFailureToTheInternalErrorContract() {
         User user = User.createMember("회원", LocalDateTime.now(CLOCK));
         Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        when(cocktail.getId()).thenReturn(7L);
+        when(historyRepository.findExistingCocktailIds(
+                USER_ID,
+                recordDate,
+                List.of(7L)
+        )).thenReturn(List.of());
         when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
-        when(cocktailRepository.findById(7L)).thenReturn(Optional.of(cocktail));
+        when(cocktailRepository.findAllById(List.of(7L))).thenReturn(List.of(cocktail));
         DataIntegrityViolationException databaseFailure =
                 new DataIntegrityViolationException("foreign key failure");
-        when(historyRepository.saveAndFlush(any(DrinkingRecord.class))).thenThrow(databaseFailure);
+        when(historyRepository.saveAllAndFlush(any())).thenThrow(databaseFailure);
 
         assertThatThrownBy(() -> historyService.create(
                 USER_ID,
-                new HistoryCreateRequest(7L, LocalDate.of(2026, 7, 10))
+                new HistoryCreateRequest(List.of(7L), recordDate)
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("COMMON500")
         );

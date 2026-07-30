@@ -14,10 +14,17 @@ import java.util.Optional;
 
 public interface HistoryRepository extends JpaRepository<DrinkingRecord, Long> {
 
-    boolean existsByUserIdAndRecordDateAndCocktailId(
-            Long userId,
-            LocalDate recordDate,
-            Long cocktailId
+    @Query("""
+            select record.cocktail.id
+              from DrinkingRecord record
+             where record.user.id = :userId
+               and record.recordDate = :recordDate
+               and record.cocktail.id in :cocktailIds
+            """)
+    List<Long> findExistingCocktailIds(
+            @Param("userId") Long userId,
+            @Param("recordDate") LocalDate recordDate,
+            @Param("cocktailIds") List<Long> cocktailIds
     );
 
     boolean existsByUserIdAndRecordDateAndCocktailIdAndIdNot(

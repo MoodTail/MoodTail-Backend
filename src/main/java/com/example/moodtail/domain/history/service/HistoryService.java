@@ -35,10 +35,13 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus.COCKTAIL_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
@@ -212,34 +215,48 @@ public class HistoryService {
     }
 
     @Transactional
-    public HistoryCreateResponse create(Long userId, HistoryCreateRequest request) {
+    public List<HistoryCreateResponse> create(Long userId, HistoryCreateRequest request) {
         LocalDateTime now = LocalDateTime.now(clock);
         HistoryDatePolicy.validateRecordDate(request.recordDate(), now.toLocalDate());
-        if (historyRepository.existsByUserIdAndRecordDateAndCocktailId(
-                userId,
-                request.recordDate(),
-                request.cocktailId()
-        )) {
+        List<Long> cocktailIds = request.cocktailIds();
+        if (new HashSet<>(cocktailIds).size() != cocktailIds.size()
+                || !historyRepository.findExistingCocktailIds(
+                        userId,
+                        request.recordDate(),
+                        cocktailIds
+                ).isEmpty()) {
             throw new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
         }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
-        Cocktail cocktail = cocktailRepository.findById(request.cocktailId())
-                .orElseThrow(() -> new RestApiException(COCKTAIL_NOT_FOUND));
+        Map<Long, Cocktail> cocktailById = cocktailRepository.findAllById(cocktailIds).stream()
+                .collect(Collectors.toMap(Cocktail::getId, Function.identity()));
+        if (cocktailById.size() != cocktailIds.size()) {
+            throw new RestApiException(COCKTAIL_NOT_FOUND);
+        }
 
-        DrinkingRecord record;
+        List<DrinkingRecord> records = cocktailIds.stream()
+                .map(cocktailId -> DrinkingRecord.create(
+                        user,
+                        cocktailById.get(cocktailId),
+                        request.recordDate(),
+                        now
+                ))
+                .toList();
+        List<DrinkingRecord> savedRecords;
         try {
-            record = historyRepository.saveAndFlush(DrinkingRecord.create(
-                    user,
-                    cocktail,
-                    request.recordDate(),
-                    now
-            ));
+            savedRecords = historyRepository.saveAllAndFlush(records);
         } catch (DataIntegrityViolationException exception) {
             throw translateWriteFailure(exception);
         }
-        return new HistoryCreateResponse(record.getId(), record.getRecordDate());
+        return savedRecords.stream()
+                .map(record -> new HistoryCreateResponse(
+                        record.getId(),
+                        record.getCocktail().getId(),
+                        record.getRecordDate()
+                ))
+                .toList();
     }
 
     @Transactional
