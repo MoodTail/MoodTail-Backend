@@ -9,8 +9,14 @@ import com.example.moodtail.domain.history.repository.HistoryMoodTestResultRepos
 import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
 import com.example.moodtail.domain.history.repository.HistoryRecommendationRepository;
 import com.example.moodtail.domain.history.repository.HistoryRepository;
+import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
+import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
+import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
+import com.example.moodtail.domain.recommendation.entity.RecommendationItem;
+import com.example.moodtail.domain.recommendation.entity.RecommendationSessionType;
+import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -56,6 +62,8 @@ class HistoryServiceTest {
     @Mock
     private HistoryRecommendationRepository recommendationRepository;
     @Mock
+    private MoodTypeCompatibilityRepository moodTypeCompatibilityRepository;
+    @Mock
     private CocktailRepository cocktailRepository;
     @Mock
     private UserRepository userRepository;
@@ -69,6 +77,7 @@ class HistoryServiceTest {
                 historyPhotoRepository,
                 moodTestResultRepository,
                 recommendationRepository,
+                moodTypeCompatibilityRepository,
                 cocktailRepository,
                 userRepository,
                 CLOCK
@@ -90,19 +99,23 @@ class HistoryServiceTest {
                 LocalDate.of(2026, 7, 1),
                 LocalDate.of(2026, 7, 11)
         )).thenReturn(List.of(result));
-        when(historyRepository.findRecordDates(
-                USER_ID,
-                LocalDate.of(2026, 7, 1),
-                LocalDate.of(2026, 7, 11)
-        )).thenReturn(List.of(
+        HistoryRepository.MonthlyDrinkingRecordSummary firstRecord = monthlyRecord(
                 LocalDate.of(2026, 7, 5),
-                LocalDate.of(2026, 7, 5)
-        ));
-        when(historyRepository.countByUserIdAndRecordDateBetween(
+                31L,
+                7L,
+                "모히토"
+        );
+        HistoryRepository.MonthlyDrinkingRecordSummary secondRecord = monthlyRecord(
+                LocalDate.of(2026, 7, 5),
+                32L,
+                8L,
+                "네그로니"
+        );
+        when(historyRepository.findMonthlyDrinkingRecordSummaries(
                 USER_ID,
                 LocalDate.of(2026, 7, 1),
                 LocalDate.of(2026, 7, 11)
-        )).thenReturn(2L);
+        )).thenReturn(List.of(firstRecord, secondRecord));
 
         var response = historyService.getCalendar(USER_ID, 2026, 7);
 
@@ -110,6 +123,18 @@ class HistoryServiceTest {
         assertThat(response.drinkingRecordCount()).isEqualTo(2);
         assertThat(response.reportRequiredTestCount()).isEqualTo(5);
         assertThat(response.reportAvailable()).isFalse();
+        assertThat(response.testResults()).singleElement().satisfies(monthlyResult ->
+                assertThat(monthlyResult.drinkingRecords())
+                        .extracting(
+                                record -> record.recordId(),
+                                record -> record.cocktailId(),
+                                record -> record.cocktailName()
+                        )
+                        .containsExactly(
+                                org.assertj.core.groups.Tuple.tuple(31L, 7L, "모히토"),
+                                org.assertj.core.groups.Tuple.tuple(32L, 8L, "네그로니")
+                        )
+        );
         assertThat(response.days()).singleElement().satisfies(day -> {
             assertThat(day.hasTestResult()).isTrue();
             assertThat(day.hasDrinkingRecord()).isTrue();
@@ -557,6 +582,134 @@ class HistoryServiceTest {
     }
 
     @Test
+    void returnsDisplayScoresCompatibilityAndRecommendationDescriptionForSavedResult() {
+        MoodTestResult result = org.mockito.Mockito.mock(MoodTestResult.class);
+        MoodType moodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodType bestMoodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodType worstMoodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodTypeCompatibility bestCompatibility = org.mockito.Mockito.mock(
+                MoodTypeCompatibility.class
+        );
+        MoodTypeCompatibility worstCompatibility = org.mockito.Mockito.mock(
+                MoodTypeCompatibility.class
+        );
+        RecommendationItem recommendation = org.mockito.Mockito.mock(RecommendationItem.class);
+        Cocktail cocktail = org.mockito.Mockito.mock(Cocktail.class);
+
+        when(result.getId()).thenReturn(10L);
+        when(result.getResultDate()).thenReturn(LocalDate.of(2026, 7, 5));
+        when(result.getMoodType()).thenReturn(moodType);
+        when(result.toTasteProfile()).thenReturn(tasteProfile("1.0", "2.8", "3.0", "4.0", "5.0"));
+        when(result.getAlcoholIntensity()).thenReturn(new BigDecimal("1.0"));
+        when(result.getSweetness()).thenReturn(new BigDecimal("2.8"));
+        when(result.getSourness()).thenReturn(new BigDecimal("3.0"));
+        when(result.getRefreshing()).thenReturn(new BigDecimal("4.0"));
+        when(result.getBitterness()).thenReturn(new BigDecimal("5.0"));
+
+        when(moodType.getId()).thenReturn(3L);
+        when(moodType.getCode()).thenReturn("FRESH_SPARK");
+        when(moodType.getName()).thenReturn("상큼주의자");
+        when(moodType.getShortDescription()).thenReturn("산뜻한 한 잔이 어울리는 타입");
+        when(moodType.getDescription()).thenReturn("오늘은 산뜻한 기분을 즐겨보세요.");
+        when(moodType.getCharacterQuote()).thenReturn("기분 좋은 상큼함을 시작해요.");
+        when(moodType.toTasteProfile()).thenReturn(tasteProfile("5.0", "4.0", "3.0", "2.0", "1.0"));
+
+        when(bestCompatibility.getCompatibilityType()).thenReturn(CompatibilityType.BEST);
+        when(bestCompatibility.getTargetMoodType()).thenReturn(bestMoodType);
+        when(bestMoodType.getId()).thenReturn(4L);
+        when(bestMoodType.getCode()).thenReturn("BEST_TYPE");
+        when(bestMoodType.getName()).thenReturn("이상주의자");
+        when(worstCompatibility.getCompatibilityType()).thenReturn(CompatibilityType.WORST);
+        when(worstCompatibility.getTargetMoodType()).thenReturn(worstMoodType);
+        when(worstMoodType.getId()).thenReturn(5L);
+        when(worstMoodType.getCode()).thenReturn("WORST_TYPE");
+        when(worstMoodType.getName()).thenReturn("현실주의자");
+
+        when(recommendation.getCocktail()).thenReturn(cocktail);
+        when(recommendation.getRanking()).thenReturn(1);
+        when(recommendation.getMatchScore()).thenReturn(95);
+        when(cocktail.getId()).thenReturn(7L);
+        when(cocktail.getNameKo()).thenReturn("모히토");
+        when(cocktail.getShortDescription()).thenReturn("상쾌한 민트와 라임의 조화");
+
+        when(moodTestResultRepository.findDetailByIdAndUserId(10L, USER_ID))
+                .thenReturn(Optional.of(result));
+        when(recommendationRepository.findByTestResult(
+                USER_ID,
+                10L,
+                RecommendationSessionType.TEST_RESULT
+        )).thenReturn(List.of(recommendation));
+        when(moodTypeCompatibilityRepository.findAllByMoodTypeId(3L))
+                .thenReturn(List.of(bestCompatibility, worstCompatibility));
+
+        var response = historyService.getTestResultDetail(USER_ID, 10L);
+
+        assertThat(response.displayTasteScores())
+                .extracting(
+                        scores -> scores.alcoholIntensity(),
+                        scores -> scores.sweetness(),
+                        scores -> scores.sourness(),
+                        scores -> scores.refreshing(),
+                        scores -> scores.bitterness()
+                )
+                .containsExactly(0, 45, 50, 75, 100);
+        assertThat(response.moodType().displayTasteScores())
+                .extracting(
+                        scores -> scores.alcoholIntensity(),
+                        scores -> scores.sweetness(),
+                        scores -> scores.sourness(),
+                        scores -> scores.refreshing(),
+                        scores -> scores.bitterness()
+                )
+                .containsExactly(100, 75, 50, 25, 0);
+        assertThat(response.moodType().shortDescription()).isEqualTo("산뜻한 한 잔이 어울리는 타입");
+        assertThat(response.moodType().description()).isEqualTo("오늘은 산뜻한 기분을 즐겨보세요.");
+        assertThat(response.moodType().characterQuote()).isEqualTo("기분 좋은 상큼함을 시작해요.");
+        assertThat(response.recommendedCocktails()).singleElement().satisfies(item -> {
+            assertThat(item.cocktailName()).isEqualTo("모히토");
+            assertThat(item.shortDescription()).isEqualTo("상쾌한 민트와 라임의 조화");
+            assertThat(item.ranking()).isEqualTo(1);
+            assertThat(item.matchScore()).isEqualTo(95);
+        });
+        assertThat(response.compatibilities().best().name()).isEqualTo("이상주의자");
+        assertThat(response.compatibilities().worst().name()).isEqualTo("현실주의자");
+    }
+
+    @Test
+    void returnsNullWhenWorstCompatibilityIsMissing() {
+        MoodTestResult result = org.mockito.Mockito.mock(MoodTestResult.class);
+        MoodType moodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodType bestMoodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodTypeCompatibility bestCompatibility = org.mockito.Mockito.mock(
+                MoodTypeCompatibility.class
+        );
+
+        when(result.getMoodType()).thenReturn(moodType);
+        when(result.toTasteProfile()).thenReturn(tasteProfile("3.0", "3.0", "3.0", "3.0", "3.0"));
+        when(moodType.getId()).thenReturn(3L);
+        when(moodType.toTasteProfile()).thenReturn(tasteProfile("3.0", "3.0", "3.0", "3.0", "3.0"));
+        when(bestCompatibility.getCompatibilityType()).thenReturn(CompatibilityType.BEST);
+        when(bestCompatibility.getTargetMoodType()).thenReturn(bestMoodType);
+        when(bestMoodType.getId()).thenReturn(4L);
+        when(bestMoodType.getCode()).thenReturn("BEST_TYPE");
+        when(bestMoodType.getName()).thenReturn("이상주의자");
+        when(moodTestResultRepository.findDetailByIdAndUserId(10L, USER_ID))
+                .thenReturn(Optional.of(result));
+        when(recommendationRepository.findByTestResult(
+                USER_ID,
+                10L,
+                RecommendationSessionType.TEST_RESULT
+        )).thenReturn(List.of());
+        when(moodTypeCompatibilityRepository.findAllByMoodTypeId(3L))
+                .thenReturn(List.of(bestCompatibility));
+
+        var response = historyService.getTestResultDetail(USER_ID, 10L);
+
+        assertThat(response.compatibilities().best().name()).isEqualTo("이상주의자");
+        assertThat(response.compatibilities().worst()).isNull();
+    }
+
+    @Test
     void rejectsNonPositiveResourceIdBeforeQueryingRepository() {
         assertThatThrownBy(() -> historyService.getDetail(USER_ID, 0L))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
@@ -577,5 +730,37 @@ class HistoryServiceTest {
         when(cocktail.getShortDescription()).thenReturn(shortDescription);
         when(cocktail.getAlcoholDegree()).thenReturn(alcoholDegree);
         return cocktail;
+    }
+
+    private HistoryRepository.MonthlyDrinkingRecordSummary monthlyRecord(
+            LocalDate recordDate,
+            Long recordId,
+            Long cocktailId,
+            String cocktailName
+    ) {
+        HistoryRepository.MonthlyDrinkingRecordSummary record = org.mockito.Mockito.mock(
+                HistoryRepository.MonthlyDrinkingRecordSummary.class
+        );
+        when(record.getRecordDate()).thenReturn(recordDate);
+        when(record.getRecordId()).thenReturn(recordId);
+        when(record.getCocktailId()).thenReturn(cocktailId);
+        when(record.getCocktailName()).thenReturn(cocktailName);
+        return record;
+    }
+
+    private TasteProfile tasteProfile(
+            String alcoholIntensity,
+            String sweetness,
+            String sourness,
+            String refreshing,
+            String bitterness
+    ) {
+        return TasteProfile.of(
+                new BigDecimal(alcoholIntensity),
+                new BigDecimal(sweetness),
+                new BigDecimal(sourness),
+                new BigDecimal(refreshing),
+                new BigDecimal(bitterness)
+        );
     }
 }

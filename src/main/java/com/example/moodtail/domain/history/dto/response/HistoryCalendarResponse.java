@@ -21,7 +21,18 @@ public record HistoryCalendarResponse(
     public record MonthlyTestResult(
             Long resultId,
             LocalDate resultDate,
-            MoodType moodType
+            MoodType moodType,
+            List<DrinkingRecordSummary> drinkingRecords
+    ) {
+        public MonthlyTestResult {
+            drinkingRecords = List.copyOf(drinkingRecords);
+        }
+    }
+
+    public record DrinkingRecordSummary(
+            Long recordId,
+            Long cocktailId,
+            String cocktailName
     ) {
     }
 
