@@ -34,20 +34,24 @@ public interface HistoryRepository extends JpaRepository<DrinkingRecord, Long> {
             Long recordId
     );
 
+    long countByUserIdAndRecordDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
+
     @Query("""
-            select record.recordDate
+            select record.recordDate as recordDate,
+                   record.id as recordId,
+                   cocktail.id as cocktailId,
+                   cocktail.nameKo as cocktailName
               from DrinkingRecord record
+              join record.cocktail cocktail
              where record.user.id = :userId
                and record.recordDate between :startDate and :endDate
-             order by record.recordDate
+             order by record.recordDate desc, record.recordedAt, record.id
             """)
-    List<LocalDate> findRecordDates(
+    List<MonthlyDrinkingRecordSummary> findMonthlyDrinkingRecordSummaries(
             @Param("userId") Long userId,
             @Param("startDate") LocalDate startDate,
             @Param("endDate") LocalDate endDate
     );
-
-    long countByUserIdAndRecordDateBetween(Long userId, LocalDate startDate, LocalDate endDate);
 
     @Query("""
             select cocktail.id as cocktailId,
@@ -126,5 +130,15 @@ public interface HistoryRepository extends JpaRepository<DrinkingRecord, Long> {
         String getImageUrl();
 
         long getRecordCount();
+    }
+
+    interface MonthlyDrinkingRecordSummary {
+        LocalDate getRecordDate();
+
+        Long getRecordId();
+
+        Long getCocktailId();
+
+        String getCocktailName();
     }
 }

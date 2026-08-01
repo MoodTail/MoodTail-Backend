@@ -90,7 +90,16 @@ class HistoryControllerTest {
                 0,
                 5,
                 false,
-                List.of(),
+                List.of(new HistoryCalendarResponse.MonthlyTestResult(
+                        10L,
+                        LocalDate.of(2026, 7, 5),
+                        null,
+                        List.of(new HistoryCalendarResponse.DrinkingRecordSummary(
+                                31L,
+                                10L,
+                                "모히또"
+                        ))
+                )),
                 List.of(new HistoryCalendarResponse.Day(
                         LocalDate.of(2026, 7, 8),
                         false,
@@ -129,9 +138,82 @@ class HistoryControllerTest {
                 new HistoryTestResultDetailResponse(
                         10L,
                         LocalDate.of(2026, 7, 5),
-                        null,
-                        null,
-                        List.of()
+                        new HistoryTestResultDetailResponse.MoodType(
+                                1L,
+                                "TYPE01",
+                                "낭만주의자",
+                                "작은 순간도 특별한 추억으로 만드는 타입",
+                                "오늘은 잔잔한 여유가 어울리는 날이에요.",
+                                "재밌으면 그걸로 충분한 거 아닐까?!",
+                                "https://cdn.example/type01.png",
+                                new HistoryTestResultDetailResponse.DisplayTasteScores(
+                                        50,
+                                        75,
+                                        25,
+                                        75,
+                                        25
+                                )
+                        ),
+                        new HistoryTestResultDetailResponse.TasteProfile(
+                                new BigDecimal("2.8"),
+                                new BigDecimal("4.1"),
+                                new BigDecimal("2.5"),
+                                new BigDecimal("3.8"),
+                                new BigDecimal("1.7")
+                        ),
+                        new HistoryTestResultDetailResponse.DisplayTasteScores(
+                                45,
+                                78,
+                                38,
+                                70,
+                                18
+                        ),
+                        List.of(
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        10L,
+                                        "모히또",
+                                        "상쾌한 민트와 라임의 조화",
+                                        "https://cdn.example/mojito.png",
+                                        1,
+                                        95
+                                ),
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        11L,
+                                        "선셋 피즈",
+                                        "청량한 과일 향이 어우러진 칵테일",
+                                        "https://cdn.example/sunset-fizz.png",
+                                        2,
+                                        81
+                                ),
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        12L,
+                                        "피냐 콜라다",
+                                        "달콤한 열대 과일 풍미의 칵테일",
+                                        "https://cdn.example/pina-colada.png",
+                                        3,
+                                        68
+                                ),
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        13L,
+                                        "진토닉",
+                                        "쌉쌀하고 청량한 맛의 칵테일",
+                                        "https://cdn.example/gin-tonic.png",
+                                        4,
+                                        55
+                                )
+                        ),
+                        new HistoryTestResultDetailResponse.Compatibilities(
+                                new HistoryTestResultDetailResponse.CompatibleMoodType(
+                                        2L,
+                                        "TYPE02",
+                                        "이상주의자"
+                                ),
+                                new HistoryTestResultDetailResponse.CompatibleMoodType(
+                                        3L,
+                                        "TYPE03",
+                                        "현실주의자"
+                                )
+                        )
                 )
         );
 
@@ -141,7 +223,13 @@ class HistoryControllerTest {
                 .andExpect(jsonPath("$.result.days[0].date").value("2026-07-08"))
                 .andExpect(jsonPath("$.result.days[0].hasTestResult").value(false))
                 .andExpect(jsonPath("$.result.days[0].hasDrinkingRecord").value(false))
-                .andExpect(jsonPath("$.result.days[0].photoCount").value(2));
+                .andExpect(jsonPath("$.result.days[0].photoCount").value(2))
+                .andExpect(jsonPath("$.result.testResults[0].drinkingRecords[0].recordId")
+                        .value(31))
+                .andExpect(jsonPath("$.result.testResults[0].drinkingRecords[0].cocktailId")
+                        .value(10))
+                .andExpect(jsonPath("$.result.testResults[0].drinkingRecords[0].cocktailName")
+                        .value("모히또"));
         mockMvc.perform(get("/api/v1/history/dates/2026-07-05"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.date").value("2026-07-05"))
@@ -159,7 +247,22 @@ class HistoryControllerTest {
                 .andExpect(jsonPath("$.result.recordId").value(31));
         mockMvc.perform(get("/api/v1/history/test-results/10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.resultId").value(10));
+                .andExpect(jsonPath("$.result.resultId").value(10))
+                .andExpect(jsonPath("$.result.displayTasteScores.alcoholIntensity").value(45))
+                .andExpect(jsonPath("$.result.moodType.displayTasteScores.sweetness").value(75))
+                .andExpect(jsonPath("$.result.moodType.shortDescription")
+                        .value("작은 순간도 특별한 추억으로 만드는 타입"))
+                .andExpect(jsonPath("$.result.moodType.characterQuote")
+                        .value("재밌으면 그걸로 충분한 거 아닐까?!"))
+                .andExpect(jsonPath("$.result.moodType.description")
+                        .value("오늘은 잔잔한 여유가 어울리는 날이에요."))
+                .andExpect(jsonPath("$.result.recommendedCocktails.length()").value(4))
+                .andExpect(jsonPath("$.result.recommendedCocktails[0].shortDescription")
+                        .value("상쾌한 민트와 라임의 조화"))
+                .andExpect(jsonPath("$.result.recommendedCocktails[0].ranking").value(1))
+                .andExpect(jsonPath("$.result.recommendedCocktails[3].ranking").value(4))
+                .andExpect(jsonPath("$.result.compatibilities.best.name").value("이상주의자"))
+                .andExpect(jsonPath("$.result.compatibilities.worst.name").value("현실주의자"));
     }
 
     @Test
