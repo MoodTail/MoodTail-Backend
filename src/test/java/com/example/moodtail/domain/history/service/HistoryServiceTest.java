@@ -676,6 +676,40 @@ class HistoryServiceTest {
     }
 
     @Test
+    void returnsNullWhenWorstCompatibilityIsMissing() {
+        MoodTestResult result = org.mockito.Mockito.mock(MoodTestResult.class);
+        MoodType moodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodType bestMoodType = org.mockito.Mockito.mock(MoodType.class);
+        MoodTypeCompatibility bestCompatibility = org.mockito.Mockito.mock(
+                MoodTypeCompatibility.class
+        );
+
+        when(result.getMoodType()).thenReturn(moodType);
+        when(result.toTasteProfile()).thenReturn(tasteProfile("3.0", "3.0", "3.0", "3.0", "3.0"));
+        when(moodType.getId()).thenReturn(3L);
+        when(moodType.toTasteProfile()).thenReturn(tasteProfile("3.0", "3.0", "3.0", "3.0", "3.0"));
+        when(bestCompatibility.getCompatibilityType()).thenReturn(CompatibilityType.BEST);
+        when(bestCompatibility.getTargetMoodType()).thenReturn(bestMoodType);
+        when(bestMoodType.getId()).thenReturn(4L);
+        when(bestMoodType.getCode()).thenReturn("BEST_TYPE");
+        when(bestMoodType.getName()).thenReturn("이상주의자");
+        when(moodTestResultRepository.findDetailByIdAndUserId(10L, USER_ID))
+                .thenReturn(Optional.of(result));
+        when(recommendationRepository.findByTestResult(
+                USER_ID,
+                10L,
+                RecommendationSessionType.TEST_RESULT
+        )).thenReturn(List.of());
+        when(moodTypeCompatibilityRepository.findAllByMoodTypeId(3L))
+                .thenReturn(List.of(bestCompatibility));
+
+        var response = historyService.getTestResultDetail(USER_ID, 10L);
+
+        assertThat(response.compatibilities().best().name()).isEqualTo("이상주의자");
+        assertThat(response.compatibilities().worst()).isNull();
+    }
+
+    @Test
     void rejectsNonPositiveResourceIdBeforeQueryingRepository() {
         assertThatThrownBy(() -> historyService.getDetail(USER_ID, 0L))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
