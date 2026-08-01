@@ -56,6 +56,8 @@ class MonthlyReportServiceTest {
     void aggregatesMonthlyReportAndPreviousMonthComparison() {
         MoodType firstMoodType = moodType(1L, "FRESH_SPARK", "상큼주의자");
         MoodType secondMoodType = moodType(2L, "CALM_DEPTH", "차분주의자");
+        when(firstMoodType.getShortDescription()).thenReturn("작은 순간도 특별하게 즐기는 타입");
+        when(firstMoodType.getCharacterQuote()).thenReturn("재밌으면 그걸로 충분한 거 아닐까?!");
         List<MoodTestResult> currentResults = List.of(
                 result(firstMoodType, "3.0", "2.0", "4.0", "5.0", "1.0"),
                 result(secondMoodType, "4.0", "3.0", "3.0", "4.0", "2.0"),
@@ -95,6 +97,10 @@ class MonthlyReportServiceTest {
         var response = monthlyReportService.getMonthlyReport(USER_ID, 2026, 7);
 
         assertThat(response.monthlyMoodType().moodTypeId()).isEqualTo(1L);
+        assertThat(response.monthlyMoodType().shortDescription())
+                .isEqualTo("작은 순간도 특별하게 즐기는 타입");
+        assertThat(response.monthlyMoodType().characterQuote())
+                .isEqualTo("재밌으면 그걸로 충분한 거 아닐까?!");
         assertThat(response.topMoodTypes()).extracting(type -> type.moodTypeId(), type -> type.count())
                 .containsExactly(
                         org.assertj.core.groups.Tuple.tuple(1L, 3L),
@@ -104,6 +110,10 @@ class MonthlyReportServiceTest {
         assertThat(response.displayAverageTasteScores().alcoholIntensity()).isEqualTo(60);
         assertThat(response.previousMonthTasteProfile().alcoholIntensity()).isEqualByComparingTo("2.0");
         assertThat(response.previousMonthDisplayTasteScores().alcoholIntensity()).isEqualTo(25);
+        assertThat(response.frequentCocktails()).singleElement().satisfies(cocktail -> {
+            assertThat(cocktail.count()).isEqualTo(3L);
+            assertThat(cocktail.recordPercentage()).isEqualTo(75);
+        });
         assertThat(response.activity().testCount()).isEqualTo(5);
         assertThat(response.activity().drinkingRecordCount()).isEqualTo(4);
     }
@@ -155,11 +165,12 @@ class MonthlyReportServiceTest {
 
         assertThat(response.frequentCocktails()).extracting(
                 item -> item.cocktailId(),
-                item -> item.ranking()
+                item -> item.ranking(),
+                item -> item.recordPercentage()
         ).containsExactly(
-                org.assertj.core.groups.Tuple.tuple(1L, 1),
-                org.assertj.core.groups.Tuple.tuple(2L, 1),
-                org.assertj.core.groups.Tuple.tuple(3L, 3)
+                org.assertj.core.groups.Tuple.tuple(1L, 1, 43),
+                org.assertj.core.groups.Tuple.tuple(2L, 1, 43),
+                org.assertj.core.groups.Tuple.tuple(3L, 3, 14)
         );
     }
 
@@ -221,6 +232,14 @@ class MonthlyReportServiceTest {
                 LocalDate.of(2026, 6, 1),
                 LocalDate.of(2026, 6, 30)
         )).thenReturn(List.of());
+        long drinkingRecordCount = cocktails.stream()
+                .mapToLong(HistoryRepository.FrequentCocktail::getRecordCount)
+                .sum();
+        when(historyRepository.countByUserIdAndRecordDateBetween(
+                USER_ID,
+                LocalDate.of(2026, 7, 1),
+                LocalDate.of(2026, 7, 11)
+        )).thenReturn(drinkingRecordCount);
         when(historyRepository.findFrequentCocktails(
                 eq(USER_ID),
                 eq(LocalDate.of(2026, 7, 1)),

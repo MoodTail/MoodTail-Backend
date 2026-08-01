@@ -77,7 +77,8 @@ public class MonthlyReportService {
                         currentRange.startDate(),
                         currentRange.endDate(),
                         PageRequest.of(0, TOP_COCKTAIL_LIMIT)
-                )
+                ),
+                drinkingRecordCount
         );
 
         return new MonthlyReportResponse(
@@ -192,6 +193,7 @@ public class MonthlyReportService {
                 moodType.getCode(),
                 moodType.getName(),
                 moodType.getShortDescription(),
+                moodType.getCharacterQuote(),
                 imageUrl(moodType.getCharacterImage())
         );
     }
@@ -220,7 +222,8 @@ public class MonthlyReportService {
     }
 
     private List<MonthlyReportResponse.FrequentCocktail> toFrequentCocktails(
-            List<HistoryRepository.FrequentCocktail> cocktails
+            List<HistoryRepository.FrequentCocktail> cocktails,
+            long drinkingRecordCount
     ) {
         List<MonthlyReportResponse.FrequentCocktail> rankedCocktails = new ArrayList<>();
         long previousCount = -1;
@@ -238,10 +241,21 @@ public class MonthlyReportService {
                     cocktail.getShortDescription(),
                     cocktail.getImageUrl(),
                     cocktail.getRecordCount(),
+                    toRecordPercentage(cocktail.getRecordCount(), drinkingRecordCount),
                     ranking
             ));
         }
         return List.copyOf(rankedCocktails);
+    }
+
+    private int toRecordPercentage(long recordCount, long totalRecordCount) {
+        if (totalRecordCount == 0) {
+            return 0;
+        }
+        return BigDecimal.valueOf(recordCount)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(totalRecordCount), 0, RoundingMode.HALF_UP)
+                .intValue();
     }
 
     private String imageUrl(Image image) {

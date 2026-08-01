@@ -19,7 +19,101 @@ import org.springframework.web.multipart.MultipartFile;
 public interface MonthlyReportControllerDocs {
 
     String MONTHLY_REPORT_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"year":2026,"month":7,"monthlyMoodType":{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","shortDescription":"부드러운 달콤함 속에서 여유를 즐기는 타입","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png"},"topMoodTypes":[{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png","count":2,"ranking":1},{"moodTypeId":2002,"typeCode":"TYPE02","name":"반짝이는 모험가","characterImageUrl":"https://cdn.moodtail.com/mood-types/type02.png","count":2,"ranking":1},{"moodTypeId":2003,"typeCode":"TYPE03","name":"차분한 사색가","characterImageUrl":"https://cdn.moodtail.com/mood-types/type03.png","count":1,"ranking":3}],"averageTasteProfile":{"alcoholIntensity":2.8,"sweetness":4.1,"sourness":2.5,"refreshing":3.8,"bitterness":1.7},"displayAverageTasteScores":{"alcoholIntensity":45,"sweetness":78,"sourness":38,"refreshing":70,"bitterness":18},"previousMonthTasteProfile":null,"previousMonthDisplayTasteScores":null,"frequentCocktails":[{"cocktailId":10,"nameKo":"모히또","nameEn":"Mojito","shortDescription":"상쾌한 민트와 라임의 조화","imageUrl":"https://cdn.moodtail.com/cocktails/mojito.png","count":2,"ranking":1},{"cocktailId":11,"nameKo":"보드카 토닉","nameEn":"Vodka Tonic","shortDescription":"깔끔한 보드카와 토닉워터의 조화","imageUrl":"https://cdn.moodtail.com/cocktails/vodka-tonic.png","count":2,"ranking":1},{"cocktailId":12,"nameKo":"진 토닉","nameEn":"Gin Tonic","shortDescription":"향긋한 진과 토닉워터의 조화","imageUrl":"https://cdn.moodtail.com/cocktails/gin-tonic.png","count":1,"ranking":3}],"activity":{"testCount":5,"drinkingRecordCount":5}}}
+            {
+              "timestamp": "2026-07-24T14:30:00",
+              "code": "COMMON200",
+              "message": "요청에 성공했습니다.",
+              "result": {
+                "year": 2026,
+                "month": 7,
+                "monthlyMoodType": {
+                  "moodTypeId": 2001,
+                  "typeCode": "TYPE01",
+                  "name": "몽글몽글 낭만파",
+                  "shortDescription": "부드러운 달콤함 속에서 여유를 즐기는 타입",
+                  "characterQuote": "천천히 즐겨도 괜찮아요.",
+                  "characterImageUrl": "https://cdn.moodtail.com/mood-types/type01.png"
+                },
+                "topMoodTypes": [
+                  {
+                    "moodTypeId": 2001,
+                    "typeCode": "TYPE01",
+                    "name": "몽글몽글 낭만파",
+                    "characterImageUrl": "https://cdn.moodtail.com/mood-types/type01.png",
+                    "count": 2,
+                    "ranking": 1
+                  },
+                  {
+                    "moodTypeId": 2002,
+                    "typeCode": "TYPE02",
+                    "name": "반짝이는 모험가",
+                    "characterImageUrl": "https://cdn.moodtail.com/mood-types/type02.png",
+                    "count": 2,
+                    "ranking": 1
+                  },
+                  {
+                    "moodTypeId": 2003,
+                    "typeCode": "TYPE03",
+                    "name": "차분한 사색가",
+                    "characterImageUrl": "https://cdn.moodtail.com/mood-types/type03.png",
+                    "count": 1,
+                    "ranking": 3
+                  }
+                ],
+                "averageTasteProfile": {
+                  "alcoholIntensity": 2.8,
+                  "sweetness": 4.1,
+                  "sourness": 2.5,
+                  "refreshing": 3.8,
+                  "bitterness": 1.7
+                },
+                "displayAverageTasteScores": {
+                  "alcoholIntensity": 45,
+                  "sweetness": 78,
+                  "sourness": 38,
+                  "refreshing": 70,
+                  "bitterness": 18
+                },
+                "previousMonthTasteProfile": null,
+                "previousMonthDisplayTasteScores": null,
+                "frequentCocktails": [
+                  {
+                    "cocktailId": 10,
+                    "nameKo": "모히또",
+                    "nameEn": "Mojito",
+                    "shortDescription": "상쾌한 민트와 라임의 조화",
+                    "imageUrl": "https://cdn.moodtail.com/cocktails/mojito.png",
+                    "count": 2,
+                    "recordPercentage": 40,
+                    "ranking": 1
+                  },
+                  {
+                    "cocktailId": 11,
+                    "nameKo": "보드카 토닉",
+                    "nameEn": "Vodka Tonic",
+                    "shortDescription": "깔끔한 보드카와 토닉워터의 조화",
+                    "imageUrl": "https://cdn.moodtail.com/cocktails/vodka-tonic.png",
+                    "count": 2,
+                    "recordPercentage": 40,
+                    "ranking": 1
+                  },
+                  {
+                    "cocktailId": 12,
+                    "nameKo": "진 토닉",
+                    "nameEn": "Gin Tonic",
+                    "shortDescription": "향긋한 진과 토닉워터의 조화",
+                    "imageUrl": "https://cdn.moodtail.com/cocktails/gin-tonic.png",
+                    "count": 1,
+                    "recordPercentage": 20,
+                    "ranking": 3
+                  }
+                ],
+                "activity": {
+                  "testCount": 5,
+                  "drinkingRecordCount": 5
+                }
+              }
+            }
             """;
     String SHARE_IMAGE_SUCCESS_EXAMPLE = """
             {"timestamp":"2026-07-24T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"shareImageUrl":"https://moodtail.s3.ap-northeast-2.amazonaws.com/reports/monthly/share-image.png"}}
@@ -76,6 +170,11 @@ public interface MonthlyReportControllerDocs {
             description = "지정 월의 테스트 결과와 음주 기록을 집계합니다. 해당 월 테스트 결과가 5건 "
                     + "이상이어야 하며 미래 월은 조회할 수 없습니다. topMoodTypes는 1~3개, "
                     + "frequentCocktails는 0~3개이고 공동 순위는 1, 1, 3처럼 반환될 수 있습니다. "
+                    + "frequentCocktails의 recordPercentage는 해당 칵테일 기록 수를 그 달의 전체 음주 기록 "
+                    + "수로 나눈 뒤 반올림한 정수 비율이며, count와 함께 반환됩니다. 항목별로 반올림하므로 "
+                    + "목록의 비율 합계는 정확히 100이 아닐 수 있습니다. "
+                    + "monthlyMoodType은 대표 카드의 이미지·이름·두 문구를 제공하고, 동일 moodTypeId인 "
+                    + "topMoodTypes 항목에서 대표 타입의 순위와 횟수를 확인할 수 있습니다. "
                     + "맛 원본 점수는 1.0~5.0, display 점수는 0~100입니다. 이전 달 테스트 결과가 없으면 "
                     + "previousMonthTasteProfile과 previousMonthDisplayTasteScores는 null입니다. "
                     + "이미지 URL도 등록 상태에 따라 null일 수 있습니다."

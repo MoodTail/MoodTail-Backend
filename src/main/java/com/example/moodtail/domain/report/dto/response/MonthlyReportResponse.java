@@ -25,6 +25,7 @@ public record MonthlyReportResponse(
             String typeCode,
             String name,
             String shortDescription,
+            String characterQuote,
             String characterImageUrl
     ) {
     }
@@ -64,6 +65,7 @@ public record MonthlyReportResponse(
             String shortDescription,
             String imageUrl,
             long count,
+            int recordPercentage,
             int ranking
     ) {
     }
