@@ -455,21 +455,33 @@ public interface HistoryControllerDocs {
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = CALENDAR_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON405/HISTORY400 - 누락·타입 오류 또는 유효하지 않은 연도·월",
+                    description = """
+                            COMMON402 - year 또는 month 필수 요청 값 누락
+                            COMMON405 - year 또는 month 타입 변환 실패
+                            HISTORY400 - 지원 범위 밖의 연도·월 또는 미래 월 요청
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
                             @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
@@ -502,14 +514,22 @@ public interface HistoryControllerDocs {
                     description = "HISTORY400 - 날짜 형식 오류, MySQL 지원 범위 밖 또는 미래 날짜",
                     content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
@@ -528,11 +548,13 @@ public interface HistoryControllerDocs {
     @Operation(
             operationId = "getTestResultDetail",
             summary = "저장된 테스트 결과 상세 조회",
-            description = "본인의 테스트 결과에 저장된 무드 타입, 1~5 맛 프로필, 화면 표시용 0~100 맛 점수, "
+            description = "월간 히스토리의 testResults[].resultId 또는 날짜별 히스토리의 "
+                    + "testResult.resultId를 이 API의 resultId로 사용합니다. 본인의 테스트 결과에 저장된 "
+                    + "무드 타입, 1~5 맛 프로필, 화면 표시용 0~100 맛 점수, "
                     + "당시 추천 칵테일과 타입 궁합을 조회합니다. moodType.displayTasteScores는 타입 기준, "
                     + "최상위 displayTasteScores는 사용자 결과 기준입니다. 궁합 데이터가 없는 항목은 null이며, "
                     + "moodType.shortDescription·description·characterQuote는 저장 당시 무드 타입의 설명 문구입니다. "
-                    + "recommendedCocktails[].shortDescription은 칵테일 카드의 보조 스타일 문구에 사용합니다. "
+                    + "recommendedCocktails[].shortDescription은 칵테일 카드의 한줄 설명입니다. "
                     + "recommendedCocktails는 ranking 오름차순으로 반환되며 정상 저장된 테스트 결과는 "
                     + "4개입니다. 존재하지 않거나 다른 회원 소유인 결과는 동일하게 HISTORY_TEST404를 "
                     + "반환합니다."
@@ -544,17 +566,31 @@ public interface HistoryControllerDocs {
                             name = "COMMON200",
                             value = TEST_RESULT_DETAIL_SUCCESS_EXAMPLE
                     ))),
-            @ApiResponse(responseCode = "400", description = "HISTORY400 - 0 이하의 테스트 결과 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = """
+                            COMMON405 - resultId 타입 변환 실패
+                            HISTORY400 - 0 이하의 테스트 결과 ID
+                            """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
+                    })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
@@ -592,17 +628,31 @@ public interface HistoryControllerDocs {
                             name = "COMMON200",
                             value = DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE
                     ))),
-            @ApiResponse(responseCode = "400", description = "HISTORY400 - 0 이하의 음주 기록 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = """
+                            COMMON405 - recordId 타입 변환 실패
+                            HISTORY400 - 0 이하의 음주 기록 ID
+                            """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
+                    })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
@@ -636,21 +686,33 @@ public interface HistoryControllerDocs {
                             value = DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/HISTORY400 - 필드·JSON·날짜 오류",
+                    description = """
+                            COMMON402 - cocktailIds 또는 recordDate 필수 값 누락·검증 실패
+                            COMMON406 - 요청 본문 JSON 형식 오류
+                            HISTORY400 - 빈 칵테일 목록 또는 지원 범위 밖·미래 날짜
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
                             @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
@@ -685,27 +747,44 @@ public interface HistoryControllerDocs {
                             value = DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "COMMON402/COMMON406/HISTORY400 - ID·JSON·빈 수정 요청·날짜 오류",
+                    description = """
+                            COMMON402 - 요청 필드 검증 실패
+                            COMMON405 - recordId 타입 변환 실패
+                            COMMON406 - 요청 본문 JSON 형식 오류
+                            HISTORY400 - 0 이하의 ID, 빈 수정 요청 또는 지원 범위 밖·미래 날짜
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
+                            @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE),
                             @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
                             @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "404", description = "HISTORY404/COCKTAIL404 - 기록 또는 칵테일 없음",
+            @ApiResponse(responseCode = "404", description = """
+                            HISTORY404 - 음주 기록 없음 또는 다른 회원 소유
+                            COCKTAIL404 - 변경하려는 칵테일 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "HISTORY404", value = HISTORY404_EXAMPLE),
                             @ExampleObject(name = "COCKTAIL404", value = COCKTAIL404_EXAMPLE)
@@ -733,17 +812,31 @@ public interface HistoryControllerDocs {
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 삭제 성공",
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400", description = "HISTORY400 - 0 이하의 음주 기록 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = """
+                            COMMON405 - recordId 타입 변환 실패
+                            HISTORY400 - 0 이하의 음주 기록 ID
+                            """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
+                    })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
@@ -901,17 +994,31 @@ public interface HistoryControllerDocs {
             @ApiResponse(responseCode = "200", description = "COMMON200 - 히스토리 사진 삭제 성공",
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400", description = "HISTORY400 - 날짜 형식 오류 또는 0 이하의 사진 ID",
-                    content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
+            @ApiResponse(responseCode = "400", description = """
+                            COMMON405 - photoId 타입 변환 실패
+                            HISTORY400 - 날짜 형식 오류 또는 0 이하의 사진 ID
+                            """,
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON405", value = COMMON405_EXAMPLE),
+                            @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE)
+                    })),
             @ApiResponse(responseCode = "401",
-                    description = "COMMON401/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    description = """
+                            COMMON401 - 인증 정보 없음
+                            AUTH006 - 유효하지 않거나 만료된 Access Token
+                            AUTH010 - 토큰의 사용자를 찾을 수 없음
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
                             @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
                             @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
                     })),
             @ApiResponse(responseCode = "403",
-                    description = "AUTH009/AUTH020/AUTH027 - 회원 권한 또는 사용자 상태 오류",
+                    description = """
+                            AUTH009 - 회원 역할이 아닌 사용자
+                            AUTH020 - 비활성 또는 탈퇴 사용자
+                            AUTH027 - 게스트 사용자 접근
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
                             @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
