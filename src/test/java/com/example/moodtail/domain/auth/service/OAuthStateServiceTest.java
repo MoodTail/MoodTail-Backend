@@ -1,6 +1,5 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
 import com.example.moodtail.domain.auth.model.OAuthState;
 import com.example.moodtail.global.auth.model.SocialProvider;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -36,7 +35,6 @@ class OAuthStateServiceTest {
     private static final String EXPIRED_STATE = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
     private static final String ANONYMOUS_STATE = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static final String MALFORMED_VERIFIER_STATE = "ccccccccccccccccccccccccccccccccccccccccccc";
-    private static final String VALID_STATE = "ddddddddddddddddddddddddddddddddddddddddddd";
     private static final String VALID_VERIFIER =
             "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_";
 
@@ -53,8 +51,8 @@ class OAuthStateServiceTest {
     }
 
     @Test
-    void issueStoresUnpredictableStateForGuestOwner() {
-        OAuthState state = service.issue(2L, "203.0.113.7", SocialProvider.KAKAO);
+    void issueStoresUnpredictableStateForAnonymousClient() {
+        OAuthState state = service.issue("203.0.113.7", SocialProvider.KAKAO);
 
         assertThat(state.value()).hasSize(43);
         assertThat(state.expiresInSeconds()).isEqualTo(300L);
@@ -62,8 +60,6 @@ class OAuthStateServiceTest {
         ArgumentCaptor<String> verifierCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisRepository).saveOAuthState(
                 stateCaptor.capture(),
-                eq("guest:2"),
-                eq(2L),
                 eq("KAKAO"),
                 verifierCaptor.capture(),
                 eq(Duration.ofMinutes(5))
@@ -75,19 +71,8 @@ class OAuthStateServiceTest {
     }
 
     @Test
-    void issueAllowsAnonymousOwnerWithoutGuestSession() {
-        OAuthState state = service.issue(null, "203.0.113.7", SocialProvider.GOOGLE);
-
-        ArgumentCaptor<String> stateOwnerCaptor = ArgumentCaptor.forClass(String.class);
-        verify(redisRepository).saveOAuthState(
-                eq(state.value()),
-                stateOwnerCaptor.capture(),
-                eq(null),
-                eq("GOOGLE"),
-                anyString(),
-                eq(Duration.ofMinutes(5))
-        );
-        assertThat(stateOwnerCaptor.getValue()).isEqualTo("anonymous-state:" + state.value());
+    void issueUsesClientFingerprintForRateLimit() {
+        service.issue("203.0.113.7", SocialProvider.GOOGLE);
 
         ArgumentCaptor<String> rateOwnerCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisRepository).acquireOAuthStateSlot(
@@ -113,24 +98,22 @@ class OAuthStateServiceTest {
     }
 
     @Test
-    void consumeAllowsStateWithoutGuestOwner() {
+    void consumeReturnsStoredPkceVerifier() {
         when(redisRepository.consumeOAuthStateSession(ANONYMOUS_STATE, "GOOGLE"))
-                .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(null, VALID_VERIFIER)));
+                .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(VALID_VERIFIER)));
 
-        ConsumedOAuthState consumed = service.consumeForAuthentication(
+        String codeVerifier = service.consumeForAuthentication(
                 ANONYMOUS_STATE,
                 SocialProvider.GOOGLE
         );
 
-        assertThat(consumed.guestUserId()).isNull();
-        assertThat(consumed.codeVerifier()).isEqualTo(VALID_VERIFIER);
+        assertThat(codeVerifier).isEqualTo(VALID_VERIFIER);
     }
 
     @Test
     void consumeRejectsMalformedPersistedPkceVerifier() {
         when(redisRepository.consumeOAuthStateSession(MALFORMED_VERIFIER_STATE, "GOOGLE"))
                 .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(
-                        2L,
                         "012345678901234567890123456789012345678901+"
                 )));
 
@@ -143,23 +126,12 @@ class OAuthStateServiceTest {
     }
 
     @Test
-    void consumeReturnsStoredGuestOwnerAndVerifier() {
-        when(redisRepository.consumeOAuthStateSession(VALID_STATE, "GOOGLE"))
-                .thenReturn(Optional.of(new RedisRepository.OAuthStateSession(2L, VALID_VERIFIER)));
-
-        ConsumedOAuthState consumed = service.consumeForAuthentication(VALID_STATE, SocialProvider.GOOGLE);
-
-        assertThat(consumed.guestUserId()).isEqualTo(2L);
-        assertThat(consumed.codeVerifier()).isEqualTo(VALID_VERIFIER);
-    }
-
-    @Test
     void issueReturnsServiceUnavailableWhenRedisCannotStoreState() {
         org.mockito.Mockito.doThrow(new RedisConnectionFailureException("redis unavailable"))
                 .when(redisRepository)
-                .saveOAuthState(anyString(), eq("guest:2"), eq(2L), eq("GOOGLE"), anyString(), any());
+                .saveOAuthState(anyString(), eq("GOOGLE"), anyString(), any());
 
-        assertThatThrownBy(() -> service.issue(2L, "203.0.113.7", SocialProvider.GOOGLE))
+        assertThatThrownBy(() -> service.issue("203.0.113.7", SocialProvider.GOOGLE))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH028")
                 );
@@ -168,13 +140,13 @@ class OAuthStateServiceTest {
     @Test
     void issueRejectsRequestsBeyondConfiguredRateLimit() {
         when(redisRepository.acquireOAuthStateSlot(
-                "guest:2",
-                "GOOGLE",
-                10,
-                Duration.ofMinutes(1)
+                anyString(),
+                eq("GOOGLE"),
+                eq(10),
+                eq(Duration.ofMinutes(1))
         )).thenReturn(false);
 
-        assertThatThrownBy(() -> service.issue(2L, "203.0.113.7", SocialProvider.GOOGLE))
+        assertThatThrownBy(() -> service.issue("203.0.113.7", SocialProvider.GOOGLE))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH031")
                 );

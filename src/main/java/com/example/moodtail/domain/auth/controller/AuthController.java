@@ -21,10 +21,7 @@ import com.example.moodtail.domain.auth.dto.response.TokenResponse;
 import com.example.moodtail.domain.auth.model.AuthResult;
 import com.example.moodtail.domain.auth.service.AccountWithdrawalService;
 import com.example.moodtail.domain.auth.service.AuthService;
-import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.base.BaseResponse;
-import com.example.moodtail.global.common.exception.RestApiException;
-import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -72,14 +69,12 @@ public class AuthController implements AuthControllerDocs {
     @PostMapping("/oauth-states/{provider}")
     public BaseResponse<OAuthStateResponse> createOAuthState(
             @PathVariable String provider,
-            @AuthenticationPrincipal PrincipalDetails principal,
             HttpServletRequest request,
             HttpServletResponse response
     ) {
         preventCaching(response);
         return BaseResponse.onSuccess(authService.createOAuthState(
                 provider,
-                optionalGuestUserId(principal, request),
                 authHttpSupport.clientAddress(request)
         ));
     }
@@ -116,7 +111,6 @@ public class AuthController implements AuthControllerDocs {
     @PostMapping("/signup/local")
     public BaseResponse<LocalAuthResponse> localSignup(
             @Valid @RequestBody LocalSignupRequest request,
-            @AuthenticationPrincipal PrincipalDetails principal,
             HttpServletRequest httpRequest,
             HttpServletResponse response
     ) {
@@ -124,7 +118,6 @@ public class AuthController implements AuthControllerDocs {
         return authenticated(
                 authService.localSignup(
                         request,
-                        optionalGuestUserId(principal, httpRequest),
                         authHttpSupport.clientAddress(httpRequest)
                 ),
                 response
@@ -149,7 +142,6 @@ public class AuthController implements AuthControllerDocs {
     @PostMapping("/login/local")
     public BaseResponse<LocalAuthResponse> localLogin(
             @Valid @RequestBody LocalLoginRequest request,
-            @AuthenticationPrincipal PrincipalDetails principal,
             HttpServletRequest httpRequest,
             HttpServletResponse response
     ) {
@@ -157,7 +149,6 @@ public class AuthController implements AuthControllerDocs {
         return authenticated(
                 authService.localLogin(
                         request,
-                        optionalGuestUserId(principal, httpRequest),
                         authHttpSupport.clientAddress(httpRequest)
                 ),
                 response
@@ -267,20 +258,4 @@ public class AuthController implements AuthControllerDocs {
         response.setHeader(HttpHeaders.PRAGMA, "no-cache");
     }
 
-    private Long optionalGuestUserId(PrincipalDetails principal, HttpServletRequest request) {
-        if (principal == null) {
-            if (request.getHeader(HttpHeaders.AUTHORIZATION) != null) {
-                throw new RestApiException(AuthErrorStatus.INVALID_ACCESS_TOKEN);
-            }
-            return null;
-        }
-        return guestUserId(principal);
-    }
-
-    private Long guestUserId(PrincipalDetails principal) {
-        if (UserRole.GUEST.name().equals(principal.getRole())) {
-            return principal.getUserId();
-        }
-        throw new RestApiException(AuthErrorStatus.INVALID_ROLE);
-    }
 }

@@ -18,7 +18,6 @@ import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationRe
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
 import com.example.moodtail.domain.auth.model.Consent;
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
 import com.example.moodtail.domain.auth.model.GuestLoginUser;
 import com.example.moodtail.domain.auth.model.AuthResult;
 import com.example.moodtail.domain.auth.model.LocalAuthenticationResult;
@@ -98,12 +97,11 @@ public class AuthService {
 
     public OAuthStateResponse createOAuthState(
             String providerName,
-            Long guestUserId,
             String clientAddress
     ) {
         SocialProvider provider = parseSocialProvider(providerName);
         findEnabledOAuthClient(provider);
-        return OAuthStateResponse.from(oAuthStateService.issue(guestUserId, clientAddress, provider));
+        return OAuthStateResponse.from(oAuthStateService.issue(clientAddress, provider));
     }
 
     public AuthResult<SocialLoginResponse> socialLogin(
@@ -111,29 +109,23 @@ public class AuthService {
             SocialLoginRequest request
     ) {
         SocialProvider provider = parseSocialProvider(providerName);
-        SocialProfileAuthentication authentication = authenticateSocial(
+        SocialUserProfile profile = authenticateSocial(
                 provider,
                 request.authorizationCode(),
                 request.redirectUri(),
                 request.state()
         );
 
-        Optional<SocialAuthenticationResult> existingLogin = socialAccountService.loginExisting(
-                authentication.profile(),
-                authentication.guestUserId()
-        );
+        Optional<SocialAuthenticationResult> existingLogin = socialAccountService.loginExisting(profile);
         if (existingLogin.isPresent()) {
             return completedSocialAuthentication(existingLogin.get(), false);
         }
 
-        SocialSignupTicket signupTicket = socialSignupSessionService.issue(
-                authentication.profile(),
-                authentication.guestUserId()
-        );
+        SocialSignupTicket signupTicket = socialSignupSessionService.issue(profile);
         return new AuthResult<>(
                 SocialLoginResponse.signupRequired(
-                        authentication.profile().email(),
-                        authentication.profile().provider(),
+                        profile.email(),
+                        profile.provider(),
                         signupTicket.value(),
                         signupTicket.expiresInSeconds()
                 ),
@@ -153,7 +145,6 @@ public class AuthService {
         );
         SocialAuthenticationResult completedSignup = socialAccountService.register(
                 profile,
-                signupSession.guestUserId(),
                 agreedTerms
         );
         return completedSocialAuthentication(completedSignup, true);
@@ -161,7 +152,6 @@ public class AuthService {
 
     public AuthResult<LocalAuthResponse> localSignup(
             LocalSignupRequest request,
-            Long guestUserId,
             String clientAddress
     ) {
         localAuthRateLimiter.checkSignup(clientAddress);
@@ -170,8 +160,7 @@ public class AuthService {
                 request.password(),
                 request.passwordConfirm(),
                 request.nickname(),
-                toConsents(request.agreements()),
-                guestUserId
+                toConsents(request.agreements())
         );
         return new AuthResult<>(
                 LocalAuthResponse.of(
@@ -187,14 +176,12 @@ public class AuthService {
 
     public AuthResult<LocalAuthResponse> localLogin(
             LocalLoginRequest request,
-            Long guestUserId,
             String clientAddress
     ) {
         localAuthRateLimiter.checkLogin(clientAddress);
         LocalAuthenticationResult completed = localAccountService.login(
                 request.email(),
-                request.password(),
-                guestUserId
+                request.password()
         );
         return new AuthResult<>(
                 LocalAuthResponse.of(
@@ -283,7 +270,7 @@ public class AuthService {
         return oAuthClient;
     }
 
-    private SocialProfileAuthentication authenticateSocial(
+    private SocialUserProfile authenticateSocial(
             SocialProvider provider,
             String authorizationCode,
             String redirectUri,
@@ -291,17 +278,17 @@ public class AuthService {
     ) {
         OAuthClient oAuthClient = findEnabledOAuthClient(provider);
         oAuthClient.validateAuthorizationRequest(authorizationCode, redirectUri);
-        ConsumedOAuthState consumedState = oAuthStateService.consumeForAuthentication(
+        String codeVerifier = oAuthStateService.consumeForAuthentication(
                 state,
                 provider
         );
         SocialUserProfile profile = oAuthClient.requestUserProfile(
                 authorizationCode,
                 redirectUri,
-                consumedState.codeVerifier()
+                codeVerifier
         );
         validateSocialUserProfile(provider, profile);
-        return new SocialProfileAuthentication(consumedState.guestUserId(), profile);
+        return profile;
     }
 
     private void validateSocialUserProfile(SocialProvider provider, SocialUserProfile profile) {
@@ -313,9 +300,6 @@ public class AuthService {
                 || profile.email().length() > MAX_SOCIAL_EMAIL_LENGTH) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-    }
-
-    private record SocialProfileAuthentication(Long guestUserId, SocialUserProfile profile) {
     }
 
     private AuthResult<SocialLoginResponse> completedSocialAuthentication(

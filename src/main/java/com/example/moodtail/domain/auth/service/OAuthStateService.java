@@ -1,6 +1,5 @@
 package com.example.moodtail.domain.auth.service;
 
-import com.example.moodtail.domain.auth.model.ConsumedOAuthState;
 import com.example.moodtail.domain.auth.model.OAuthState;
 import com.example.moodtail.global.auth.config.AuthProperties;
 import com.example.moodtail.global.auth.model.SocialProvider;
@@ -35,11 +34,11 @@ public class OAuthStateService {
     private final RedisRepository redisRepository;
     private final AuthProperties authProperties;
 
-    public OAuthState issue(Long guestUserId, String clientAddress, SocialProvider provider) {
+    public OAuthState issue(String clientAddress, SocialProvider provider) {
         if (provider == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
-        String requestOwnerKey = createRequestOwnerKey(guestUserId, clientAddress);
+        String requestOwnerKey = createRequestOwnerKey(clientAddress);
         AuthProperties.RateLimit rateLimit = authProperties.oauth().stateRateLimit();
         boolean acquired = required(
                 "acquire OAuth state rate-limit slot",
@@ -57,16 +56,11 @@ public class OAuthStateService {
         String state = generateState();
         String codeVerifier = generateCodeVerifier();
         String codeChallenge = createCodeChallenge(codeVerifier);
-        String stateOwnerKey = guestUserId == null
-                ? "anonymous-state:" + state
-                : requestOwnerKey;
         Duration ttl = Duration.ofMillis(authProperties.oauth().stateExpirationMillis());
         required(
                 "save OAuth state",
                 () -> redisRepository.saveOAuthState(
                         state,
-                        stateOwnerKey,
-                        guestUserId,
                         provider.name(),
                         codeVerifier,
                         ttl
@@ -75,7 +69,7 @@ public class OAuthStateService {
         return new OAuthState(state, codeChallenge, CODE_CHALLENGE_METHOD, ttl.toSeconds());
     }
 
-    public ConsumedOAuthState consumeForAuthentication(String state, SocialProvider provider) {
+    public String consumeForAuthentication(String state, SocialProvider provider) {
         if (!StringUtils.hasText(state) || !state.matches(STATE_PATTERN) || provider == null) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
@@ -87,13 +81,10 @@ public class OAuthStateService {
         if (!PkceCodeVerifierValidator.isValid(session.codeVerifier())) {
             throw new RestApiException(AuthErrorStatus.INVALID_OAUTH_STATE);
         }
-        return new ConsumedOAuthState(session.guestUserId(), session.codeVerifier());
+        return session.codeVerifier();
     }
 
-    private String createRequestOwnerKey(Long guestUserId, String clientAddress) {
-        if (guestUserId != null) {
-            return "guest:" + guestUserId;
-        }
+    private String createRequestOwnerKey(String clientAddress) {
         String address = StringUtils.hasText(clientAddress) ? clientAddress : "unknown";
         return "anonymous:" + HexFormat.of().formatHex(sha256(address.getBytes(StandardCharsets.UTF_8)));
     }
