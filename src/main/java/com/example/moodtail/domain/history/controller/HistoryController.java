@@ -108,17 +108,16 @@ public class HistoryController implements HistoryControllerDocs {
 
     @Override
     @PostMapping(
-            path = "/dates/{date}/photos",
+            path = "/photos",
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public BaseResponse<HistoryPhotoResponse> addHistoryPhoto(
             @AuthenticationPrincipal PrincipalDetails principal,
-            @PathVariable String date,
-            @RequestPart("image") MultipartFile image,
-            @RequestParam("sourceType") String sourceType
+            @RequestPart("date") String date,
+            @RequestPart("image") MultipartFile image
     ) {
         return BaseResponse.onSuccess(
-                historyPhotoService.add(principal.getUserId(), date, image, sourceType)
+                historyPhotoService.add(principal.getUserId(), date, image)
         );
     }
 

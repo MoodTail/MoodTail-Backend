@@ -20,7 +20,6 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -122,7 +121,6 @@ public interface HistoryControllerDocs {
                 "photos": [
                   {
                     "photoId": 3,
-                    "sourceType": "CAMERA",
                     "imageUrl": "https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"
                   }
                 ]
@@ -216,7 +214,6 @@ public interface HistoryControllerDocs {
               "result": {
                 "photoId": 3,
                 "recordDate": "2026-07-05",
-                "sourceType": "CAMERA",
                 "imageUrl": "https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"
               }
             }
@@ -691,8 +688,8 @@ public interface HistoryControllerDocs {
             description = """
                     `multipart/form-data` 요청으로 선택 날짜에 사진 한 장을 추가합니다.
 
+                    - `date`: 사진 기록 날짜(`yyyy-MM-dd`, 미래 날짜 불가)
                     - `image`: JPG, PNG 또는 WEBP 형식의 5MB 이하 이미지
-                    - `sourceType`: `CAMERA` 또는 `GALLERY`
                     - 사용자별 같은 날짜에 기존에 저장된 사진을 포함하여 최대 5장까지 저장 가능
 
                     같은 날짜에 사진이 이미 5장 있으면 여섯 번째 사진은 저장하지 않고
@@ -712,9 +709,9 @@ public interface HistoryControllerDocs {
             @ApiResponse(
                     responseCode = "400",
                     description = """
-                            COMMON402 - image 파트 또는 sourceType 폼 파라미터 누락
+                            COMMON402 - date 또는 image multipart 파트 누락
                             HISTORY400 - 날짜 형식 오류 또는 미래 날짜
-                            IMAGE400 - 빈 파일, 지원하지 않는 이미지 형식 또는 sourceType 값 오류
+                            IMAGE400 - 빈 파일 또는 지원하지 않는 이미지 형식
                             """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
@@ -788,8 +785,9 @@ public interface HistoryControllerDocs {
     BaseResponse<HistoryPhotoResponse> addHistoryPhoto(
             @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(
-                    description = "사진 기록 날짜(yyyy-MM-dd, 미래 날짜 불가)",
+                    description = "multipart/form-data의 사진 기록 날짜(yyyy-MM-dd, 미래 날짜 불가)",
                     required = true,
+                    schema = @Schema(type = "string", format = "date"),
                     example = "2026-07-05"
             )
             String date,
@@ -799,20 +797,7 @@ public interface HistoryControllerDocs {
                     required = true,
                     schema = @Schema(type = "string", format = "binary")
             )
-            MultipartFile image,
-
-            @Parameter(
-                    description = "사진 출처. @RequestParam으로 바인딩되며 쿼리 파라미터 또는 "
-                            + "multipart/form-data의 문자열 폼 필드로 전달",
-                    required = true,
-                    schema = @Schema(
-                            type = "string",
-                            allowableValues = {"CAMERA", "GALLERY"}
-                    ),
-                    example = "CAMERA"
-            )
-            @RequestParam("sourceType")
-            String sourceType
+            MultipartFile image
     );
 
     @Operation(
