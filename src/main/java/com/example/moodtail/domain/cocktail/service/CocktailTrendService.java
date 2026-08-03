@@ -1,7 +1,6 @@
 package com.example.moodtail.domain.cocktail.service;
 
 import com.example.moodtail.domain.cocktail.dto.response.CocktailTrendResponse;
-import com.example.moodtail.domain.cocktail.entity.CocktailTrendSnapshot;
 import com.example.moodtail.domain.cocktail.repository.CocktailTrendSnapshotRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,9 +18,9 @@ public class CocktailTrendService {
     // 스케줄러가 미리 계산해 둔 최신 스냅샷을 조회만 한다 (계산 로직은 CocktailTrendSnapshotService 참고)
     @Transactional(readOnly = true)
     public CocktailTrendResponse getTrend() {
-        CocktailTrendSnapshot snapshot = cocktailTrendSnapshotRepository.findTopByOrderByIdDesc()
-                .orElseThrow(() -> new IllegalStateException("칵테일 트렌드 스냅샷이 아직 생성되지 않았습니다."));
-        return deserialize(snapshot.getSnapshotData());
+        return cocktailTrendSnapshotRepository.findTopByOrderByIdDesc()
+                .map(snapshot -> deserialize(snapshot.getSnapshotData()))
+                .orElseGet(CocktailTrendResponse::empty);
     }
 
     private CocktailTrendResponse deserialize(String snapshotData) {
