@@ -28,7 +28,4 @@ public interface WithdrawalHistoryRepository extends Repository<DrinkingRecord, 
     @Query("delete from DrinkingRecord record where record.user.id = :userId")
     int deleteRecordsByUserId(@Param("userId") Long userId);
 
-    @Query(value = "select count(*) > 0 from history_photos where image_id = :imageId", nativeQuery = true)
-    boolean existsPhotoByImageId(@Param("imageId") Long imageId);
-
 }

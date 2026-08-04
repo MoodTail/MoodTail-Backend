@@ -4,7 +4,6 @@ import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
-import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.collection.repository.CollectionShareRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
@@ -14,7 +13,6 @@ import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.image.service.ImageService.StorageCleanupResult;
 import com.example.moodtail.domain.inquiry.repository.InquiryRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
-import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
@@ -41,7 +39,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.lenient;
@@ -68,8 +65,6 @@ class AccountWithdrawalServiceTest {
     @Mock
     private ImageRepository imageRepository;
     @Mock
-    private CocktailRepository cocktailRepository;
-    @Mock
     private CocktailFavoriteRepository cocktailFavoriteRepository;
     @Mock
     private UserUnlockedCocktailRepository userUnlockedCocktailRepository;
@@ -83,8 +78,6 @@ class AccountWithdrawalServiceTest {
     private SharedMoodTestResultRepository sharedMoodTestResultRepository;
     @Mock
     private MoodTestResultRepository moodTestResultRepository;
-    @Mock
-    private MoodTypeRepository moodTypeRepository;
     @Mock
     private UserTermAgreementRepository userTermAgreementRepository;
     @Mock
@@ -198,9 +191,8 @@ class AccountWithdrawalServiceTest {
         Image retainedImage = ownedImage(22L, "https://cdn.example/history-retained.png");
         String sharedResultImage = "https://cdn.example/shared-result.png";
         stubSuccessfulDatabaseDeletion(List.of(deletedImage, retainedImage), List.of(sharedResultImage));
-        when(cocktailRepository.existsByImageId(anyLong()))
-                .thenAnswer(invocation -> invocation.<Long>getArgument(0).equals(22L));
-        when(imageRepository.deleteByImageId(21L)).thenReturn(1);
+        when(imageRepository.findUnreferencedByIdIn(List.of(21L, 22L)))
+                .thenReturn(List.of(deletedImage));
         when(imageService.deleteImagesFromStorage(List.of(
                 deletedImage.getImageUrl(),
                 sharedResultImage
@@ -208,12 +200,27 @@ class AccountWithdrawalServiceTest {
 
         service.withdraw(7L);
 
-        verify(imageRepository).deleteByImageId(21L);
-        verify(imageRepository, never()).deleteByImageId(22L);
+        verify(imageRepository).findUnreferencedByIdIn(List.of(21L, 22L));
+        verify(imageRepository).deleteAllByIdInBatch(List.of(21L));
         verify(imageService).deleteImagesFromStorage(List.of(
                 deletedImage.getImageUrl(),
                 sharedResultImage
         ));
+    }
+
+    @Test
+    void skipsBulkDeleteWhenAllHistoryImagesAreStillReferenced() {
+        Image retainedImage = ownedImage(22L, "https://cdn.example/history-retained.png");
+        stubSuccessfulDatabaseDeletion(List.of(retainedImage), List.of());
+        when(imageRepository.findUnreferencedByIdIn(List.of(22L))).thenReturn(List.of());
+        when(imageService.deleteImagesFromStorage(List.of()))
+                .thenReturn(new StorageCleanupResult(0, 0));
+
+        service.withdraw(7L);
+
+        verify(imageRepository).findUnreferencedByIdIn(List.of(22L));
+        verify(imageRepository, never()).deleteAllByIdInBatch(any());
+        verify(imageService).deleteImagesFromStorage(List.of());
     }
 
     @Test
@@ -238,7 +245,6 @@ class AccountWithdrawalServiceTest {
         when(userRepository.findByIdForUpdate(7L)).thenReturn(Optional.of(member(7L)));
         List<Long> historyImageIds = historyImages.stream().map(Image::getId).toList();
         when(withdrawalHistoryRepository.findOwnedImageIdsByUserId(7L)).thenReturn(historyImageIds);
-        when(imageRepository.findAllById(historyImageIds)).thenReturn(historyImages);
         when(sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(7L))
                 .thenReturn(sharedResultImages);
         when(collectionShareRepository.findThumbnailImageUrlByUserId(7L))
