@@ -16,6 +16,18 @@ public record CocktailTrendResponse(
         rankChangeCocktails = List.copyOf(rankChangeCocktails);
     }
 
+    // 스냅샷이 아직 없을 때(배포 직후 등) 반환할 빈 응답
+    public static CocktailTrendResponse empty() {
+        BigDecimal zero = BigDecimal.ZERO.setScale(2);
+        return new CocktailTrendResponse(
+                List.of(),
+                new TasteProfile(zero, zero, zero, zero, zero),
+                new DisplayTasteScores(0, 0, 0, 0, 0),
+                List.of(),
+                List.of()
+        );
+    }
+
     public record PopularMoodType(
             int ranking,
             Long moodTypeId,

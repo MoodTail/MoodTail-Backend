@@ -34,7 +34,8 @@ public interface CocktailTrendControllerDocs {
             """;
 
     @Operation(operationId = "getCocktailTrend", summary = "칵테일 트렌드 집계 조회",
-            description = "테스트 기록과 추천 결과를 기반으로 인기 타입, 평균 취향, 인기 칵테일과 순위 변동을 반환합니다. 인증이 필요하지 않습니다.")
+            description = "테스트 기록과 추천 결과를 기반으로 인기 타입, 평균 취향, 인기 칵테일과 순위 변동을 반환합니다. 인증이 필요하지 않습니다. "
+                    + "집계는 실시간이 아니라 스케줄러가 10분 주기로 미리 계산해 둔 최신 스냅샷 기준이라 최대 10분까지 지연될 수 있습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 칵테일 트렌드 조회 성공", useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = TREND_SUCCESS_EXAMPLE))),
