@@ -4,7 +4,6 @@ import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
 import com.example.moodtail.domain.auth.repository.WithdrawalHistoryRepository;
 import com.example.moodtail.domain.cocktail.repository.CocktailFavoriteRepository;
-import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.collection.repository.CollectionShareRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedCocktailRepository;
 import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
@@ -14,7 +13,6 @@ import com.example.moodtail.domain.image.service.ImageService;
 import com.example.moodtail.domain.image.service.ImageService.StorageCleanupResult;
 import com.example.moodtail.domain.inquiry.repository.InquiryRepository;
 import com.example.moodtail.domain.moodtest.repository.MoodTestResultRepository;
-import com.example.moodtail.domain.moodtest.repository.MoodTypeRepository;
 import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
@@ -48,13 +46,11 @@ public class AccountWithdrawalService {
     private final SharedPairRecommendationRepository sharedPairRecommendationRepository;
     private final WithdrawalHistoryRepository withdrawalHistoryRepository;
     private final ImageRepository imageRepository;
-    private final CocktailRepository cocktailRepository;
     private final CocktailFavoriteRepository cocktailFavoriteRepository;
     private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     private final InquiryRepository inquiryRepository;
     private final SharedMoodTestResultRepository sharedMoodTestResultRepository;
     private final MoodTestResultRepository moodTestResultRepository;
-    private final MoodTypeRepository moodTypeRepository;
     private final UserTermAgreementRepository userTermAgreementRepository;
     private final SocialAccountRepository socialAccountRepository;
     private final LocalAccountRepository localAccountRepository;
@@ -99,7 +95,6 @@ public class AccountWithdrawalService {
                 .orElseThrow(() -> new RestApiException(AuthErrorStatus.USER_NOT_FOUND));
 
         List<Long> historyImageIds = withdrawalHistoryRepository.findOwnedImageIdsByUserId(userId);
-        List<Image> historyImages = imageRepository.findAllById(historyImageIds);
         List<String> sharedResultImages =
                 sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(userId).stream()
                         .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
@@ -114,7 +109,7 @@ public class AccountWithdrawalService {
         sharedPairRecommendationRepository.deleteAllByCreatorId(userId);
         withdrawalHistoryRepository.deletePhotosByUserId(userId);
         withdrawalHistoryRepository.deleteRecordsByUserId(userId);
-        List<String> storageCleanupCandidates = new ArrayList<>(deleteUnreferencedHistoryImages(historyImages));
+        List<String> storageCleanupCandidates = new ArrayList<>(deleteUnreferencedHistoryImages(historyImageIds));
         if (collectionShareImage != null) {
             storageCleanupCandidates.add(collectionShareImage);
         }
@@ -148,23 +143,24 @@ public class AccountWithdrawalService {
         recommendationSessionRepository.deleteAllByIdIn(sessionIds);
     }
 
-    private List<String> deleteUnreferencedHistoryImages(List<Image> images) {
-        List<String> storageCleanupCandidates = new ArrayList<>();
-        for (Image image : images) {
-            if (isImageReferenced(image.getId())) {
-                continue;
-            }
-            if (imageRepository.deleteByImageId(image.getId()) == 1) {
-                storageCleanupCandidates.add(image.getImageUrl());
-            }
+    private List<String> deleteUnreferencedHistoryImages(List<Long> imageIds) {
+        if (imageIds.isEmpty()) {
+            return List.of();
         }
-        return storageCleanupCandidates;
-    }
 
-    private boolean isImageReferenced(Long imageId) {
-        return withdrawalHistoryRepository.existsPhotoByImageId(imageId)
-                || cocktailRepository.existsByImageId(imageId)
-                || moodTypeRepository.existsByCharacterImageId(imageId);
+        List<Image> unreferencedImages = imageRepository.findUnreferencedByIdIn(imageIds);
+        if (unreferencedImages.isEmpty()) {
+            return List.of();
+        }
+
+        imageRepository.deleteAllByIdInBatch(
+                unreferencedImages.stream()
+                        .map(Image::getId)
+                        .toList()
+        );
+        return unreferencedImages.stream()
+                .map(Image::getImageUrl)
+                .toList();
     }
 
     private record WithdrawalResult(
