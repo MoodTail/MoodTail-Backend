@@ -57,10 +57,11 @@ class CocktailTrendServiceTest {
     }
 
     @Test
-    void throwsWhenSnapshotDoesNotExistYet() {
+    void returnsEmptyResponseWhenSnapshotDoesNotExistYet() {
         when(cocktailTrendSnapshotRepository.findTopByOrderByIdDesc()).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> cocktailTrendService.getTrend())
-                .isInstanceOf(IllegalStateException.class);
+        CocktailTrendResponse response = cocktailTrendService.getTrend();
+
+        assertThat(response).isEqualTo(CocktailTrendResponse.empty());
     }
 }
