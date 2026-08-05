@@ -14,6 +14,7 @@ import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.service.InviteCodeService;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.MoodTestErrorStatus;
+import com.example.moodtail.global.common.exception.code.status.RecommendationErrorStatus;
 import com.example.moodtail.global.common.exception.code.status.UserErrorStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -148,6 +149,24 @@ class PairRecommendationServiceTest {
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(UserErrorStatus.INVITE_CODE_NOT_FOUND.getCode().getCode())
+                );
+    }
+
+    @Test
+    void throwsSelfNotAllowedWhenPartnerInviteCodeBelongsToRequester() {
+        User me = userWithId(1L, "나닉네임");
+        MoodTestResult myResult = latestResultOf(me, 10L, TasteProfile.of(
+                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
+                new BigDecimal("2.0"), new BigDecimal("2.0")
+        ));
+
+        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
+        when(inviteCodeService.findUserByInviteCode("MOOD-4821")).thenReturn(me);
+
+        assertThatThrownBy(() -> service.recommendPair(1L, "MOOD-4821"))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode())
+                                .isEqualTo(RecommendationErrorStatus.PAIR_RECOMMENDATION_SELF_NOT_ALLOWED.getCode().getCode())
                 );
     }
 

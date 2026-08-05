@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 public enum RecommendationErrorStatus implements BaseCodeInterface {
     RECOMMENDATION_UNAVAILABLE(HttpStatus.UNPROCESSABLE_ENTITY, "RECOMMENDATION422", "추천 결과를 산출할 수 없습니다."),
     RECOMMENDATION_INVALID_PARAMETER(HttpStatus.BAD_REQUEST, "RECOMMENDATION400", "추천 요청 파라미터가 올바르지 않습니다."),
+    PAIR_RECOMMENDATION_SELF_NOT_ALLOWED(HttpStatus.BAD_REQUEST, "RECOMMENDATION400", "본인의 초대 코드로는 페어 추천을 받을 수 없습니다."),
     PAIR_SHARE_IMAGE_UNAVAILABLE(
             HttpStatus.SERVICE_UNAVAILABLE,
             "PAIR_IMAGE503",

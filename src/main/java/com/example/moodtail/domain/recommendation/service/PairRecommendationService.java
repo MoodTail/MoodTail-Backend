@@ -69,6 +69,9 @@ public class PairRecommendationService {
     public PairParticipants validatePairRecommendationAvailable(Long userId, String partnerInviteCode) {
         MoodTestResult myResult = findLatestResult(userId);
         User partner = inviteCodeService.findUserByInviteCode(partnerInviteCode);
+        if (partner.getId().equals(userId)) {
+            throw new RestApiException(RecommendationErrorStatus.PAIR_RECOMMENDATION_SELF_NOT_ALLOWED);
+        }
         MoodTestResult partnerResult = findLatestResult(partner.getId());
         return new PairParticipants(myResult, partner, partnerResult);
     }
