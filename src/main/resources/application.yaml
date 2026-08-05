@@ -65,8 +65,9 @@ logging:
   file:
     path: ${LOG_PATH:logs}
   level:
-    root: INFO
-    org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
+    root: WARN
+    com.example.moodtail: INFO
+    org.springframework.security: ${SECURITY_LOG_LEVEL:WARN}
     org.zalando.logbook.Logbook: TRACE
 
 logbook:

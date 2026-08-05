@@ -76,17 +76,47 @@ class HttpLoggingConfigurationTest {
         });
     }
 
+    @Test
+    void keepsApplicationInfoLogsAndLimitsFrameworkNoise() {
+        MutablePropertySources propertySources = loadPropertySources();
+
+        assertThat(propertySources.stream()
+                .map(source -> source.getProperty("logging.level.root"))
+                .filter(value -> value != null)
+                .findFirst())
+                .contains("WARN");
+        assertThat(propertySources.stream()
+                .map(source -> source.getProperty("logging.level.com.example.moodtail"))
+                .filter(value -> value != null)
+                .findFirst())
+                .contains("INFO");
+        assertThat(propertySources.stream()
+                .map(source -> source.getProperty("logging.level.org.springframework.security"))
+                .filter(value -> value != null)
+                .findFirst())
+                .contains("${SECURITY_LOG_LEVEL:WARN}");
+    }
+
     private LogbookProperties loadProperties() {
         try {
-            MutablePropertySources propertySources = new MutablePropertySources();
-            new YamlPropertySourceLoader()
-                    .load("application", new ClassPathResource("application.yaml"))
-                    .forEach(propertySources::addLast);
+            MutablePropertySources propertySources = loadPropertySources();
             return new Binder(ConfigurationPropertySources.from(propertySources))
                     .bind("logbook", Bindable.of(LogbookProperties.class))
                     .orElseThrow(() -> new IllegalStateException("Logbook configuration is missing"));
         } catch (Exception exception) {
             throw new IllegalStateException("Failed to load Logbook configuration", exception);
+        }
+    }
+
+    private MutablePropertySources loadPropertySources() {
+        try {
+            MutablePropertySources propertySources = new MutablePropertySources();
+            new YamlPropertySourceLoader()
+                    .load("application", new ClassPathResource("application.yaml"))
+                    .forEach(propertySources::addLast);
+            return propertySources;
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to load application configuration", exception);
         }
     }
 }
