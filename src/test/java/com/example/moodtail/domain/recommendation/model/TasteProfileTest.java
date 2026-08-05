@@ -21,15 +21,15 @@ class TasteProfileTest {
 
         TasteProfile average = mine.average(partner);
 
-        assertThat(average.alcoholIntensity()).isEqualTo(new BigDecimal("3.5000"));
-        assertThat(average.sweetness()).isEqualTo(new BigDecimal("2.5000"));
-        assertThat(average.sourness()).isEqualTo(new BigDecimal("3.0000"));
-        assertThat(average.refreshing()).isEqualTo(new BigDecimal("3.0000"));
-        assertThat(average.bitterness()).isEqualTo(new BigDecimal("3.0000"));
+        assertThat(average.alcoholIntensity()).isEqualTo(new BigDecimal("3.500000000"));
+        assertThat(average.sweetness()).isEqualTo(new BigDecimal("2.500000000"));
+        assertThat(average.sourness()).isEqualTo(new BigDecimal("3.000000000"));
+        assertThat(average.refreshing()).isEqualTo(new BigDecimal("3.000000000"));
+        assertThat(average.bitterness()).isEqualTo(new BigDecimal("3.000000000"));
     }
 
     @Test
-    void preservesFourDecimalPlacesWhenAveragingProfiles() {
+    void preservesNineDecimalPlacesWhenAveragingProfiles() {
         TasteProfile mine = TasteProfile.of(
                 new BigDecimal("3.1"), new BigDecimal("3.1"), new BigDecimal("3.1"),
                 new BigDecimal("3.1"), new BigDecimal("3.1")
@@ -41,8 +41,8 @@ class TasteProfileTest {
 
         TasteProfile average = mine.average(partner);
 
-        assertThat(average.alcoholIntensity()).isEqualTo(new BigDecimal("3.1500"));
-        assertThat(average.alcoholIntensity().scale()).isEqualTo(4);
+        assertThat(average.alcoholIntensity()).isEqualTo(new BigDecimal("3.150000000"));
+        assertThat(average.alcoholIntensity().scale()).isEqualTo(9);
     }
 
     @Test

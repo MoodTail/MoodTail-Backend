@@ -18,7 +18,7 @@ public record TasteProfile(
         BigDecimal bitterness
 ) {
     private static final BigDecimal TWO = BigDecimal.valueOf(2);
-    private static final int CALCULATION_SCALE = 4;
+    private static final int CALCULATION_SCALE = 9;
 
     public static TasteProfile of(
             BigDecimal alcoholIntensity,

@@ -44,19 +44,19 @@ public class Cocktail {
     @Column(name = "alcohol_degree", precision = 4, scale = 1)
     private BigDecimal alcoholDegree;
 
-    @Column(name = "alcohol_intensity", nullable = false, precision = 4, scale = 3)
+    @Column(name = "alcohol_intensity", nullable = false, precision = 10, scale = 9)
     private BigDecimal alcoholIntensity;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    @Column(nullable = false, precision = 10, scale = 9)
     private BigDecimal sweetness;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    @Column(nullable = false, precision = 10, scale = 9)
     private BigDecimal sourness;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    @Column(nullable = false, precision = 10, scale = 9)
     private BigDecimal refreshing;
 
-    @Column(nullable = false, precision = 4, scale = 3)
+    @Column(nullable = false, precision = 10, scale = 9)
     private BigDecimal bitterness;
 
     @ManyToOne(fetch = FetchType.LAZY)
