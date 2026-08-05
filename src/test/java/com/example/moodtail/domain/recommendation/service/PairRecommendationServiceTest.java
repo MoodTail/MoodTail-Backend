@@ -123,6 +123,9 @@ class PairRecommendationServiceTest {
 
     @Test
     void throwsMoodTestNotFoundWhenMyLatestResultDoesNotExist() {
+        User partner = userWithId(2L, "상대닉네임");
+
+        when(inviteCodeService.findUserByInviteCode("MOOD-4821")).thenReturn(partner);
         when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.recommendPair(1L, "MOOD-4821"))
@@ -130,18 +133,10 @@ class PairRecommendationServiceTest {
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(MoodTestErrorStatus.MOOD_TEST_RESULT_NOT_FOUND.getCode().getCode())
                 );
-        verifyNoInteractions(inviteCodeService);
     }
 
     @Test
     void throwsInviteCodeNotFoundWhenPartnerInviteCodeDoesNotExist() {
-        User me = userWithId(1L, "나닉네임");
-        MoodTestResult myResult = latestResultOf(me, 10L, TasteProfile.of(
-                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
-                new BigDecimal("2.0"), new BigDecimal("2.0")
-        ));
-
-        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
         when(inviteCodeService.findUserByInviteCode("INVALID-CODE"))
                 .thenThrow(new RestApiException(UserErrorStatus.INVITE_CODE_NOT_FOUND));
 
@@ -150,17 +145,13 @@ class PairRecommendationServiceTest {
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(UserErrorStatus.INVITE_CODE_NOT_FOUND.getCode().getCode())
                 );
+        verifyNoInteractions(moodTestResultRepository);
     }
 
     @Test
-    void throwsSelfNotAllowedWhenPartnerInviteCodeBelongsToRequester() {
+    void throwsSelfNotAllowedWhenPartnerInviteCodeBelongsToRequesterEvenWithoutMoodTestResult() {
         User me = userWithId(1L, "나닉네임");
-        MoodTestResult myResult = latestResultOf(me, 10L, TasteProfile.of(
-                new BigDecimal("2.0"), new BigDecimal("2.0"), new BigDecimal("2.0"),
-                new BigDecimal("2.0"), new BigDecimal("2.0")
-        ));
 
-        when(moodTestResultRepository.findFirstByUserIdOrderByCreatedAtDesc(1L)).thenReturn(Optional.of(myResult));
         when(inviteCodeService.findUserByInviteCode("MOOD-4821")).thenReturn(me);
 
         assertThatThrownBy(() -> service.recommendPair(1L, "MOOD-4821"))
@@ -168,6 +159,7 @@ class PairRecommendationServiceTest {
                         assertThat(exception.getErrorCode().getCode())
                                 .isEqualTo(RecommendationErrorStatus.PAIR_RECOMMENDATION_SELF_NOT_ALLOWED.getCode().getCode())
                 );
+        verifyNoInteractions(moodTestResultRepository);
     }
 
     @Test
