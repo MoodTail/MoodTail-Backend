@@ -47,19 +47,19 @@ public class MoodType {
     @JoinColumn(name = "character_image_id")
     private Image characterImage;
 
-    @Column(name = "alcohol_intensity", nullable = false, precision = 2, scale = 1)
+    @Column(name = "alcohol_intensity", nullable = false, precision = 4, scale = 3)
     private BigDecimal alcoholIntensity;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 4, scale = 3)
     private BigDecimal sweetness;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 4, scale = 3)
     private BigDecimal sourness;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 4, scale = 3)
     private BigDecimal refreshing;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 4, scale = 3)
     private BigDecimal bitterness;
 
     @Column(name = "sort_order", nullable = false)
