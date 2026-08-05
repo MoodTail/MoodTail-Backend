@@ -107,7 +107,6 @@ logbook:
       - signupToken
       - resetToken
       - authorizationCode
-      - code
       - state
       - codeChallenge
       - email

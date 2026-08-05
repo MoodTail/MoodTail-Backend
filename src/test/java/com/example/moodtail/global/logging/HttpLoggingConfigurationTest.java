@@ -41,13 +41,14 @@ class HttpLoggingConfigurationTest {
     void masksSensitiveJsonFields() {
         BodyFilter filter = autoConfiguration.jsonBodyFieldsFilter();
         String body = """
-                {"email":"user@example.com","password":"secret","accessToken":"token","visible":"value"}
+                {"code":"COMMON200","email":"user@example.com","password":"secret","accessToken":"token","visible":"value"}
                 """;
 
         String filtered = filter.filter("application/json", body);
 
         assertThat(filtered)
                 .doesNotContain("user@example.com", "secret", "token")
+                .contains("\"code\":\"COMMON200\"")
                 .contains("\"email\":\"<masked>\"")
                 .contains("\"visible\":\"value\"");
     }
