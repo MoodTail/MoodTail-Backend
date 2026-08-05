@@ -18,6 +18,7 @@ public record TasteProfile(
         BigDecimal bitterness
 ) {
     private static final BigDecimal TWO = BigDecimal.valueOf(2);
+    private static final int CALCULATION_SCALE = 4;
 
     public static TasteProfile of(
             BigDecimal alcoholIntensity,
@@ -66,10 +67,10 @@ public record TasteProfile(
     }
 
     private static BigDecimal mean(BigDecimal a, BigDecimal b) {
-        return a.add(b).divide(TWO, 4, RoundingMode.HALF_UP);
+        return a.add(b).divide(TWO, CALCULATION_SCALE, RoundingMode.HALF_UP);
     }
 
     private static BigDecimal normalize(BigDecimal value) {
-        return value.setScale(1, HALF_UP);
+        return value.setScale(CALCULATION_SCALE, HALF_UP);
     }
 }
