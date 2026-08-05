@@ -3,6 +3,7 @@ package com.example.moodtail.domain.moodtest.dto.response;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestion;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionOption;
 import com.example.moodtail.domain.moodtest.entity.MoodQuestionType;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Builder;
 
 import java.util.List;
@@ -26,7 +27,10 @@ public record MoodTestQuestionResponse(
     public record QuestionDto(
             Long questionId,
             MoodQuestionType questionType,
-            String content,
+            @Schema(description = "문항 제목", example = "오늘 원하는 술의 강도는?")
+            String title,
+            @Schema(description = "문항 부제목", example = "원하는 알코올 강도를 선택해주세요.")
+            String subtitle,
             Integer sortOrder,
             List<OptionDto> options
     ) {
@@ -35,7 +39,8 @@ public record MoodTestQuestionResponse(
             return QuestionDto.builder()
                     .questionId(question.getId())
                     .questionType(question.getQuestionType())
-                    .content(question.getContent())
+                    .title(question.getTitle())
+                    .subtitle(question.getSubtitle())
                     .sortOrder(question.getSortOrder())
                     .options(question.getOptions().stream()
                             .map(OptionDto::from)
