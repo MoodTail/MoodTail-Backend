@@ -47,3 +47,7 @@ application-prod.yml
 ### .json ###
 firebase-service-account.json
 google-services.json
+
+### Logs ###
+logs/
+*.log

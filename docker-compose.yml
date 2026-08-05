@@ -5,8 +5,11 @@ services:
     restart: always
     ports:
       - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
     environment:
       - TZ=Asia/Seoul
+      - LOG_PATH=/app/logs
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_JPA_SHOW_SQL=false
