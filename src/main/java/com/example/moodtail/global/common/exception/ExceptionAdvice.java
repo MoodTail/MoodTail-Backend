@@ -32,7 +32,16 @@ public class ExceptionAdvice extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(RestApiException.class)
     public ResponseEntity<BaseResponse<String>> handleRestApiException(RestApiException e) {
-        return handleExceptionInternal(e.getErrorCode());
+        BaseCodeDto errorCode = e.getErrorCode();
+        if (errorCode.getHttpStatus().is5xxServerError()) {
+            log.error(
+                    "Handled server exception: code={}, status={}",
+                    errorCode.getCode(),
+                    errorCode.getHttpStatus().value(),
+                    e
+            );
+        }
+        return handleExceptionInternal(errorCode);
     }
 
     @ExceptionHandler(Exception.class)
