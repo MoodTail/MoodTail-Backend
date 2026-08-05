@@ -47,7 +47,7 @@ class LogbookConfigTest {
 
         HttpRequest filtered = requestFilter.filter(request);
 
-        assertThat(filtered.getBodyAsString()).isEqualTo("<omitted>");
+        assertThat(filtered.getBodyAsString()).isEqualTo("\"<omitted>\"");
     }
 
     @Test
@@ -57,7 +57,7 @@ class LogbookConfigTest {
 
         HttpRequest filtered = requestFilter.filter(request);
 
-        assertThat(filtered.getBodyAsString()).isEqualTo("<omitted>");
+        assertThat(filtered.getBodyAsString()).isEqualTo("\"<omitted>\"");
     }
 
     @Test
@@ -81,7 +81,7 @@ class LogbookConfigTest {
 
         HttpRequest filtered = requestFilter.filter(request);
 
-        assertThat(filtered.getBodyAsString()).doesNotContain("binary-thumbnail");
+        assertThat(filtered.getBodyAsString()).isEqualTo("\"<multipart>\"");
     }
 
     private HttpRequest request(String path, String contentType, String body) throws Exception {

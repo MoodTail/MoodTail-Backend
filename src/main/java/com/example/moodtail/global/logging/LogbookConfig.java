@@ -5,15 +5,39 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.util.StringUtils;
 import org.zalando.logbook.CorrelationId;
+import org.zalando.logbook.HttpRequest;
 import org.zalando.logbook.RequestFilter;
+import org.zalando.logbook.core.Conditions;
 import org.zalando.logbook.core.RequestFilters;
 
 import java.util.UUID;
+import java.util.function.Predicate;
 
 @Configuration
 public class LogbookConfig {
 
     private static final String OMITTED_BODY = "<omitted>";
+    private static final Predicate<HttpRequest> BINARY_BODY = Conditions.contentType(
+            "application/octet-stream",
+            "application/pdf",
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/msword",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.ms-powerpoint",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "audio/*",
+            "image/*",
+            "video/*"
+    );
+    private static final Predicate<HttpRequest> MULTIPART_BODY = Conditions.contentType("multipart/*");
+    private static final Predicate<HttpRequest> STREAM_BODY = Conditions.contentType(
+            "application/json-seq",
+            "application/x-json-stream",
+            "application/stream+json",
+            "text/event-stream",
+            "application/x-ndjson"
+    );
 
     @Bean
     public CorrelationId correlationId() {
@@ -25,10 +49,26 @@ public class LogbookConfig {
 
     @Bean
     public RequestFilter requestFilter() {
-        RequestFilter sensitiveBodyFilter = RequestFilters.replaceBody(request ->
-                isSensitiveRequest(request.getPath()) ? OMITTED_BODY : null
-        );
-        return RequestFilter.merge(RequestFilters.defaultValue(), sensitiveBodyFilter);
+        RequestFilter jsonSafeBodyFilter = RequestFilters.replaceBody(request -> {
+            if (isSensitiveRequest(request.getPath())) {
+                return asJsonString(OMITTED_BODY);
+            }
+            if (BINARY_BODY.test(request)) {
+                return asJsonString("<binary>");
+            }
+            if (MULTIPART_BODY.test(request)) {
+                return asJsonString("<multipart>");
+            }
+            if (STREAM_BODY.test(request)) {
+                return asJsonString("<stream>");
+            }
+            return null;
+        });
+        return jsonSafeBodyFilter;
+    }
+
+    private String asJsonString(String value) {
+        return "\"" + value + "\"";
     }
 
     private boolean isSensitiveRequest(String path) {
