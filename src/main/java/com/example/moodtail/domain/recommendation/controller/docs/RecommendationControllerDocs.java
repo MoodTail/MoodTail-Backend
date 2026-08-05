@@ -90,6 +90,22 @@ public interface RecommendationControllerDocs {
               }
               """;
 
+    String INVITE_CODE400_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "INVITE_CODE400",
+                "message": "초대 코드 형식이 올바르지 않습니다."
+              }
+              """;
+
+    String RECOMMENDATION400_SELF_EXAMPLE = """
+              {
+                "timestamp": "2026-07-22T14:30:00",
+                "code": "RECOMMENDATION400",
+                "message": "본인의 초대 코드로는 페어 추천을 받을 수 없습니다."
+              }
+              """;
+
     @Operation(
             operationId = "recommendPair",
             summary = "같이 고르기 결과 조회",
@@ -103,6 +119,14 @@ public interface RecommendationControllerDocs {
                     description = "COMMON200 - 같이 고르기 결과 조회 성공",
                     useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = RECOMMEND_PAIR_SUCCESS_EXAMPLE))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "INVITE_CODE400/RECOMMENDATION400 - 초대 코드 형식 오류 또는 본인 초대 코드 입력",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "INVITE_CODE400", value = INVITE_CODE400_EXAMPLE),
+                            @ExampleObject(name = "RECOMMENDATION400", value = RECOMMENDATION400_SELF_EXAMPLE)
+                    })
             ),
             @ApiResponse(
                     responseCode = "404",
@@ -122,7 +146,7 @@ public interface RecommendationControllerDocs {
             @Parameter(hidden = true)
             PrincipalDetails principalDetails,
 
-            @Parameter(description = "상대방 초대 코드", example = "AB12CD34")
+            @Parameter(description = "상대방 초대 코드", example = "MOOD-4821")
             String partnerInviteCode
     );
 }
