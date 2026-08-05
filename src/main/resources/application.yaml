@@ -62,9 +62,62 @@ server:
   forward-headers-strategy: native
 
 logging:
+  file:
+    path: ${LOG_PATH:logs}
   level:
     root: INFO
     org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
+    org.zalando.logbook.Logbook: TRACE
+
+logbook:
+  format:
+    style: json
+  predicate:
+    include:
+      - path: /api/**
+      - path: /share/**
+    exclude:
+      - path: /**
+        methods:
+          - OPTIONS
+  obfuscate:
+    replacement: "<masked>"
+    headers:
+      - Authorization
+      - Proxy-Authorization
+      - Cookie
+      - Set-Cookie
+    parameters:
+      - access_token
+      - refresh_token
+      - token
+      - code
+      - email
+      - authorizationCode
+      - signupToken
+      - resetToken
+      - state
+    json-body-fields:
+      - password
+      - passwordConfirm
+      - newPassword
+      - newPasswordConfirm
+      - accessToken
+      - refreshToken
+      - signupToken
+      - resetToken
+      - authorizationCode
+      - code
+      - state
+      - codeChallenge
+      - email
+      - contactEmail
+      - nickname
+      - guestUuid
+      - uuid
+      - memo
+  write:
+    max-body-size: 16384
 
 aws:
   s3:
