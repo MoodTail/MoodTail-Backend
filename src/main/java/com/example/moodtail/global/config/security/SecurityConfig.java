@@ -114,6 +114,7 @@ public class SecurityConfig {
 		configuration.setAllowedOrigins(allowedOrigins);
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
+		configuration.setExposedHeaders(List.of("X-Request-Id"));
 		configuration.setAllowCredentials(true);
 		configuration.setMaxAge(corsMaxAge);
 
