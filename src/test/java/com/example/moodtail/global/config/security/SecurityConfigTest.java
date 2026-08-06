@@ -122,6 +122,23 @@ class SecurityConfigTest {
         assertGuestBlocked(get("/api/v1/cocktails/favorites"));
     }
 
+    @Test
+    void actuatorHealthAndPrometheusAllowAnonymousRequests() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+
+        mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+    }
+
+    @Test
+    void unlistedActuatorEndpointRemainsProtected() throws Exception {
+        mockMvc.perform(get("/actuator/env"))
+                .andExpect(status().isUnauthorized());
+    }
+
     private void assertGuestBlocked(
             org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request
     ) throws Exception {
@@ -160,6 +177,21 @@ class SecurityConfigTest {
 
         @PostMapping("/api/v1/auth/oauth-states/{provider}")
         String oauthStateProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/actuator/health")
+        String healthProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/actuator/prometheus")
+        String prometheusProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/actuator/env")
+        String actuatorEnvProbe() {
             return "ok";
         }
     }
