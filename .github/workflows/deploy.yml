@@ -247,7 +247,7 @@ jobs:
               or not parsed_url.path.endswith("/api/prom/push")
           ):
               raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_URL is not a Grafana Cloud remote_write URL")
-          if not username.isdigit():
+          if not (username.isascii() and username.isdigit()):
               raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_USERNAME must be a numeric metrics instance ID")
           if token != token.strip() or any(character.isspace() for character in token):
               raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_TOKEN must not contain whitespace")
@@ -307,6 +307,8 @@ jobs:
             chmod 644 monitoring/prometheus/runtime/prometheus.yml
             sudo chown 65534:65534 monitoring/prometheus/runtime/grafana-cloud-token
             sudo chmod 400 monitoring/prometheus/runtime/grafana-cloud-token
+            sudo -u '#65534' -- test -r monitoring/prometheus/runtime/prometheus.yml
+            sudo -u '#65534' -- test -r monitoring/prometheus/runtime/grafana-cloud-token
 
             sudo install -d -m 0755 /var/lib/moodtail-monitoring/textfile
             sudo install -m 0755 \
@@ -328,7 +330,10 @@ jobs:
 
             healthy=false
             for attempt in $(seq 1 30); do
-              if curl --fail --silent http://localhost:9091/actuator/health >/dev/null; then
+              if curl --fail --silent --show-error --max-time 5 \
+                http://localhost:9091/actuator/health >/dev/null \
+                && curl --silent --show-error --output /dev/null --max-time 5 \
+                  http://localhost:8080/; then
                 healthy=true
                 break
               fi
@@ -336,6 +341,13 @@ jobs:
             done
             if [ "$healthy" != "true" ]; then
               docker_compose logs --tail=200 moodtail-app prometheus-agent node-exporter
+              exit 1
+            fi
+
+            if ! curl --fail --silent --show-error --max-time 10 \
+              http://localhost:9091/actuator/prometheus \
+              | grep -q '^jvm_memory_used_bytes'; then
+              docker_compose logs --tail=200 moodtail-app prometheus-agent
               exit 1
             fi
 
