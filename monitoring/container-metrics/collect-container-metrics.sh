@@ -51,9 +51,12 @@ EOF
 
 write_service_metrics() {
 	service=$1
-	container_id=$(docker ps -aq \
-		--filter "label=com.docker.compose.service=${service}" \
-		| head -n 1)
+	container_ids=
+	if ! container_ids=$(docker ps -aq \
+		--filter "label=com.docker.compose.service=${service}" 2>/dev/null); then
+		COLLECTOR_SUCCESS=0
+	fi
+	container_id=$(printf '%s\n' "$container_ids" | sed -n '1p')
 
 	running=0
 	cpu_percent=0
