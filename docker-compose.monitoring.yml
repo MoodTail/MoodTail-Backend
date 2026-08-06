@@ -1,0 +1,90 @@
+services:
+  moodtail-app:
+    ports:
+      - "127.0.0.1:9091:9091"
+    environment:
+      - MONITORING_ENVIRONMENT=production
+
+  prometheus-agent:
+    container_name: MoodTail-prometheus-agent
+    image: prom/prometheus:v3.13.2
+    restart: unless-stopped
+    command:
+      - --agent
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.agent.path=/prometheus
+      - --storage.agent.retention.min-time=5m
+      - --storage.agent.retention.max-time=1h
+      - --web.listen-address=0.0.0.0:9090
+      - --log.level=warn
+    volumes:
+      - ./monitoring/prometheus/runtime/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/runtime/grafana-cloud-token:/run/secrets/grafana_cloud_prometheus_token:ro
+      - prometheus-agent-data:/prometheus
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - moodtail-app
+      - node-exporter
+    deploy:
+      resources:
+        limits:
+          cpus: "0.10"
+          memory: 96M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+  node-exporter:
+    container_name: MoodTail-node-exporter
+    image: prom/node-exporter:v1.12.1
+    restart: unless-stopped
+    command:
+      - --path.rootfs=/host
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --collector.disable-defaults
+      - --collector.cpu
+      - --collector.diskstats
+      - --collector.filesystem
+      - --collector.loadavg
+      - --collector.meminfo
+      - --collector.netdev
+      - --collector.stat
+      - --collector.textfile
+      - --collector.time
+      - --collector.uname
+      - --collector.vmstat
+      - --collector.diskstats.device-include=^(nvme[0-9]+n[0-9]+|xvd[a-z]+|sd[a-z]+|vd[a-z]+)$$
+      - --collector.filesystem.fs-types-exclude=^(autofs|binfmt_misc|bpf|cgroup2?|configfs|debugfs|devpts|devtmpfs|fusectl|hugetlbfs|iso9660|mqueue|nsfs|overlay|proc|procfs|pstore|rpc_pipefs|securityfs|selinuxfs|squashfs|sysfs|tracefs|tmpfs)$$
+      - --collector.filesystem.mount-points-exclude=^/(dev|proc|run|sys|var/lib/docker/.+)($$|/)
+      - --collector.netdev.device-exclude=^(lo|docker[0-9]+|br-.+|veth.+)$$
+      - --collector.textfile.directory=/textfile
+    expose:
+      - "9100"
+    volumes:
+      - /:/host:ro,rslave
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /var/lib/moodtail-monitoring/textfile:/textfile:ro
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "0.05"
+          memory: 32M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "2"
+
+volumes:
+  prometheus-agent-data:

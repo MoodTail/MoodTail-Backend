@@ -1,0 +1,63 @@
+global:
+  scrape_interval: 60s
+  scrape_timeout: 10s
+  external_labels:
+    project: moodtail
+    environment: production
+
+scrape_configs:
+  - job_name: moodtail-spring
+    metrics_path: /actuator/prometheus
+    sample_limit: 500
+    label_limit: 20
+    label_name_length_limit: 100
+    label_value_length_limit: 200
+    static_configs:
+      - targets:
+          - moodtail-app:9091
+    relabel_configs:
+      - target_label: instance
+        replacement: moodtail-app
+    metric_relabel_configs:
+      - source_labels:
+          - __name__
+        regex: >-
+          (jvm_(memory|buffer|gc|threads|classes)_.*|process_(cpu|files|uptime|start_time)_.*|system_(cpu|load_average_1m).*|hikaricp_connections.*|jdbc_connections_.*|tomcat_threads_.*)
+        action: keep
+
+  - job_name: moodtail-node
+    sample_limit: 500
+    label_limit: 20
+    label_name_length_limit: 100
+    label_value_length_limit: 200
+    static_configs:
+      - targets:
+          - node-exporter:9100
+    relabel_configs:
+      - target_label: instance
+        replacement: moodtail-ec2
+    metric_relabel_configs:
+      - source_labels:
+          - __name__
+        regex: >-
+          (node_cpu_seconds_total|node_load(1|5|15)|node_memory_(MemTotal|MemAvailable|SwapTotal|SwapFree|SwapCached|Cached|Buffers)_bytes|node_vmstat_(pswpin|pswpout|pgmajfault)|node_filesystem_(size|avail|readonly)_bytes|node_network_(receive|transmit)_(bytes|errs|drop)_total|node_disk_(read_bytes|written_bytes|io_time_seconds)_total|node_boot_time_seconds|node_time_seconds|node_uname_info|moodtail_container_.*)
+        action: keep
+
+remote_write:
+  - url: "__GRAFANA_CLOUD_PROMETHEUS_URL__"
+    basic_auth:
+      username: "__GRAFANA_CLOUD_PROMETHEUS_USERNAME__"
+      password_file: /run/secrets/grafana_cloud_prometheus_token
+    send_exemplars: false
+    send_native_histograms: false
+    metadata_config:
+      send: false
+    queue_config:
+      capacity: 500
+      min_shards: 1
+      max_shards: 1
+      max_samples_per_send: 200
+      batch_send_deadline: 10s
+      min_backoff: 100ms
+      max_backoff: 5s
+      retry_on_http_429: true
