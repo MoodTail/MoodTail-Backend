@@ -67,7 +67,7 @@ Token은 현재 Stack에 대한 `metrics:write` 권한만 가져야 한다. 저�
 
 배포 워크플로는 URL과 Username을 Prometheus 설정 템플릿에 넣고 Token은 별도 파일로 생성한다. Token은 애플리케이션의 배포 `.env`에 포함하지 않는다.
 
-## 배포 전 검증
+## 배포 및 검증
 
 배포 워크플로는 다음 순서로 동작한다.
 
@@ -75,13 +75,17 @@ Token은 현재 Stack에 대한 `metrics:write` 권한만 가져야 한다. 저�
 2. Grafana Cloud Secret 형식 검증
 3. Prometheus runtime 설정과 Token 파일 생성
 4. EC2에 Compose 및 모니터링 파일 복사
-5. 공식 `promtool`로 Prometheus 설정 검증
-6. 세 컨테이너 시작
-7. 호스트 loopback의 `http://localhost:9091/actuator/health` 확인
-8. 컨테이너 세 개의 실행 상태 확인
-9. Container metrics systemd timer 활성화
+5. Prometheus 실행 UID `65534`의 설정 및 Token 읽기 권한 확인
+6. 공식 `promtool`로 Prometheus 설정 검증
+7. 세 컨테이너 시작
+8. 호스트 loopback의 `http://localhost:9091/actuator/health`와 애플리케이션 `8080` 응답 확인
+9. `http://localhost:9091/actuator/prometheus`에서 대표 JVM 지표 반환 확인
+10. 컨테이너 세 개의 실행 상태 확인
+11. Container metrics systemd timer 활성화
 
-검증이 끝나기 전에는 `git push`하거나 운영 배포하지 않는다.
+자동 검증과 배포 후 sample 확인이 끝나기 전에는 운영 배포가 완료된 것으로 판단하지 않는다.
+
+배포 후 2~3분이 지나면 Prometheus Agent 로그에 반복되는 scrape 또는 `remote_write` 오류가 없는지 확인한다. Grafana Cloud Explore에서는 `up{project="moodtail"}`의 최근 sample이 들어오는지 확인한다.
 
 ## Grafana 대시보드 가져오기
 
@@ -175,7 +179,17 @@ hikaricp_connections_pending{job="moodtail-spring"} > 0
 - Pending: 5분
 - 우선순위: Warning
 
-Alert의 No Data 처리는 `Alerting`으로 설정한다. Prometheus Agent 자체가 중단되면 마지막 상태값도 전송할 수 없기 때문이다.
+### Prometheus Agent 수집 중단
+
+```promql
+absent_over_time(up{project="moodtail"}[5m]) == 1
+```
+
+- Pending: 1분
+- 우선순위: Critical
+- No Data 처리: `Alerting`
+
+`No Data = Alerting`은 Prometheus Agent 수집 중단을 감지하는 heartbeat 알림에만 적용한다. 메모리, Swap, CPU, 디스크, JVM, DB Connection 등 리소스 알림은 모니터링을 의도적으로 중단하거나 배포하기 전에도 불필요한 경고가 발생하지 않도록 No Data 처리를 기본값 또는 `Normal`로 둔다.
 
 ## CloudWatch 무료 범위 사용
 
@@ -225,6 +239,9 @@ sudo docker compose --env-file .env \
   -f docker-compose.yml \
   -f docker-compose.monitoring.yml \
   ps
+sudo docker inspect --format \
+  'RestartCount={{.RestartCount}} OOMKilled={{.State.OOMKilled}}' \
+  MoodTail-server
 sudo systemctl status moodtail-container-metrics.timer --no-pager
 sudo journalctl -u moodtail-container-metrics.service -n 50 --no-pager
 ```
@@ -272,9 +289,14 @@ sudo docker compose --env-file .env \
   -f docker-compose.monitoring.yml \
   logs --tail=200 prometheus-agent node-exporter
 curl --fail --silent http://localhost:9091/actuator/health
-sudo test -r monitoring/prometheus/runtime/prometheus.yml
-sudo test -r monitoring/prometheus/runtime/grafana-cloud-token
+curl --silent --output /dev/null --write-out '%{http_code}\n' http://localhost:8080/
+curl --fail --silent http://localhost:9091/actuator/prometheus \
+  | grep -m 1 '^jvm_memory_used_bytes'
+sudo -u '#65534' -- test -r monitoring/prometheus/runtime/prometheus.yml
+sudo -u '#65534' -- test -r monitoring/prometheus/runtime/grafana-cloud-token
 ```
+
+Prometheus Agent 로그에 인증 실패, scrape 실패, `remote_write` 재시도 메시지가 반복되지 않아야 한다. Grafana Cloud Explore에서 `up{project="moodtail"}`을 조회해 최근 sample 시각도 함께 확인한다.
 
 Token 만료 또는 폐기 후에는 GitHub Secret `GRAFANA_CLOUD_PROMETHEUS_TOKEN`을 교체하고 재배포한다.
 
