@@ -61,6 +61,10 @@ public class HistoryPhotoService {
         }
         try {
             return transactionTemplate.execute(status -> persist(userId, recordDate, imageUrl));
+        } catch (S3StorageException exception) {
+            deleteStoredImageSafely(imageUrl);
+            log.error("Failed to create history photo access URL", exception);
+            throw new RestApiException(PHOTO_STORAGE_UNAVAILABLE);
         } catch (RuntimeException exception) {
             deleteStoredImageSafely(imageUrl);
             throw exception;
@@ -95,7 +99,11 @@ public class HistoryPhotoService {
         validatePhotoLimit(userId, recordDate);
         Image image = imageRepository.save(Image.create(imageUrl, HISTORY_PHOTO_SOURCE_TYPE));
         HistoryPhoto photo = historyPhotoRepository.save(HistoryPhoto.create(user, recordDate, image));
-        return new HistoryPhotoResponse(photo.getId(), recordDate, imageUrl);
+        return new HistoryPhotoResponse(
+                photo.getId(),
+                recordDate,
+                storageService.createPresignedGetUrl(imageUrl)
+        );
     }
 
     private void validatePhotoLimit(Long userId, LocalDate recordDate) {

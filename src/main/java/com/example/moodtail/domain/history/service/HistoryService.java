@@ -28,6 +28,8 @@ import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
+import com.example.moodtail.global.infra.s3.S3StorageException;
+import com.example.moodtail.global.infra.s3.S3StorageService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -55,6 +57,7 @@ import static com.example.moodtail.global.common.exception.code.status.AuthError
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.DRINKING_RECORD_ALREADY_EXISTS;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.HISTORY_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.INVALID_REQUEST;
+import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.PHOTO_STORAGE_UNAVAILABLE;
 import static com.example.moodtail.global.common.exception.code.status.HistoryErrorStatus.TEST_RESULT_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.GlobalErrorStatus._INTERNAL_SERVER_ERROR;
 
@@ -75,6 +78,7 @@ public class HistoryService {
     private final MoodTypeCompatibilityRepository moodTypeCompatibilityRepository;
     private final CocktailRepository cocktailRepository;
     private final UserRepository userRepository;
+    private final S3StorageService storageService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -401,10 +405,15 @@ public class HistoryService {
     }
 
     private HistoryDateResponse.Photo toPhoto(HistoryPhoto photo) {
-        return new HistoryDateResponse.Photo(
-                photo.getId(),
-                photo.getImage().getImageUrl()
-        );
+        try {
+            return new HistoryDateResponse.Photo(
+                    photo.getId(),
+                    storageService.createPresignedGetUrl(photo.getImage().getImageUrl())
+            );
+        } catch (S3StorageException exception) {
+            log.error("Failed to create history photo access URL: photoId={}", photo.getId(), exception);
+            throw new RestApiException(PHOTO_STORAGE_UNAVAILABLE);
+        }
     }
 
     private HistoryTestResultDetailResponse.RecommendedCocktail toRecommendedCocktail(RecommendationItem item) {

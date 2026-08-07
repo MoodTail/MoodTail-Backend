@@ -114,9 +114,11 @@ class HistoryPhotoServiceTest {
     @Test
     void persistsUploadedPhoto() {
         MultipartFile file = mock(MultipartFile.class);
-        String url = "https://cdn.example/history/photos/photo.png";
+        String storedUrl = "https://cdn.example/history/photos/photo.png";
+        String accessUrl = storedUrl + "?X-Amz-Signature=temporary";
         User user = member();
-        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
+        when(storageService.uploadImage(file, "history/photos")).thenReturn(storedUrl);
+        when(storageService.createPresignedGetUrl(storedUrl)).thenReturn(accessUrl);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(imageRepository.save(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(historyPhotoRepository.save(any())).thenAnswer(invocation -> {
@@ -129,11 +131,11 @@ class HistoryPhotoServiceTest {
 
         assertThat(response.photoId()).isEqualTo(3L);
         assertThat(response.recordDate()).isEqualTo(RECORD_DATE);
-        assertThat(response.imageUrl()).isEqualTo(url);
+        assertThat(response.imageUrl()).isEqualTo(accessUrl);
 
         ArgumentCaptor<Image> imageCaptor = ArgumentCaptor.forClass(Image.class);
         verify(imageRepository).save(imageCaptor.capture());
-        assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(url);
+        assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(storedUrl);
         assertThat(imageCaptor.getValue().getSourceType()).isEqualTo(ImageSourceType.GALLERY);
         InOrder persistenceOrder = inOrder(historyPhotoRepository, storageService, userRepository);
         persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
@@ -141,6 +143,27 @@ class HistoryPhotoServiceTest {
         persistenceOrder.verify(userRepository).findByIdForUpdate(1L);
         persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
         verify(historyPhotoRepository, times(2)).countByUserIdAndRecordDate(1L, RECORD_DATE);
+    }
+
+    @Test
+    void removesUploadedObjectWhenTemporaryAccessUrlCannotBeCreated() {
+        MultipartFile file = mock(MultipartFile.class);
+        String storedUrl = "https://cdn.example/history/photos/photo.png";
+        when(storageService.uploadImage(file, "history/photos")).thenReturn(storedUrl);
+        when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
+        when(imageRepository.save(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(historyPhotoRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(storageService.createPresignedGetUrl(storedUrl))
+                .thenThrow(new S3StorageException("presign failure"));
+
+        assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
+                .isInstanceOfSatisfying(
+                        RestApiException.class,
+                        exception -> assertThat(exception.getErrorCode().getCode())
+                                .isEqualTo("HISTORY_PHOTO503")
+                );
+
+        verify(storageService).deleteImage(storedUrl);
     }
 
     @Test
