@@ -39,7 +39,7 @@ public class S3StorageService {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
                     + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(png|jpg|jpeg|webp)"
     );
-    private static final Duration PRESIGNED_GET_URL_DURATION = Duration.ofMinutes(10);
+    private static final Duration PRESIGNED_GET_URL_DURATION = Duration.ofHours(1);
     private static final long MAX_IMAGE_SIZE = 5L * 1024 * 1024;
     private static final Map<String, Set<String>> ALLOWED_IMAGE_EXTENSIONS = Map.of(
             "image/png", Set.of("png"),

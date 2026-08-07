@@ -71,7 +71,7 @@ class S3StorageServiceTest {
         assertThat(signedUrl)
                 .startsWith(MANAGED_IMAGE_URL + "?")
                 .contains("X-Amz-Algorithm=AWS4-HMAC-SHA256")
-                .contains("X-Amz-Expires=600")
+                .contains("X-Amz-Expires=3600")
                 .contains("X-Amz-Signature=");
     }
 
