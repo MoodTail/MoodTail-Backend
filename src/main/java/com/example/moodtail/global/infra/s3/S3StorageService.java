@@ -11,12 +11,16 @@ import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Uri;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetUrlRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.time.Duration;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +39,7 @@ public class S3StorageService {
             "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
                     + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(png|jpg|jpeg|webp)"
     );
+    private static final Duration PRESIGNED_GET_URL_DURATION = Duration.ofMinutes(10);
     private static final long MAX_IMAGE_SIZE = 5L * 1024 * 1024;
     private static final Map<String, Set<String>> ALLOWED_IMAGE_EXTENSIONS = Map.of(
             "image/png", Set.of("png"),
@@ -43,6 +48,7 @@ public class S3StorageService {
     );
 
     private final S3Client s3Client;
+    private final S3Presigner s3Presigner;
     private final S3Properties properties;
 
     public String uploadImage(MultipartFile image, String directory) {
@@ -72,6 +78,26 @@ public class S3StorageService {
                     .build());
         } catch (SdkException exception) {
             throw new S3StorageException("Failed to delete image from S3", exception);
+        }
+    }
+
+    public String createPresignedGetUrl(String imageUrl) {
+        String objectKey = resolveObjectKey(imageUrl);
+        GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+                .bucket(properties.bucket())
+                .key(objectKey)
+                .build();
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(PRESIGNED_GET_URL_DURATION)
+                .getObjectRequest(getObjectRequest)
+                .build();
+
+        try {
+            return s3Presigner.presignGetObject(presignRequest)
+                    .url()
+                    .toExternalForm();
+        } catch (SdkException exception) {
+            throw new S3StorageException("Failed to create presigned image URL", exception);
         }
     }
 
