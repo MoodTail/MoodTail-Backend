@@ -39,6 +39,7 @@ dependencies {
 
 	runtimeOnly 'com.mysql:mysql-connector-j'
 	runtimeOnly 'org.flywaydb:flyway-mysql'
+	runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.11.5'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.11.5'
 
