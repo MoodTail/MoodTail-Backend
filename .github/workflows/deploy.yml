@@ -216,6 +216,8 @@ jobs:
           GRAFANA_CLOUD_PROMETHEUS_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_URL }}
           GRAFANA_CLOUD_PROMETHEUS_USERNAME: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_USERNAME }}
           GRAFANA_CLOUD_PROMETHEUS_TOKEN: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_TOKEN }}
+          GRAFANA_CLOUD_PROMETHEUS_QUERY_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_QUERY_URL }}
+          GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN }}
         run: |
           python3 - <<'PY'
           import os
@@ -224,12 +226,16 @@ jobs:
 
           remote_write_url = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_URL", "").strip()
           username = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_USERNAME", "").strip()
-          token = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_TOKEN", "")
+          write_token = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_TOKEN", "")
+          query_url = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_QUERY_URL", "").strip().rstrip("/")
+          read_token = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN", "")
 
           values = {
               "GRAFANA_CLOUD_PROMETHEUS_URL": remote_write_url,
               "GRAFANA_CLOUD_PROMETHEUS_USERNAME": username,
-              "GRAFANA_CLOUD_PROMETHEUS_TOKEN": token,
+              "GRAFANA_CLOUD_PROMETHEUS_TOKEN": write_token,
+              "GRAFANA_CLOUD_PROMETHEUS_QUERY_URL": query_url,
+              "GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN": read_token,
           }
           missing = sorted(key for key, value in values.items() if not value)
           if missing:
@@ -249,8 +255,30 @@ jobs:
               raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_URL is not a Grafana Cloud remote_write URL")
           if not (username.isascii() and username.isdigit()):
               raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_USERNAME must be a numeric metrics instance ID")
-          if token != token.strip() or any(character.isspace() for character in token):
+          if write_token != write_token.strip() or any(
+              character.isspace() for character in write_token
+          ):
               raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_TOKEN must not contain whitespace")
+
+          parsed_query_url = urlparse(query_url)
+          if (
+              parsed_query_url.scheme != "https"
+              or not parsed_query_url.hostname
+              or not parsed_query_url.hostname.endswith(".grafana.net")
+              or parsed_query_url.username is not None
+              or parsed_query_url.password is not None
+              or parsed_query_url.query
+              or parsed_query_url.fragment
+          ):
+              raise SystemExit(
+                  "GRAFANA_CLOUD_PROMETHEUS_QUERY_URL is not a valid Grafana Cloud query URL"
+              )
+          if read_token != read_token.strip() or any(
+              character.isspace() for character in read_token
+          ):
+              raise SystemExit(
+                  "GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN must not contain whitespace"
+              )
 
           template_path = Path("monitoring/prometheus/prometheus.yml")
           runtime_directory = Path("monitoring/prometheus/runtime")
@@ -269,7 +297,7 @@ jobs:
           runtime_config = runtime_directory / "prometheus.yml"
           runtime_token = runtime_directory / "grafana-cloud-token"
           runtime_config.write_text(config, encoding="utf-8")
-          runtime_token.write_text(token, encoding="utf-8")
+          runtime_token.write_text(write_token, encoding="utf-8")
           runtime_config.chmod(0o644)
           runtime_token.chmod(0o600)
           PY
@@ -365,3 +393,144 @@ jobs:
             sudo docker image prune -f
 
             sudo docker ps
+
+      - name: Verify Grafana Cloud metric ingestion
+        id: verify_grafana_cloud
+        env:
+          GRAFANA_CLOUD_PROMETHEUS_QUERY_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_QUERY_URL }}
+          GRAFANA_CLOUD_PROMETHEUS_USERNAME: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_USERNAME }}
+          GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import base64
+          import json
+          import os
+          import time
+          from urllib.error import HTTPError, URLError
+          from urllib.parse import urlencode
+          from urllib.request import Request, urlopen
+
+          query_url = os.environ["GRAFANA_CLOUD_PROMETHEUS_QUERY_URL"].strip().rstrip("/")
+          username = os.environ["GRAFANA_CLOUD_PROMETHEUS_USERNAME"].strip()
+          token = os.environ["GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN"]
+
+          query = (
+              'timestamp(up{project="moodtail",environment="production",'
+              'job=~"moodtail-(spring|node)"} == 1)'
+          )
+          request_url = query_url + "/api/v1/query?" + urlencode({"query": query})
+          credentials = base64.b64encode(f"{username}:{token}".encode("utf-8")).decode("ascii")
+          required_jobs = ("moodtail-spring", "moodtail-node")
+          minimum_sample_timestamp = time.time() - 5
+          attempts = 12
+          last_error = "no fresh samples returned"
+
+          for attempt in range(1, attempts + 1):
+              request = Request(
+                  request_url,
+                  headers={
+                      "Accept": "application/json",
+                      "Authorization": f"Basic {credentials}",
+                  },
+              )
+
+              try:
+                  with urlopen(request, timeout=10) as response:
+                      payload = json.load(response)
+              except HTTPError as error:
+                  last_error = f"Grafana Cloud query returned HTTP {error.code}"
+                  if 400 <= error.code < 500 and error.code not in (408, 429):
+                      break
+              except (URLError, TimeoutError):
+                  last_error = "Grafana Cloud query request failed"
+              except (json.JSONDecodeError, UnicodeDecodeError):
+                  last_error = "Grafana Cloud query returned an invalid JSON response"
+              else:
+                  if not isinstance(payload, dict) or payload.get("status") != "success":
+                      last_error = "Grafana Cloud query returned a non-success status"
+                  else:
+                      latest_samples = {}
+                      data = payload.get("data")
+                      results = data.get("result", []) if isinstance(data, dict) else []
+                      for result in results:
+                          if not isinstance(result, dict):
+                              continue
+                          metric = result.get("metric")
+                          if not isinstance(metric, dict):
+                              continue
+                          job = metric.get("job")
+                          value = result.get("value", [])
+                          if (
+                              job not in required_jobs
+                              or not isinstance(value, (list, tuple))
+                              or len(value) != 2
+                          ):
+                              continue
+                          try:
+                              sample_timestamp = float(value[1])
+                          except (TypeError, ValueError):
+                              continue
+
+                          previous = latest_samples.get(job)
+                          if previous is None or sample_timestamp > previous:
+                              latest_samples[job] = sample_timestamp
+
+                      if all(
+                          job in latest_samples
+                          and latest_samples[job] >= minimum_sample_timestamp
+                          for job in required_jobs
+                      ):
+                          print("Grafana Cloud ingestion confirmed.")
+                          for job in required_jobs:
+                              print(f"- {job}: up=1, fresh sample received")
+                          raise SystemExit(0)
+
+                      sample_states = []
+                      for job in required_jobs:
+                          sample = latest_samples.get(job)
+                          if sample is None:
+                              state = "missing-or-down"
+                          elif sample < minimum_sample_timestamp:
+                              state = "stale"
+                          else:
+                              state = "ready"
+                          sample_states.append(f"{job}={state}")
+                      last_error = ", ".join(sample_states)
+
+              print(
+                  f"Waiting for Grafana Cloud ingestion: {attempt}/{attempts} "
+                  f"({last_error})"
+              )
+              if attempt < attempts:
+                  time.sleep(15)
+
+          raise SystemExit(
+              "Grafana Cloud ingestion verification failed: " + last_error
+          )
+          PY
+
+      - name: Show Prometheus Agent diagnostics
+        if: ${{ always() && steps.verify_grafana_cloud.outcome == 'failure' }}
+        continue-on-error: true
+        uses: appleboy/ssh-action@0ff4204d59e8e51228ff73bce53f80d53301dee2
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            cd ~/app
+
+            sudo docker compose \
+              --env-file .env \
+              -f docker-compose.yml \
+              -f docker-compose.monitoring.yml \
+              ps
+
+            sudo docker compose \
+              --env-file .env \
+              -f docker-compose.yml \
+              -f docker-compose.monitoring.yml \
+              logs \
+              --since 10m \
+              --tail 200 \
+              prometheus-agent
