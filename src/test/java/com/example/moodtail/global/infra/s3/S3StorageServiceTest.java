@@ -1,7 +1,6 @@
 package com.example.moodtail.global.infra.s3;
 
 import com.example.moodtail.global.infra.s3.config.S3Properties;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,14 +9,11 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Utilities;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.S3Exception;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,13 +27,12 @@ import static org.mockito.Mockito.verify;
 class S3StorageServiceTest {
 
     private static final String MANAGED_IMAGE_URL =
-            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png";
 
     @Mock
     private S3Client s3Client;
 
-    private S3Presigner s3Presigner;
     private S3StorageService storageService;
 
     @BeforeEach
@@ -46,41 +41,10 @@ class S3StorageServiceTest {
                 .region(Region.AP_SOUTHEAST_2)
                 .build();
         lenient().when(s3Client.utilities()).thenReturn(utilities);
-        s3Presigner = S3Presigner.builder()
-                .region(Region.AP_SOUTHEAST_2)
-                .credentialsProvider(StaticCredentialsProvider.create(
-                        AwsBasicCredentials.create("test-access-key", "test-secret-key")
-                ))
-                .build();
         storageService = new S3StorageService(
                 s3Client,
-                s3Presigner,
                 new S3Properties("moodtail-bucket", "ap-southeast-2", "", "")
         );
-    }
-
-    @AfterEach
-    void tearDown() {
-        s3Presigner.close();
-    }
-
-    @Test
-    void createsTemporaryAccessUrlForManagedImage() {
-        String signedUrl = storageService.createPresignedGetUrl(MANAGED_IMAGE_URL);
-
-        assertThat(signedUrl)
-                .startsWith(MANAGED_IMAGE_URL + "?")
-                .contains("X-Amz-Algorithm=AWS4-HMAC-SHA256")
-                .contains("X-Amz-Expires=3600")
-                .contains("X-Amz-Signature=");
-    }
-
-    @Test
-    void rejectsPresigningAnImageFromAnotherBucket() {
-        String imageUrl = MANAGED_IMAGE_URL.replace("moodtail-bucket.s3", "other-bucket.s3");
-
-        assertThatThrownBy(() -> storageService.createPresignedGetUrl(imageUrl))
-                .isInstanceOf(S3StorageException.class);
     }
 
     @Test
@@ -91,7 +55,7 @@ class S3StorageServiceTest {
         verify(s3Client).deleteObject(request.capture());
         assertThat(request.getValue().bucket()).isEqualTo("moodtail-bucket");
         assertThat(request.getValue().key()).isEqualTo(
-                "history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
+                "public/history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
         );
     }
 
@@ -107,11 +71,11 @@ class S3StorageServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png?versionId=malicious",
-            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png#malicious",
-            "https://attacker@moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/photos/"
+            "https://attacker@moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
     })
     void rejectsAnImageUrlContainingQueryFragmentOrUserInfo(String imageUrl) {
@@ -124,7 +88,7 @@ class S3StorageServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "not-a-url",
-            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/photos/photo.png",
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/photo.png",
             "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png",
             "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/../photos/"
