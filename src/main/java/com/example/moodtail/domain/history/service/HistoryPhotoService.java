@@ -31,7 +31,7 @@ import static com.example.moodtail.global.common.exception.code.status.HistoryEr
 @RequiredArgsConstructor
 public class HistoryPhotoService {
 
-    private static final String PHOTO_DIRECTORY = "history/photos";
+    private static final String PHOTO_DIRECTORY = "public/history/photos";
     private static final int MAX_PHOTOS_PER_DATE = 5;
     // The shared images table still requires one of its legacy non-null source values.
     private static final ImageSourceType HISTORY_PHOTO_SOURCE_TYPE = ImageSourceType.GALLERY;
@@ -61,10 +61,6 @@ public class HistoryPhotoService {
         }
         try {
             return transactionTemplate.execute(status -> persist(userId, recordDate, imageUrl));
-        } catch (S3StorageException exception) {
-            deleteStoredImageSafely(imageUrl);
-            log.error("Failed to create history photo access URL", exception);
-            throw new RestApiException(PHOTO_STORAGE_UNAVAILABLE);
         } catch (RuntimeException exception) {
             deleteStoredImageSafely(imageUrl);
             throw exception;
@@ -102,7 +98,7 @@ public class HistoryPhotoService {
         return new HistoryPhotoResponse(
                 photo.getId(),
                 recordDate,
-                storageService.createPresignedGetUrl(imageUrl)
+                imageUrl
         );
     }
 
