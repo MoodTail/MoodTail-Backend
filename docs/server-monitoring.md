@@ -61,11 +61,18 @@ Prometheus는 `--agent` 모드로 실행되므로 로컬 장기 TSDB, Query, Rul
 GRAFANA_CLOUD_PROMETHEUS_URL
 GRAFANA_CLOUD_PROMETHEUS_USERNAME
 GRAFANA_CLOUD_PROMETHEUS_TOKEN
+GRAFANA_CLOUD_PROMETHEUS_QUERY_URL
+GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN
 ```
 
-Token은 현재 Stack에 대한 `metrics:write` 권한만 가져야 한다. 저장소, 이슈, PR, 채팅, 일반 `.env` 파일에 값을 기록하지 않는다.
+`GRAFANA_CLOUD_PROMETHEUS_TOKEN`은 현재 Stack에 대한 `metrics:write` 권한만 가져야 한다.
+`GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN`은 별도 Access Policy에서 발급하고 `metrics:read` 권한만 부여한다.
+Query URL은 Grafana Cloud Portal의 **Prometheus → Details**에 표시된 Query endpoint를 사용한다.
+저장소, 이슈, PR, 채팅, 일반 `.env` 파일에는 Token 값을 기록하지 않는다.
 
-배포 워크플로는 URL과 Username을 Prometheus 설정 템플릿에 넣고 Token은 별도 파일로 생성한다. Token은 애플리케이션의 배포 `.env`에 포함하지 않는다.
+배포 워크플로는 Remote Write URL과 Username을 Prometheus 설정 템플릿에 넣고 Write Token은
+별도 파일로 생성한다. Read Token은 GitHub Actions Runner의 수집 검증 단계에서만 사용한다.
+두 Token 모두 애플리케이션의 배포 `.env`에 포함하거나 EC2에 함께 저장하지 않는다.
 
 ## 배포 및 검증
 
@@ -82,10 +89,28 @@ Token은 현재 Stack에 대한 `metrics:write` 권한만 가져야 한다. 저�
 9. `http://localhost:9091/actuator/prometheus`에서 대표 JVM 지표 반환 확인
 10. 컨테이너 세 개의 실행 상태 확인
 11. Container metrics systemd timer 활성화
+12. Grafana Cloud Query API에서 배포 후 생성된 `moodtail-spring`, `moodtail-node` sample 확인
+13. 검증 실패 시 Prometheus Agent 상태와 최근 10분 로그 출력
 
 자동 검증과 배포 후 sample 확인이 끝나기 전에는 운영 배포가 완료된 것으로 판단하지 않는다.
 
-배포 후 2~3분이 지나면 Prometheus Agent 로그에 반복되는 scrape 또는 `remote_write` 오류가 없는지 확인한다. Grafana Cloud Explore에서는 `up{project="moodtail"}`의 최근 sample이 들어오는지 확인한다.
+수집 검증은 배포 완료 시각 이후의 다음 두 시계열이 모두 `up=1`인지 최대 3분 동안 재시도한다.
+Prometheus Query API의 평가 시각이 아니라 원본 sample 시각을 비교하기 위해 `timestamp()`를
+사용한다.
+
+```promql
+timestamp(
+  up{
+    project="moodtail",
+    environment="production",
+    job=~"moodtail-(spring|node)"
+  } == 1
+)
+```
+
+성공하면 GitHub Actions 로그에 각 job의 최신 sample 수신 결과를 출력한다. 인증 실패, Query API
+오류, sample 누락 또는 stale 상태가 지속되면 워크플로를 실패 처리하고 Prometheus Agent의 최근
+로그를 이어서 출력한다. 이 검증 실패는 이미 실행된 애플리케이션을 자동 롤백하지 않는다.
 
 ## Grafana 대시보드 가져오기
 
@@ -296,16 +321,22 @@ sudo -u '#65534' -- test -r monitoring/prometheus/runtime/prometheus.yml
 sudo -u '#65534' -- test -r monitoring/prometheus/runtime/grafana-cloud-token
 ```
 
-Prometheus Agent 로그에 인증 실패, scrape 실패, `remote_write` 재시도 메시지가 반복되지 않아야 한다. Grafana Cloud Explore에서 `up{project="moodtail"}`을 조회해 최근 sample 시각도 함께 확인한다.
+Prometheus Agent 로그에 인증 실패, scrape 실패, `remote_write` 재시도 메시지가 반복되지 않아야
+한다. Grafana Cloud Explore에서 `up{project="moodtail"}`을 조회해 최근 sample 시각도 함께
+확인한다.
 
-Token 만료 또는 폐기 후에는 GitHub Secret `GRAFANA_CLOUD_PROMETHEUS_TOKEN`을 교체하고 재배포한다.
+Write Token 만료 또는 폐기 후에는 GitHub Secret `GRAFANA_CLOUD_PROMETHEUS_TOKEN`을 교체하고
+재배포한다. Read Token을 교체할 때는 `GRAFANA_CLOUD_PROMETHEUS_READ_TOKEN`만 변경하며,
+Prometheus Agent 재배포는 필요하지 않다.
 
 ## 참고 자료
 
 - [Spring Boot Actuator endpoint 보안](https://docs.spring.io/spring-boot/3.4/reference/actuator/endpoints.html)
 - [Prometheus Agent Mode](https://prometheus.io/docs/prometheus/latest/prometheus_agent/)
 - [Prometheus command flags](https://prometheus.io/docs/prometheus/latest/command-line/prometheus/)
+- [Prometheus `timestamp()` 함수](https://prometheus.io/docs/prometheus/latest/querying/functions/#timestamp)
 - [Node Exporter](https://github.com/prometheus/node_exporter)
 - [Grafana Cloud Prometheus remote_write](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/)
+- [Grafana Cloud Prometheus Query API](https://grafana.com/docs/grafana-cloud/send-data/metrics/metrics-prometheus/query-http-api/)
 - [EC2 Basic/Detailed Monitoring](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/manage-detailed-monitoring.html)
 - [EC2 CPU Credit 모니터링](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/burstable-performance-instances-monitoring-cpu-credits.html)
