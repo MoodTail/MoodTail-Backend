@@ -3,6 +3,7 @@ package com.example.moodtail.domain.cocktail.controller;
 import com.example.moodtail.domain.cocktail.controller.docs.CocktailControllerDocs;
 import com.example.moodtail.domain.cocktail.controller.docs.CocktailTrendControllerDocs;
 import com.example.moodtail.domain.cocktail.dto.request.CustomCocktailRecommendationRequest;
+import com.example.moodtail.domain.cocktail.dto.request.DailyCocktailRequest;
 import com.example.moodtail.domain.cocktail.dto.response.*;
 import com.example.moodtail.domain.cocktail.service.CocktailService;
 import com.example.moodtail.domain.cocktail.service.CocktailTrendService;
@@ -12,6 +13,7 @@ import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -84,7 +86,9 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
     @PostMapping("/custom")
     public BaseResponse<CustomCocktailRecommendationResponse>
     recommendCustomCocktail(
-            @Valid @RequestBody CustomCocktailRecommendationRequest request
+            @Valid
+            @RequestBody
+            CustomCocktailRecommendationRequest request
     ) {
         return BaseResponse.onSuccess(
                 customCocktailRecommendationService.recommend(request)
@@ -93,9 +97,16 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
 
     @Override
     @GetMapping("/today")
-    public BaseResponse<DailyCocktailResponse> getDailyCocktail() {
+    public BaseResponse<DailyCocktailResponse> getDailyCocktail(
+            @Valid @ModelAttribute
+            @ParameterObject
+            DailyCocktailRequest request
+            ) {
         return BaseResponse.onSuccess(
-                dailyCocktailService.getOrCreateTodayCocktail()
+                dailyCocktailService.getOrCreateTodayCocktail(
+                        request.latitude(),
+                        request.longitude()
+                )
         );
     }
 

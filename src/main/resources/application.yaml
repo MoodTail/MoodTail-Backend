@@ -235,3 +235,10 @@ open-weather:
   api-key: ${OPEN_WEATHER_API_KEY:}
   connect-timeout-millis: 5000
   read-timeout-millis: 5000
+
+kakao:
+  local:
+    base-url: https://dapi.kakao.com
+    rest-api-key: ${KAKAO_REST_API_KEY:}
+    connect-timeout-millis: 3000
+    read-timeout-millis: 5000

@@ -2,6 +2,7 @@ package com.example.moodtail.domain.cocktail.dto.response;
 
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.entity.DailyCocktailRecommendation;
+import com.example.moodtail.domain.cocktail.model.DailyCocktailCacheValue;
 import com.example.moodtail.domain.weather.entity.WeatherCondition;
 import lombok.Builder;
 
@@ -15,13 +16,17 @@ public record DailyCocktailResponse(
 ) {
 
     public static DailyCocktailResponse from(
-            DailyCocktailRecommendation recommendation,
+            DailyCocktailCacheValue cacheValue,
+            Cocktail cocktail,
             boolean recommendationSaved
     ) {
         return DailyCocktailResponse.builder()
                 .recommendationSaved(recommendationSaved)
-                .context(ContextDto.from(recommendation))
-                .cocktail(CocktailDto.from(recommendation))
+                .context(ContextDto.from(cacheValue))
+                .cocktail(CocktailDto.from(
+                        cacheValue,
+                        cocktail
+                ))
                 .build();
     }
 
@@ -34,15 +39,14 @@ public record DailyCocktailResponse(
     ) {
 
         public static ContextDto from(
-                DailyCocktailRecommendation recommendation
+                DailyCocktailCacheValue cacheValue
         ) {
             return ContextDto.builder()
-                    .temperature(recommendation.getTemperature())
-                    .humidity(recommendation.getHumidity())
-                    .weather(recommendation.getWeather())
+                    .temperature(cacheValue.temperature())
+                    .humidity(cacheValue.humidity())
+                    .weather(cacheValue.weather())
                     .day(toKoreanDay(
-                            recommendation
-                                    .getRecommendationDate()
+                            cacheValue.recommendationDate()
                                     .getDayOfWeek()
                     ))
                     .build();
@@ -72,10 +76,9 @@ public record DailyCocktailResponse(
     ) {
 
         public static CocktailDto from(
-                DailyCocktailRecommendation recommendation
+                DailyCocktailCacheValue cacheValue,
+                Cocktail cocktail
         ) {
-            Cocktail cocktail = recommendation.getCocktail();
-
             return CocktailDto.builder()
                     .cocktailId(cocktail.getId())
                     .nameKo(cocktail.getNameKo())
@@ -89,7 +92,7 @@ public record DailyCocktailResponse(
                                     : cocktail.getImage().getImageUrl()
                     )
                     .matchScore(toMatchScore(
-                            recommendation.getCosineSimilarity()
+                            cacheValue.cosineSimilarity()
                     ))
                     .build();
         }

@@ -22,7 +22,6 @@ public class CustomCocktailRecommendationService {
     private final CocktailRepository cocktailRepository;
     private final TasteProfileCalculator tasteProfileCalculator;
     private final TasteSimilarityCalculator tasteSimilarityCalculator;
-    private final CustomRecommendationDescriptionGenerator descriptionGenerator;
 
     @Transactional(readOnly = true)
     public CustomCocktailRecommendationResponse recommend(
@@ -58,12 +57,10 @@ public class CustomCocktailRecommendationService {
                                         RecommendationErrorStatus.RECOMMENDATION_UNAVAILABLE
                                 ));
 
-        String description = descriptionGenerator.generate(recommendation.cocktail());
-
         return CustomCocktailRecommendationResponse.of(
                 recommendation.cocktail(),
                 recommendation.matchRate(),
-                description,
+                recommendation.cocktail().getShortDescription(),
                 request,
                 tasteProfileCalculator
         );
