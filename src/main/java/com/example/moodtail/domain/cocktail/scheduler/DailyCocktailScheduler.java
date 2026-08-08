@@ -25,7 +25,7 @@ public class DailyCocktailScheduler {
             cron = "0 0 0 * * *",
             zone = "Asia/Seoul"
     )
-    public void generateAtNoon() {
+    public void generateAtMidnight() {
         generateAllRegions();
     }
 
