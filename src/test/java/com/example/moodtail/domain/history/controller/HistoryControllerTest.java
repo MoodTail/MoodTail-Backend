@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.history.controller;
 
+import com.example.moodtail.domain.history.dto.request.HistoryCreateRequest;
 import com.example.moodtail.domain.history.dto.request.HistoryUpdateRequest;
 import com.example.moodtail.domain.history.dto.response.HistoryCalendarResponse;
 import com.example.moodtail.domain.history.dto.response.HistoryCreateResponse;
@@ -10,7 +11,6 @@ import com.example.moodtail.domain.history.dto.response.HistoryTestResultDetailR
 import com.example.moodtail.domain.history.dto.response.HistoryUpdateResponse;
 import com.example.moodtail.domain.history.service.HistoryPhotoService;
 import com.example.moodtail.domain.history.service.HistoryService;
-import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.global.common.exception.ExceptionAdvice;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -26,6 +26,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.converter.StringHttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.mock.web.MockPart;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.request.NativeWebRequest;
@@ -89,7 +90,16 @@ class HistoryControllerTest {
                 0,
                 5,
                 false,
-                List.of(),
+                List.of(new HistoryCalendarResponse.MonthlyTestResult(
+                        10L,
+                        LocalDate.of(2026, 7, 5),
+                        null,
+                        List.of(new HistoryCalendarResponse.DrinkingRecordSummary(
+                                31L,
+                                10L,
+                                "모히또"
+                        ))
+                )),
                 List.of(new HistoryCalendarResponse.Day(
                         LocalDate.of(2026, 7, 8),
                         false,
@@ -128,9 +138,82 @@ class HistoryControllerTest {
                 new HistoryTestResultDetailResponse(
                         10L,
                         LocalDate.of(2026, 7, 5),
-                        null,
-                        null,
-                        List.of()
+                        new HistoryTestResultDetailResponse.MoodType(
+                                1L,
+                                "TYPE01",
+                                "낭만주의자",
+                                "작은 순간도 특별한 추억으로 만드는 타입",
+                                "오늘은 잔잔한 여유가 어울리는 날이에요.",
+                                "재밌으면 그걸로 충분한 거 아닐까?!",
+                                "https://cdn.example/type01.png",
+                                new HistoryTestResultDetailResponse.DisplayTasteScores(
+                                        50,
+                                        75,
+                                        25,
+                                        75,
+                                        25
+                                )
+                        ),
+                        new HistoryTestResultDetailResponse.TasteProfile(
+                                new BigDecimal("2.8"),
+                                new BigDecimal("4.1"),
+                                new BigDecimal("2.5"),
+                                new BigDecimal("3.8"),
+                                new BigDecimal("1.7")
+                        ),
+                        new HistoryTestResultDetailResponse.DisplayTasteScores(
+                                45,
+                                78,
+                                38,
+                                70,
+                                18
+                        ),
+                        List.of(
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        10L,
+                                        "모히또",
+                                        "상쾌한 민트와 라임의 조화",
+                                        "https://cdn.example/mojito.png",
+                                        1,
+                                        95
+                                ),
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        11L,
+                                        "선셋 피즈",
+                                        "청량한 과일 향이 어우러진 칵테일",
+                                        "https://cdn.example/sunset-fizz.png",
+                                        2,
+                                        81
+                                ),
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        12L,
+                                        "피냐 콜라다",
+                                        "달콤한 열대 과일 풍미의 칵테일",
+                                        "https://cdn.example/pina-colada.png",
+                                        3,
+                                        68
+                                ),
+                                new HistoryTestResultDetailResponse.RecommendedCocktail(
+                                        13L,
+                                        "진토닉",
+                                        "쌉쌀하고 청량한 맛의 칵테일",
+                                        "https://cdn.example/gin-tonic.png",
+                                        4,
+                                        55
+                                )
+                        ),
+                        new HistoryTestResultDetailResponse.Compatibilities(
+                                new HistoryTestResultDetailResponse.CompatibleMoodType(
+                                        2L,
+                                        "TYPE02",
+                                        "이상주의자"
+                                ),
+                                new HistoryTestResultDetailResponse.CompatibleMoodType(
+                                        3L,
+                                        "TYPE03",
+                                        "현실주의자"
+                                )
+                        )
                 )
         );
 
@@ -140,7 +223,13 @@ class HistoryControllerTest {
                 .andExpect(jsonPath("$.result.days[0].date").value("2026-07-08"))
                 .andExpect(jsonPath("$.result.days[0].hasTestResult").value(false))
                 .andExpect(jsonPath("$.result.days[0].hasDrinkingRecord").value(false))
-                .andExpect(jsonPath("$.result.days[0].photoCount").value(2));
+                .andExpect(jsonPath("$.result.days[0].photoCount").value(2))
+                .andExpect(jsonPath("$.result.testResults[0].drinkingRecords[0].recordId")
+                        .value(31))
+                .andExpect(jsonPath("$.result.testResults[0].drinkingRecords[0].cocktailId")
+                        .value(10))
+                .andExpect(jsonPath("$.result.testResults[0].drinkingRecords[0].cocktailName")
+                        .value("모히또"));
         mockMvc.perform(get("/api/v1/history/dates/2026-07-05"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.date").value("2026-07-05"))
@@ -158,13 +247,31 @@ class HistoryControllerTest {
                 .andExpect(jsonPath("$.result.recordId").value(31));
         mockMvc.perform(get("/api/v1/history/test-results/10"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.resultId").value(10));
+                .andExpect(jsonPath("$.result.resultId").value(10))
+                .andExpect(jsonPath("$.result.displayTasteScores.alcoholIntensity").value(45))
+                .andExpect(jsonPath("$.result.moodType.displayTasteScores.sweetness").value(75))
+                .andExpect(jsonPath("$.result.moodType.shortDescription")
+                        .value("작은 순간도 특별한 추억으로 만드는 타입"))
+                .andExpect(jsonPath("$.result.moodType.characterQuote")
+                        .value("재밌으면 그걸로 충분한 거 아닐까?!"))
+                .andExpect(jsonPath("$.result.moodType.description")
+                        .value("오늘은 잔잔한 여유가 어울리는 날이에요."))
+                .andExpect(jsonPath("$.result.recommendedCocktails.length()").value(4))
+                .andExpect(jsonPath("$.result.recommendedCocktails[0].shortDescription")
+                        .value("상쾌한 민트와 라임의 조화"))
+                .andExpect(jsonPath("$.result.recommendedCocktails[0].ranking").value(1))
+                .andExpect(jsonPath("$.result.recommendedCocktails[3].ranking").value(4))
+                .andExpect(jsonPath("$.result.compatibilities.best.name").value("이상주의자"))
+                .andExpect(jsonPath("$.result.compatibilities.worst.name").value("현실주의자"));
     }
 
     @Test
     void routesCreateUpdateAndDeleteUsingSpecificationPaths() throws Exception {
         when(historyService.create(eq(USER_ID), any())).thenReturn(
-                new HistoryCreateResponse(31L, LocalDate.of(2026, 7, 5))
+                List.of(
+                        new HistoryCreateResponse(31L, 10L, LocalDate.of(2026, 7, 5)),
+                        new HistoryCreateResponse(32L, 11L, LocalDate.of(2026, 7, 5))
+                )
         );
         when(historyService.update(eq(USER_ID), eq(31L), any())).thenReturn(
                 new HistoryUpdateResponse(31L)
@@ -174,12 +281,16 @@ class HistoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "cocktailId": 10,
+                                  "cocktailIds": [10, 11],
                                   "recordDate": "2026-07-05"
                                 }
                 """))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.recordId").value(31));
+                .andExpect(jsonPath("$.result.length()").value(2))
+                .andExpect(jsonPath("$.result[0].recordId").value(31))
+                .andExpect(jsonPath("$.result[0].cocktailId").value(10))
+                .andExpect(jsonPath("$.result[1].recordId").value(32))
+                .andExpect(jsonPath("$.result[1].cocktailId").value(11));
         mockMvc.perform(patch("/api/v1/history/drinking-records/31")
                         .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"cocktailId\":11}"))
@@ -189,10 +300,33 @@ class HistoryControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"));
 
-        ArgumentCaptor<HistoryUpdateRequest> captor = ArgumentCaptor.forClass(HistoryUpdateRequest.class);
-        verify(historyService).update(eq(USER_ID), eq(31L), captor.capture());
-        assertThat(captor.getValue().cocktailId()).isEqualTo(11L);
-        assertThat(captor.getValue().recordDate()).isNull();
+        ArgumentCaptor<HistoryCreateRequest> createCaptor =
+                ArgumentCaptor.forClass(HistoryCreateRequest.class);
+        verify(historyService).create(eq(USER_ID), createCaptor.capture());
+        assertThat(createCaptor.getValue().cocktailIds()).containsExactly(10L, 11L);
+        assertThat(createCaptor.getValue().recordDate()).isEqualTo(LocalDate.of(2026, 7, 5));
+
+        ArgumentCaptor<HistoryUpdateRequest> updateCaptor =
+                ArgumentCaptor.forClass(HistoryUpdateRequest.class);
+        verify(historyService).update(eq(USER_ID), eq(31L), updateCaptor.capture());
+        assertThat(updateCaptor.getValue().cocktailId()).isEqualTo(11L);
+        assertThat(updateCaptor.getValue().recordDate()).isNull();
+    }
+
+    @Test
+    void rejectsEmptyCocktailIdsBeforeCallingService() throws Exception {
+        mockMvc.perform(post("/api/v1/history/drinking-records")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "cocktailIds": [],
+                                  "recordDate": "2026-07-05"
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"));
+
+        verify(historyService, never()).create(any(), any());
     }
 
     @Test
@@ -203,20 +337,19 @@ class HistoryControllerTest {
                 "image/jpeg",
                 new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
         );
-        when(historyPhotoService.add(eq(USER_ID), eq("2026-07-05"), any(), eq("CAMERA"))).thenReturn(
+        when(historyPhotoService.add(eq(USER_ID), eq("2026-07-05"), any())).thenReturn(
                 new HistoryPhotoResponse(
                         3L,
                         LocalDate.of(2026, 7, 5),
-                        ImageSourceType.CAMERA,
                         "https://cdn.example/photo.jpg"
                 )
         );
-        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+        mockMvc.perform(multipart("/api/v1/history/photos")
                         .file(image)
-                        .param("sourceType", "CAMERA"))
+                        .part(textPart("date", "2026-07-05")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.recordDate").value("2026-07-05"))
-                .andExpect(jsonPath("$.result.sourceType").value("CAMERA"));
+                .andExpect(jsonPath("$.result.sourceType").doesNotExist());
         mockMvc.perform(delete("/api/v1/history/dates/2026-07-05/photos/3"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value("COMMON200"));
@@ -232,25 +365,39 @@ class HistoryControllerTest {
         );
         doThrow(new RestApiException(PHOTO_LIMIT_EXCEEDED))
                 .when(historyPhotoService)
-                .add(eq(USER_ID), eq("2026-07-05"), any(), eq("GALLERY"));
+                .add(eq(USER_ID), eq("2026-07-05"), any());
 
-        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
+        mockMvc.perform(multipart("/api/v1/history/photos")
                         .file(image)
-                        .param("sourceType", "GALLERY"))
+                        .part(textPart("date", "2026-07-05")))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value("HISTORY_PHOTO409"));
     }
 
     @Test
-    void returnsCommonValidationErrorWhenHistoryPhotoIsMissing() throws Exception {
-        mockMvc.perform(multipart("/api/v1/history/dates/2026-07-05/photos")
-                        .param("sourceType", "CAMERA"))
+    void returnsCommonValidationErrorWhenHistoryPhotoMultipartPartIsMissing() throws Exception {
+        MockMultipartFile image = new MockMultipartFile(
+                "image",
+                "history.jpg",
+                "image/jpeg",
+                new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF}
+        );
+
+        mockMvc.perform(multipart("/api/v1/history/photos")
+                        .part(textPart("date", "2026-07-05")))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("COMMON402"))
                 .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
                 .andExpect(jsonPath("$.result").doesNotExist());
 
-        verify(historyPhotoService, never()).add(any(), any(), any(), any());
+        mockMvc.perform(multipart("/api/v1/history/photos")
+                        .file(image))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COMMON402"))
+                .andExpect(jsonPath("$.message").value("입력값 검증에 실패했습니다."))
+                .andExpect(jsonPath("$.result").doesNotExist());
+
+        verify(historyPhotoService, never()).add(any(), any(), any());
     }
 
     @Test
@@ -259,6 +406,10 @@ class HistoryControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"cocktailId\":0}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    private MockPart textPart(String name, String value) {
+        return new MockPart(name, value.getBytes(StandardCharsets.UTF_8));
     }
 
     private static class FixedPrincipalResolver implements HandlerMethodArgumentResolver {

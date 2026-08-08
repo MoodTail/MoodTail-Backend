@@ -18,13 +18,13 @@ public interface MoodTestControllerDocs {
             {
               "timestamp":"2026-07-21T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.",
               "result":{"totalCount":7,"questions":[
-                {"questionId":1,"questionType":"FIXED","content":"오늘 원하는 술의 강도는?","sortOrder":1,"options":[{"optionId":1,"content":"가볍게","optionOrder":1},{"optionId":2,"content":"진하게","optionOrder":2}]},
-                {"questionId":2,"questionType":"FIXED","content":"어떤 단맛을 원하나요?","sortOrder":2,"options":[{"optionId":3,"content":"달지 않게","optionOrder":1},{"optionId":4,"content":"달콤하게","optionOrder":2}]},
-                {"questionId":3,"questionType":"FIXED","content":"상큼한 맛은 어느 정도가 좋나요?","sortOrder":3,"options":[{"optionId":5,"content":"은은하게","optionOrder":1},{"optionId":6,"content":"상큼하게","optionOrder":2}]},
-                {"questionId":4,"questionType":"FIXED","content":"청량감은 어느 정도가 좋나요?","sortOrder":4,"options":[{"optionId":7,"content":"부드럽게","optionOrder":1},{"optionId":8,"content":"톡 쏘게","optionOrder":2}]},
-                {"questionId":5,"questionType":"FIXED","content":"쓴맛은 어느 정도가 좋나요?","sortOrder":5,"options":[{"optionId":9,"content":"적게","optionOrder":1},{"optionId":10,"content":"쌉쌀하게","optionOrder":2}]},
-                {"questionId":11,"questionType":"RANDOM","content":"지금 떠오르는 분위기는?","sortOrder":1,"options":[{"optionId":21,"content":"고요한 밤","optionOrder":1},{"optionId":22,"content":"활기찬 파티","optionOrder":2}]},
-                {"questionId":14,"questionType":"RANDOM","content":"오늘의 음악을 고른다면?","sortOrder":4,"options":[{"optionId":27,"content":"잔잔한 재즈","optionOrder":1},{"optionId":28,"content":"경쾌한 팝","optionOrder":2}]}
+                {"questionId":1,"questionType":"FIXED","title":"오늘 원하는 술의 강도는?","subtitle":"원하는 알코올 강도를 선택해주세요.","sortOrder":1,"options":[{"optionId":1,"content":"가볍게","optionOrder":1},{"optionId":2,"content":"진하게","optionOrder":2}]},
+                {"questionId":2,"questionType":"FIXED","title":"어떤 단맛을 원하나요?","subtitle":"선호하는 단맛 정도를 선택해주세요.","sortOrder":2,"options":[{"optionId":3,"content":"달지 않게","optionOrder":1},{"optionId":4,"content":"달콤하게","optionOrder":2}]},
+                {"questionId":3,"questionType":"FIXED","title":"상큼한 맛은 어느 정도가 좋나요?","subtitle":"선호하는 신맛 정도를 선택해주세요.","sortOrder":3,"options":[{"optionId":5,"content":"은은하게","optionOrder":1},{"optionId":6,"content":"상큼하게","optionOrder":2}]},
+                {"questionId":4,"questionType":"FIXED","title":"청량감은 어느 정도가 좋나요?","subtitle":"선호하는 청량감 정도를 선택해주세요.","sortOrder":4,"options":[{"optionId":7,"content":"부드럽게","optionOrder":1},{"optionId":8,"content":"톡 쏘게","optionOrder":2}]},
+                {"questionId":5,"questionType":"FIXED","title":"쓴맛은 어느 정도가 좋나요?","subtitle":"선호하는 쓴맛 정도를 선택해주세요.","sortOrder":5,"options":[{"optionId":9,"content":"적게","optionOrder":1},{"optionId":10,"content":"쌉쌀하게","optionOrder":2}]},
+                {"questionId":11,"questionType":"RANDOM","title":"지금 떠오르는 분위기는?","subtitle":"현재 기분과 가장 가까운 장면을 골라주세요.","sortOrder":1,"options":[{"optionId":21,"content":"고요한 밤","optionOrder":1},{"optionId":22,"content":"활기찬 파티","optionOrder":2}]},
+                {"questionId":14,"questionType":"RANDOM","title":"오늘의 음악을 고른다면?","subtitle":"지금 듣고 싶은 음악을 선택해주세요.","sortOrder":4,"options":[{"optionId":27,"content":"잔잔한 재즈","optionOrder":1},{"optionId":28,"content":"경쾌한 팝","optionOrder":2}]}
               ]}
             }
             """;

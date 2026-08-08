@@ -69,7 +69,10 @@ class MonthlyReportControllerTest {
         mockMvc.perform(get("/api/v1/reports/monthly").param("year", "2026").param("month", "7"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.year").value(2026))
-                .andExpect(jsonPath("$.result.activity.testCount").value(5));
+                .andExpect(jsonPath("$.result.monthlyMoodType.characterQuote").value("한줄 멘트"))
+                .andExpect(jsonPath("$.result.activity.testCount").value(5))
+                .andExpect(jsonPath("$.result.frequentCocktails[0].count").value(2))
+                .andExpect(jsonPath("$.result.frequentCocktails[0].recordPercentage").value(40));
 
         verify(monthlyReportService).getMonthlyReport(USER_ID, 2026, 7);
     }
@@ -119,13 +122,29 @@ class MonthlyReportControllerTest {
         return new MonthlyReportResponse(
                 2026,
                 7,
-                new MonthlyReportResponse.MoodType(3L, "FRESH", "상큼", "설명", null),
+                new MonthlyReportResponse.MoodType(
+                        3L,
+                        "FRESH",
+                        "상큼",
+                        "한줄 설명",
+                        "한줄 멘트",
+                        null
+                ),
                 List.of(),
                 null,
                 null,
                 null,
                 null,
-                List.of(),
+                List.of(new MonthlyReportResponse.FrequentCocktail(
+                        10L,
+                        "모히또",
+                        "Mojito",
+                        "상쾌한 민트와 라임의 조화",
+                        null,
+                        2,
+                        40,
+                        1
+                )),
                 new MonthlyReportResponse.Activity(5, 2)
         );
     }

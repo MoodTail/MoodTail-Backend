@@ -22,7 +22,6 @@ import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 
-import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.bestEffort;
 import static com.example.moodtail.global.token.redis.AuthRedisFailurePolicy.required;
 
 @Service
@@ -37,20 +36,6 @@ public class TokenSessionService {
     public TokenInfo issueSession(Long userId, UserRole role) {
         requireNoActiveDatabaseTransaction("issue authentication session");
         return createAndStoreSession(userId, role);
-    }
-
-    public TokenInfo issueSessionReplacingGuest(Long userId, UserRole role, Long guestUserId) {
-        requireNoActiveDatabaseTransaction("issue authentication session and revoke guest session");
-        if (guestUserId == null || guestUserId.equals(userId)) {
-            return createAndStoreSession(userId, role);
-        }
-
-        TokenInfo tokenInfo = createAndStoreSession(userId, role);
-        bestEffort(
-                "delete replaced guest refresh session",
-                () -> redisRepository.deleteRefreshJti(guestUserId)
-        );
-        return tokenInfo;
     }
 
     private TokenInfo createAndStoreSession(Long userId, UserRole role) {

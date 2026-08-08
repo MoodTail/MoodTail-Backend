@@ -48,19 +48,19 @@ public class MoodTestResult {
     @Column(name = "result_date", nullable = false)
     private LocalDate resultDate;
 
-    @Column(name = "alcohol_intensity", nullable = false, precision = 2, scale = 1)
+    @Column(name = "alcohol_intensity", nullable = false, precision = 5, scale = 4)
     private BigDecimal alcoholIntensity;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 5, scale = 4)
     private BigDecimal sweetness;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 5, scale = 4)
     private BigDecimal sourness;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 5, scale = 4)
     private BigDecimal refreshing;
 
-    @Column(nullable = false, precision = 2, scale = 1)
+    @Column(nullable = false, precision = 5, scale = 4)
     private BigDecimal bitterness;
 
     @Column(name = "share_token", unique = true)

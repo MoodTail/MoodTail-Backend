@@ -57,6 +57,11 @@ jobs:
             set -e
 
             mkdir -p ~/app
+            mkdir -p ~/app/monitoring/prometheus/runtime
+            sudo chown -R "$USER:$USER" ~/app/monitoring
+            if [ -f ~/app/monitoring/prometheus/runtime/grafana-cloud-token ]; then
+              chmod 600 ~/app/monitoring/prometheus/runtime/grafana-cloud-token
+            fi
 
             if ! command -v docker >/dev/null 2>&1; then
               echo "Docker is not installed. Installing Docker..."
@@ -148,7 +153,7 @@ jobs:
           MAIL_STARTTLS_REQUIRED: ${{ vars.MAIL_STARTTLS_REQUIRED || 'true' }}
           CORS_ALLOWED_ORIGINS: ${{ secrets.CORS_ALLOWED_ORIGINS }}
           AWS_S3_BUCKET: ${{ secrets.AWS_S3_BUCKET }}
-          AWS_REGION: ${{ vars.AWS_REGION || 'ap-northeast-2' }}
+          AWS_REGION: ${{ secrets.AWS_REGION}}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
@@ -206,13 +211,76 @@ jobs:
           PY
           chmod 644 deploy.env
 
+      - name: Create monitoring runtime files
+        env:
+          GRAFANA_CLOUD_PROMETHEUS_URL: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_URL }}
+          GRAFANA_CLOUD_PROMETHEUS_USERNAME: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_USERNAME }}
+          GRAFANA_CLOUD_PROMETHEUS_TOKEN: ${{ secrets.GRAFANA_CLOUD_PROMETHEUS_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          from urllib.parse import urlparse
+
+          remote_write_url = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_URL", "").strip()
+          username = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_USERNAME", "").strip()
+          token = os.environ.get("GRAFANA_CLOUD_PROMETHEUS_TOKEN", "")
+
+          values = {
+              "GRAFANA_CLOUD_PROMETHEUS_URL": remote_write_url,
+              "GRAFANA_CLOUD_PROMETHEUS_USERNAME": username,
+              "GRAFANA_CLOUD_PROMETHEUS_TOKEN": token,
+          }
+          missing = sorted(key for key, value in values.items() if not value)
+          if missing:
+              raise SystemExit("Missing monitoring secrets: " + ", ".join(missing))
+
+          for key, value in values.items():
+              if any(character in value for character in ("\n", "\r", "\0")):
+                  raise SystemExit(f"{key} must not contain newline or NUL characters")
+
+          parsed_url = urlparse(remote_write_url)
+          if (
+              parsed_url.scheme != "https"
+              or not parsed_url.hostname
+              or not parsed_url.hostname.endswith(".grafana.net")
+              or not parsed_url.path.endswith("/api/prom/push")
+          ):
+              raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_URL is not a Grafana Cloud remote_write URL")
+          if not (username.isascii() and username.isdigit()):
+              raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_USERNAME must be a numeric metrics instance ID")
+          if token != token.strip() or any(character.isspace() for character in token):
+              raise SystemExit("GRAFANA_CLOUD_PROMETHEUS_TOKEN must not contain whitespace")
+
+          template_path = Path("monitoring/prometheus/prometheus.yml")
+          runtime_directory = Path("monitoring/prometheus/runtime")
+          runtime_directory.mkdir(parents=True, exist_ok=True)
+
+          config = template_path.read_text(encoding="utf-8")
+          replacements = {
+              "__GRAFANA_CLOUD_PROMETHEUS_URL__": remote_write_url,
+              "__GRAFANA_CLOUD_PROMETHEUS_USERNAME__": username,
+          }
+          for placeholder, value in replacements.items():
+              if config.count(placeholder) != 1:
+                  raise SystemExit(f"Expected exactly one {placeholder} placeholder")
+              config = config.replace(placeholder, value)
+
+          runtime_config = runtime_directory / "prometheus.yml"
+          runtime_token = runtime_directory / "grafana-cloud-token"
+          runtime_config.write_text(config, encoding="utf-8")
+          runtime_token.write_text(token, encoding="utf-8")
+          runtime_config.chmod(0o644)
+          runtime_token.chmod(0o600)
+          PY
+
       - name: Copy deployment files to Server
         uses: appleboy/scp-action@917f8b81dfc1ccd331fef9e2d61bdc6c8be94634
         with:
           host: ${{ secrets.SERVER_HOST }}
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
-          source: "docker-compose.yml,deploy.env"
+          source: "docker-compose.yml,docker-compose.monitoring.yml,deploy.env,monitoring/prometheus/runtime/prometheus.yml,monitoring/prometheus/runtime/grafana-cloud-token,monitoring/container-metrics/collect-container-metrics.sh,monitoring/container-metrics/moodtail-container-metrics.service,monitoring/container-metrics/moodtail-container-metrics.timer"
           target: "~/app"
 
       - name: Deploy to Server
@@ -225,24 +293,74 @@ jobs:
             set -e
 
             cd ~/app
+            docker_compose() {
+              sudo docker compose \
+                --env-file .env \
+                -f docker-compose.yml \
+                -f docker-compose.monitoring.yml \
+                "$@"
+            }
+
             mv deploy.env .env
             chmod 600 .env
 
-            sudo docker compose --env-file .env pull
-            sudo docker compose --env-file .env up -d --remove-orphans
+            chmod 644 monitoring/prometheus/runtime/prometheus.yml
+            sudo chown 65534:65534 monitoring/prometheus/runtime/grafana-cloud-token
+            sudo chmod 400 monitoring/prometheus/runtime/grafana-cloud-token
+            sudo -u '#65534' -- test -r monitoring/prometheus/runtime/prometheus.yml
+            sudo -u '#65534' -- test -r monitoring/prometheus/runtime/grafana-cloud-token
+
+            sudo install -d -m 0755 /var/lib/moodtail-monitoring/textfile
+            sudo install -m 0755 \
+              monitoring/container-metrics/collect-container-metrics.sh \
+              /usr/local/bin/moodtail-container-metrics
+            sudo install -m 0644 \
+              monitoring/container-metrics/moodtail-container-metrics.service \
+              /etc/systemd/system/moodtail-container-metrics.service
+            sudo install -m 0644 \
+              monitoring/container-metrics/moodtail-container-metrics.timer \
+              /etc/systemd/system/moodtail-container-metrics.timer
+            sudo systemctl daemon-reload
+
+            docker_compose pull
+            docker_compose run --rm --no-deps \
+              --entrypoint /bin/promtool \
+              prometheus-agent check config /etc/prometheus/prometheus.yml
+            docker_compose up -d --remove-orphans
 
             healthy=false
             for attempt in $(seq 1 30); do
-              if curl --fail --silent http://localhost:8080/actuator/health >/dev/null; then
+              if curl --fail --silent --show-error --max-time 5 \
+                http://localhost:9091/actuator/health >/dev/null \
+                && curl --silent --show-error --output /dev/null --max-time 5 \
+                  http://localhost:8080/; then
                 healthy=true
                 break
               fi
               sleep 5
             done
             if [ "$healthy" != "true" ]; then
-              sudo docker compose --env-file .env logs --tail=200 moodtail-app
+              docker_compose logs --tail=200 moodtail-app prometheus-agent node-exporter
               exit 1
             fi
+
+            if ! curl --fail --silent --show-error --max-time 10 \
+              http://localhost:9091/actuator/prometheus \
+              | grep -q '^jvm_memory_used_bytes'; then
+              docker_compose logs --tail=200 moodtail-app prometheus-agent
+              exit 1
+            fi
+
+            running_services=$(docker_compose ps --status running --services)
+            for service in moodtail-app prometheus-agent node-exporter; do
+              if ! printf '%s\n' "$running_services" | grep -qx "$service"; then
+                docker_compose logs --tail=200 "$service"
+                exit 1
+              fi
+            done
+
+            sudo systemctl enable --now moodtail-container-metrics.timer
+            sudo systemctl start moodtail-container-metrics.service
 
             sudo docker image prune -f
 

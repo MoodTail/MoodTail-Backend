@@ -31,8 +31,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.MediaType;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
 import org.springframework.test.web.servlet.MockMvc;
@@ -40,7 +40,6 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.times;
@@ -156,14 +155,14 @@ class AuthControllerTest {
     @Test
     void oauthStateCanBeIssuedWithoutGuestAuthentication() throws Exception {
         when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
-        when(authService.createOAuthState("google", null, "203.0.113.7"))
+        when(authService.createOAuthState("google", "203.0.113.7"))
                 .thenReturn(new OAuthStateResponse("state", "challenge", "S256", 300L));
 
         mockMvc.perform(post("/api/v1/auth/oauth-states/google"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.result.state").value("state"));
 
-        verify(authService).createOAuthState("google", null, "203.0.113.7");
+        verify(authService).createOAuthState("google", "203.0.113.7");
     }
 
     @Test
@@ -252,7 +251,7 @@ class AuthControllerTest {
                 "signup-access-token"
         );
         when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
-        when(authService.localSignup(any(LocalSignupRequest.class), isNull(), eq("203.0.113.7")))
+        when(authService.localSignup(any(LocalSignupRequest.class), eq("203.0.113.7")))
                 .thenReturn(new AuthResult<>(signupResponse, "signup-refresh-token"));
 
         mockMvc.perform(post("/api/v1/auth/signup/local")
@@ -277,7 +276,6 @@ class AuthControllerTest {
         ArgumentCaptor<LocalSignupRequest> requestCaptor = ArgumentCaptor.forClass(LocalSignupRequest.class);
         verify(authService, times(1)).localSignup(
                 requestCaptor.capture(),
-                isNull(),
                 eq("203.0.113.7")
         );
         LocalSignupRequest captured = requestCaptor.getValue();
@@ -351,7 +349,7 @@ class AuthControllerTest {
                 "login-access-token"
         );
         when(authHttpSupport.clientAddress(any())).thenReturn("203.0.113.7");
-        when(authService.localLogin(any(LocalLoginRequest.class), isNull(), eq("203.0.113.7")))
+        when(authService.localLogin(any(LocalLoginRequest.class), eq("203.0.113.7")))
                 .thenReturn(new AuthResult<>(loginResponse, "login-refresh-token"));
 
         mockMvc.perform(post("/api/v1/auth/login/local")
@@ -369,28 +367,10 @@ class AuthControllerTest {
         ArgumentCaptor<LocalLoginRequest> requestCaptor = ArgumentCaptor.forClass(LocalLoginRequest.class);
         verify(authService, times(1)).localLogin(
                 requestCaptor.capture(),
-                isNull(),
                 eq("203.0.113.7")
         );
         assertThat(requestCaptor.getValue().email()).isEqualTo("user@example.com");
         assertThat(requestCaptor.getValue().password()).isEqualTo("password123!");
-    }
-
-    @Test
-    void localLoginRejectsAnInvalidOptionalGuestTokenInsteadOfIgnoringIt() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/login/local")
-                        .header(HttpHeaders.AUTHORIZATION, "Bearer expired-or-invalid-token")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "user@example.com",
-                                  "password": "password123!"
-                                }
-                                """))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.code").value("AUTH006"));
-
-        verify(authService, never()).localLogin(any(), any(), any());
     }
 
     @Test

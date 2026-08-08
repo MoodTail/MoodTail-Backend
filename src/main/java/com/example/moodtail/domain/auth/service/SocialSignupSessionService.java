@@ -29,7 +29,7 @@ public class SocialSignupSessionService {
     private final RedisRepository redisRepository;
     private final AuthProperties authProperties;
 
-    public SocialSignupTicket issue(SocialUserProfile profile, Long guestUserId) {
+    public SocialSignupTicket issue(SocialUserProfile profile) {
         String token = generateToken();
         Duration ttl = Duration.ofMillis(authProperties.oauth().signupTokenExpirationMillis());
         required(
@@ -39,8 +39,7 @@ public class SocialSignupSessionService {
                         new RedisRepository.SocialSignupSession(
                                 profile.provider().name(),
                                 profile.providerUserId(),
-                                profile.email(),
-                                guestUserId
+                                profile.email()
                         ),
                         ttl
                 )
@@ -69,8 +68,7 @@ public class SocialSignupSessionService {
             return new SocialSignupSession(
                     provider,
                     storedSession.providerUserId(),
-                    storedSession.email(),
-                    storedSession.guestUserId()
+                    storedSession.email()
             );
         } catch (IllegalArgumentException exception) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_SIGNUP_TOKEN);

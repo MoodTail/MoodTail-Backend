@@ -14,8 +14,6 @@ public interface RedisRepository {
 
 	void saveOAuthState(
 			String state,
-			String ownerKey,
-			Long guestUserId,
 			String provider,
 			String codeVerifier,
 			Duration ttl
@@ -61,14 +59,13 @@ public interface RedisRepository {
 
 	void deletePasswordResetToken(String token);
 
-	record OAuthStateSession(Long guestUserId, String codeVerifier) {
+	record OAuthStateSession(String codeVerifier) {
 	}
 
 	record SocialSignupSession(
 			String provider,
 			String providerUserId,
-			String email,
-			Long guestUserId
+			String email
 	) {
 	}
 

@@ -17,10 +17,14 @@ import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
 import com.example.moodtail.domain.history.repository.HistoryRecommendationRepository;
 import com.example.moodtail.domain.history.repository.HistoryRepository;
 import com.example.moodtail.domain.image.entity.Image;
+import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
+import com.example.moodtail.domain.moodtest.entity.MoodTypeCompatibility;
+import com.example.moodtail.domain.moodtest.repository.MoodTypeCompatibilityRepository;
 import com.example.moodtail.domain.recommendation.entity.RecommendationItem;
 import com.example.moodtail.domain.recommendation.entity.RecommendationSessionType;
+import com.example.moodtail.domain.recommendation.model.TasteProfile;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
@@ -30,15 +34,21 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static com.example.moodtail.global.common.exception.code.status.CocktailErrorStatus.COCKTAIL_NOT_FOUND;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
@@ -54,6 +64,7 @@ import static com.example.moodtail.global.common.exception.code.status.GlobalErr
 public class HistoryService {
 
     private static final int MONTHLY_REPORT_REQUIRED_TEST_COUNT = 5;
+    private static final BigDecimal DISPLAY_SCORE_MULTIPLIER = BigDecimal.valueOf(25);
     private static final String USER_DATE_COCKTAIL_UNIQUE_CONSTRAINT =
             "uk_drinking_record_user_date_cocktail";
 
@@ -61,6 +72,7 @@ public class HistoryService {
     private final HistoryPhotoRepository historyPhotoRepository;
     private final HistoryMoodTestResultRepository moodTestResultRepository;
     private final HistoryRecommendationRepository recommendationRepository;
+    private final MoodTypeCompatibilityRepository moodTypeCompatibilityRepository;
     private final CocktailRepository cocktailRepository;
     private final UserRepository userRepository;
     private final Clock clock;
@@ -82,16 +94,19 @@ public class HistoryService {
                 startDate,
                 endDate
         );
-        Set<LocalDate> drinkingRecordDates = new TreeSet<>(historyRepository.findRecordDates(
-                userId,
-                startDate,
-                endDate
-        ));
-        long drinkingRecordCount = historyRepository.countByUserIdAndRecordDateBetween(
+        List<HistoryRepository.MonthlyDrinkingRecordSummary> monthlyDrinkingRecords =
+                historyRepository.findMonthlyDrinkingRecordSummaries(
                 userId,
                 startDate,
                 endDate
         );
+        Map<LocalDate, List<HistoryCalendarResponse.DrinkingRecordSummary>> drinkingRecordsByDate =
+                monthlyDrinkingRecords.stream().collect(Collectors.groupingBy(
+                        HistoryRepository.MonthlyDrinkingRecordSummary::getRecordDate,
+                        LinkedHashMap::new,
+                        Collectors.mapping(this::toCalendarDrinkingRecord, Collectors.toList())
+                ));
+        Set<LocalDate> drinkingRecordDates = new TreeSet<>(drinkingRecordsByDate.keySet());
         Map<LocalDate, Long> photoCountByDate = new HashMap<>();
         historyPhotoRepository.findPhotoCountsByUserIdAndRecordDateBetween(
                 userId,
@@ -127,7 +142,8 @@ public class HistoryService {
                 .map(result -> new HistoryCalendarResponse.MonthlyTestResult(
                         result.getId(),
                         result.getResultDate(),
-                        toCalendarMoodType(result.getMoodType())
+                        toCalendarMoodType(result.getMoodType()),
+                        drinkingRecordsByDate.getOrDefault(result.getResultDate(), List.of())
                 ))
                 .toList();
 
@@ -137,7 +153,7 @@ public class HistoryService {
                 requestedMonth.getYear(),
                 requestedMonth.getMonthValue(),
                 testResults.size(),
-                drinkingRecordCount,
+                monthlyDrinkingRecords.size(),
                 MONTHLY_REPORT_REQUIRED_TEST_COUNT,
                 reportAvailable,
                 monthlyResults,
@@ -180,6 +196,10 @@ public class HistoryService {
         );
 
         MoodType moodType = result.getMoodType();
+        List<MoodTypeCompatibility> compatibilities =
+                moodTypeCompatibilityRepository.findAllByMoodTypeId(moodType.getId());
+        HistoryTestResultDetailResponse.DisplayTasteScores resultDisplayTasteScores =
+                toDisplayTasteScores(result.toTasteProfile());
         return new HistoryTestResultDetailResponse(
                 result.getId(),
                 result.getResultDate(),
@@ -190,7 +210,8 @@ public class HistoryService {
                         moodType.getShortDescription(),
                         moodType.getDescription(),
                         moodType.getCharacterQuote(),
-                        imageUrl(moodType.getCharacterImage())
+                        imageUrl(moodType.getCharacterImage()),
+                        toDisplayTasteScores(moodType.toTasteProfile())
                 ),
                 new HistoryTestResultDetailResponse.TasteProfile(
                         result.getAlcoholIntensity(),
@@ -199,7 +220,12 @@ public class HistoryService {
                         result.getRefreshing(),
                         result.getBitterness()
                 ),
-                recommendations.stream().map(this::toRecommendedCocktail).toList()
+                resultDisplayTasteScores,
+                recommendations.stream().map(this::toRecommendedCocktail).toList(),
+                new HistoryTestResultDetailResponse.Compatibilities(
+                        findCompatibleMoodType(compatibilities, CompatibilityType.BEST),
+                        findCompatibleMoodType(compatibilities, CompatibilityType.WORST)
+                )
         );
     }
 
@@ -212,34 +238,48 @@ public class HistoryService {
     }
 
     @Transactional
-    public HistoryCreateResponse create(Long userId, HistoryCreateRequest request) {
+    public List<HistoryCreateResponse> create(Long userId, HistoryCreateRequest request) {
         LocalDateTime now = LocalDateTime.now(clock);
         HistoryDatePolicy.validateRecordDate(request.recordDate(), now.toLocalDate());
-        if (historyRepository.existsByUserIdAndRecordDateAndCocktailId(
-                userId,
-                request.recordDate(),
-                request.cocktailId()
-        )) {
+        List<Long> cocktailIds = request.cocktailIds();
+        if (new HashSet<>(cocktailIds).size() != cocktailIds.size()
+                || !historyRepository.findExistingCocktailIds(
+                        userId,
+                        request.recordDate(),
+                        cocktailIds
+                ).isEmpty()) {
             throw new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
         }
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
-        Cocktail cocktail = cocktailRepository.findById(request.cocktailId())
-                .orElseThrow(() -> new RestApiException(COCKTAIL_NOT_FOUND));
+        Map<Long, Cocktail> cocktailById = cocktailRepository.findAllById(cocktailIds).stream()
+                .collect(Collectors.toMap(Cocktail::getId, Function.identity()));
+        if (cocktailById.size() != cocktailIds.size()) {
+            throw new RestApiException(COCKTAIL_NOT_FOUND);
+        }
 
-        DrinkingRecord record;
+        List<DrinkingRecord> records = cocktailIds.stream()
+                .map(cocktailId -> DrinkingRecord.create(
+                        user,
+                        cocktailById.get(cocktailId),
+                        request.recordDate(),
+                        now
+                ))
+                .toList();
+        List<DrinkingRecord> savedRecords;
         try {
-            record = historyRepository.saveAndFlush(DrinkingRecord.create(
-                    user,
-                    cocktail,
-                    request.recordDate(),
-                    now
-            ));
+            savedRecords = historyRepository.saveAllAndFlush(records);
         } catch (DataIntegrityViolationException exception) {
             throw translateWriteFailure(exception);
         }
-        return new HistoryCreateResponse(record.getId(), record.getRecordDate());
+        return savedRecords.stream()
+                .map(record -> new HistoryCreateResponse(
+                        record.getId(),
+                        record.getCocktail().getId(),
+                        record.getRecordDate()
+                ))
+                .toList();
     }
 
     @Transactional
@@ -319,6 +359,16 @@ public class HistoryService {
         );
     }
 
+    private HistoryCalendarResponse.DrinkingRecordSummary toCalendarDrinkingRecord(
+            HistoryRepository.MonthlyDrinkingRecordSummary record
+    ) {
+        return new HistoryCalendarResponse.DrinkingRecordSummary(
+                record.getRecordId(),
+                record.getCocktailId(),
+                record.getCocktailName()
+        );
+    }
+
     private HistoryDateResponse.MoodType toDateMoodType(MoodType moodType) {
         return new HistoryDateResponse.MoodType(
                 moodType.getId(),
@@ -353,7 +403,6 @@ public class HistoryService {
     private HistoryDateResponse.Photo toPhoto(HistoryPhoto photo) {
         return new HistoryDateResponse.Photo(
                 photo.getId(),
-                photo.getImage().getSourceType(),
                 photo.getImage().getImageUrl()
         );
     }
@@ -363,10 +412,45 @@ public class HistoryService {
         return new HistoryTestResultDetailResponse.RecommendedCocktail(
                 cocktail.getId(),
                 cocktail.getNameKo(),
+                cocktail.getShortDescription(),
                 imageUrl(cocktail.getImage()),
                 item.getRanking(),
                 item.getMatchScore()
         );
+    }
+
+    private HistoryTestResultDetailResponse.DisplayTasteScores toDisplayTasteScores(TasteProfile profile) {
+        return new HistoryTestResultDetailResponse.DisplayTasteScores(
+                toDisplayTasteScore(profile.alcoholIntensity()),
+                toDisplayTasteScore(profile.sweetness()),
+                toDisplayTasteScore(profile.sourness()),
+                toDisplayTasteScore(profile.refreshing()),
+                toDisplayTasteScore(profile.bitterness())
+        );
+    }
+
+    private int toDisplayTasteScore(BigDecimal score) {
+        int value = score.subtract(BigDecimal.ONE)
+                .multiply(DISPLAY_SCORE_MULTIPLIER)
+                .setScale(0, RoundingMode.HALF_UP)
+                .intValue();
+        return Math.max(0, Math.min(100, value));
+    }
+
+    private HistoryTestResultDetailResponse.CompatibleMoodType findCompatibleMoodType(
+            List<MoodTypeCompatibility> compatibilities,
+            CompatibilityType type
+    ) {
+        return compatibilities.stream()
+                .filter(compatibility -> compatibility.getCompatibilityType() == type)
+                .map(MoodTypeCompatibility::getTargetMoodType)
+                .findFirst()
+                .map(target -> new HistoryTestResultDetailResponse.CompatibleMoodType(
+                        target.getId(),
+                        target.getCode(),
+                        target.getName()
+                ))
+                .orElse(null);
     }
 
     private String imageUrl(Image image) {

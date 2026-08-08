@@ -13,7 +13,6 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Duration;
-import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -60,23 +59,15 @@ class RedisRepositoryImplTest {
     void storesOAuthStateInsideConfiguredAuthNamespace() {
         repository.saveOAuthState(
                 "state-value",
-                "guest:7",
-                7L,
                 "KAKAO",
                 "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890-_",
                 Duration.ofMinutes(5)
         );
 
-        verify(redisTemplate).execute(
-                any(),
-                eq(List.of(
-                        "moodtail:auth:test:oauth-state-owner:kakao:guest:7",
-                        "moodtail:auth:test:oauth-state:kakao:state-value"
-                )),
-                eq("moodtail:auth:test:oauth-state:kakao:"),
+        verify(valueOperations).set(
+                eq("moodtail:auth:test:oauth-state:kakao:state-value"),
                 anyString(),
-                eq("300000"),
-                eq("state-value")
+                eq(Duration.ofMinutes(5))
         );
     }
 
@@ -85,8 +76,7 @@ class RedisRepositoryImplTest {
         RedisRepository.SocialSignupSession session = new RedisRepository.SocialSignupSession(
                 "GOOGLE",
                 "google-user-id",
-                "user@example.com",
-                null
+                "user@example.com"
         );
 
         repository.saveSocialSignupToken(

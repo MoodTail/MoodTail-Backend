@@ -59,6 +59,8 @@ class MoodTestQuestionServiceTest {
         assertThat(response.questions().subList(5, 7))
                 .extracting(MoodTestQuestionResponse.QuestionDto::questionId)
                 .isSubsetOf(11L, 12L, 13L);
+        assertThat(response.questions().get(0).title()).isEqualTo("질문 1");
+        assertThat(response.questions().get(0).subtitle()).isEqualTo("부제목 1");
     }
 
     @Test
@@ -107,7 +109,8 @@ class MoodTestQuestionServiceTest {
         MoodQuestionOption option = mock(MoodQuestionOption.class, withSettings().lenient());
         when(question.getId()).thenReturn(id);
         when(question.getQuestionType()).thenReturn(type);
-        when(question.getContent()).thenReturn("질문 " + id);
+        when(question.getTitle()).thenReturn("질문 " + id);
+        when(question.getSubtitle()).thenReturn("부제목 " + id);
         when(question.getSortOrder()).thenReturn(sortOrder);
         when(question.getOptions()).thenReturn(List.of(option));
         when(option.getId()).thenReturn(id * 10);

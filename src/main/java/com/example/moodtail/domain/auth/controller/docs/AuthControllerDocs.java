@@ -589,20 +589,10 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "createOAuthState",
             summary = "OAuth state 및 PKCE challenge 발급",
-            description = "게스트 로그인 없이도 일회성 state와 PKCE S256 challenge를 반환합니다. "
-                    + "게스트 Access Token을 선택적으로 보내면 이후 로그인 완료 시 해당 게스트의 "
-                    + "Refresh Token 세션만 종료하며 데이터는 승계하지 않습니다. "
-                    + "프론트엔드는 소셜 인가 요청에 state, code_challenge, code_challenge_method=S256을 "
-                    + "전달해야 합니다. 게스트 인증으로 같은 제공자의 새 state를 발급하면 이전 state는 "
-                    + "무효화되며, 익명 요청의 state는 서로 독립적으로 관리됩니다.",
-            parameters = @Parameter(
-                    name = "Authorization",
-                    in = ParameterIn.HEADER,
-                    required = false,
-                    description = "선택 사항. 게스트 Refresh Token 세션을 OAuth 로그인 완료 시 종료하려면 "
-                            + "Bearer {guestAccessToken} 형식으로 전달합니다.",
-                    example = "Bearer guest-access-token"
-            )
+            description = "인증 없이 일회성 state와 PKCE S256 challenge를 반환합니다. 프론트엔드는 소셜 "
+                    + "인가 요청에 state, code_challenge, code_challenge_method=S256을 전달해야 합니다. "
+                    + "state 발급 요청 제한은 클라이언트 주소와 소셜 제공자를 기준으로 적용하며, 발급된 "
+                    + "state는 서로 독립적으로 관리됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - OAuth state 발급 성공",
@@ -610,23 +600,6 @@ public interface AuthControllerDocs {
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = OAUTH_STATE_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = "COMMON400 - 지원하지 않는 소셜 제공자",
                     content = @Content(examples = @ExampleObject(name = "COMMON400", value = COMMON400_EXAMPLE))),
-            @ApiResponse(responseCode = "401",
-                    description = """
-                            AUTH006 - 선택적으로 전달한 Access Token이 만료·변조되었거나 형식이 올바르지 않음
-                            AUTH010 - Access Token의 사용자가 존재하지 않음
-                            """,
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
-                            @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "403", description = """
-                    AUTH009 - 선택 Access Token의 역할이 게스트가 아니거나 토큰 역할과 사용자 역할이 불일치
-                    AUTH020 - 선택 Access Token의 사용자가 비활성 또는 탈퇴 상태
-                    """,
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
-                            @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE)
-                    })),
             @ApiResponse(responseCode = "429", description = "AUTH031 - OAuth state 발급 요청 한도 초과",
                     content = @Content(examples = @ExampleObject(name = "AUTH031", value = AUTH031_EXAMPLE))),
             @ApiResponse(responseCode = "500", description = """
@@ -648,7 +621,6 @@ public interface AuthControllerDocs {
                     example = "kakao"
             )
             String provider,
-            @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(hidden = true) HttpServletRequest request,
             @Parameter(hidden = true) HttpServletResponse response
     );
@@ -659,8 +631,7 @@ public interface AuthControllerDocs {
             description = "카카오 인가 코드와 일회성 state를 검증합니다. 기존 계정이면 status가 "
                     + "LOGIN_COMPLETED이고 Access Token과 Refresh Token 쿠키를 발급합니다. 신규 계정이면 "
                     + "status가 SIGNUP_REQUIRED이고 소셜 가입 완료 API에 사용할 10분짜리 signupToken을 "
-                    + "반환하며, 이 단계에서는 회원이나 로그인 토큰을 만들지 않습니다. 게스트 인증으로 "
-                    + "발급한 state를 사용해 로그인하면 데이터 승계 없이 게스트 Refresh Token 세션만 종료합니다."
+                    + "반환하며, 이 단계에서는 회원이나 로그인 토큰을 만들지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 기존 로그인 또는 신규 가입 필요",
@@ -733,8 +704,7 @@ public interface AuthControllerDocs {
             description = "구글 인가 코드와 일회성 state를 검증합니다. 기존 계정이면 status가 "
                     + "LOGIN_COMPLETED이고 Access Token과 Refresh Token 쿠키를 발급합니다. 신규 계정이면 "
                     + "status가 SIGNUP_REQUIRED이고 소셜 가입 완료 API에 사용할 10분짜리 signupToken을 "
-                    + "반환하며, 이 단계에서는 회원이나 로그인 토큰을 만들지 않습니다. 게스트 인증으로 "
-                    + "발급한 state를 사용해 로그인하면 데이터 승계 없이 게스트 Refresh Token 세션만 종료합니다."
+                    + "반환하며, 이 단계에서는 회원이나 로그인 토큰을 만들지 않습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 기존 로그인 또는 신규 가입 필요",
@@ -808,8 +778,7 @@ public interface AuthControllerDocs {
                     + "닉네임·약관 동의를 제출합니다. 검증이 끝난 뒤에만 회원과 소셜 계정을 생성하고 Access "
                     + "Token과 Refresh Token 쿠키를 발급합니다. 동일한 소셜 계정의 가입이 먼저 완료된 경우 "
                     + "LOGIN_COMPLETED로 기존 계정 로그인을 완료합니다. 닉네임·약관 검증 실패 시에는 같은 "
-                    + "signupToken으로 다시 요청할 수 있습니다. 게스트 데이터는 승계하지 않으며, 게스트 "
-                    + "인증에서 시작한 가입이면 완료 후 게스트 Refresh Token 세션만 종료합니다."
+                    + "signupToken으로 다시 요청할 수 있습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200",
@@ -873,19 +842,9 @@ public interface AuthControllerDocs {
             operationId = "localSignup",
             summary = "로컬 계정 회원가입",
             description = "이메일, 비밀번호, 비밀번호 확인, 닉네임과 활성 필수 약관 동의로 로컬 계정을 "
-                    + "생성합니다. 게스트 Access Token을 보내더라도 게스트 데이터는 신규 회원에게 이전하지 "
-                    + "않으며, 회원가입 성공 후 해당 게스트 Refresh Token 세션만 종료합니다. "
-                    + "비밀번호는 8자 이상이며 UTF-8 "
+                    + "생성합니다. 비밀번호는 8자 이상이며 UTF-8 "
                     + "기준 72바이트 이하여야 합니다. 성공 시 Access Token은 본문에, Refresh Token은 "
-                    + "HttpOnly 쿠키에 발급됩니다.",
-            parameters = @Parameter(
-                    name = "Authorization",
-                    in = ParameterIn.HEADER,
-                    required = false,
-                    description = "선택 사항. 회원가입 성공 시 기존 게스트 Refresh Token 세션을 종료하려면 "
-                            + "Bearer {guestAccessToken} 형식으로 전달합니다. 게스트 데이터는 이전하지 않습니다.",
-                    example = "Bearer guest-access-token"
-            )
+                    + "HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 회원가입 성공",
@@ -912,22 +871,6 @@ public interface AuthControllerDocs {
                             @ExampleObject(name = "AUTH035", value = AUTH035_EXAMPLE),
                             @ExampleObject(name = "AUTH036", value = AUTH036_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "401", description = """
-                    AUTH006 - 선택적으로 전달한 Access Token이 만료·변조되었거나 형식이 올바르지 않음
-                    AUTH010 - 선택 Access Token의 사용자가 존재하지 않음
-                    """,
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
-                            @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "403", description = """
-                    AUTH009 - 선택 Access Token의 역할이 게스트가 아니거나 토큰 역할과 사용자 역할이 불일치
-                    AUTH020 - 선택 Access Token의 사용자가 비활성 또는 탈퇴 상태
-                    """,
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
-                            @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE)
-                    })),
             @ApiResponse(responseCode = "409", description = "AUTH034 - 이미 가입된 이메일",
                     content = @Content(examples = @ExampleObject(name = "AUTH034", value = AUTH034_EXAMPLE))),
             @ApiResponse(responseCode = "429", description = "AUTH043 - 회원가입 요청 한도 초과",
@@ -952,7 +895,6 @@ public interface AuthControllerDocs {
     @SecurityRequirements
     BaseResponse<LocalAuthResponse> localSignup(
             LocalSignupRequest request,
-            @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(hidden = true) HttpServletRequest httpRequest,
             @Parameter(hidden = true) HttpServletResponse response
     );
@@ -990,18 +932,8 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "localLogin",
             summary = "로컬 계정 로그인",
-            description = "이메일과 비밀번호로 로그인합니다. 선택적으로 게스트 Access Token을 보내면 게스트 "
-                    + "데이터를 기존 회원에게 이전하지 않고 게스트 Refresh Token 세션만 종료한 뒤 회원 "
-                    + "세션을 발급합니다. "
-                    + "성공 시 Access Token은 본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다.",
-            parameters = @Parameter(
-                    name = "Authorization",
-                    in = ParameterIn.HEADER,
-                    required = false,
-                    description = "선택 사항. 로그인 성공 시 기존 게스트 Refresh Token 세션을 종료하려면 "
-                            + "Bearer {guestAccessToken} 형식으로 전달합니다. 게스트 데이터는 이전하지 않습니다.",
-                    example = "Bearer guest-access-token"
-            )
+            description = "이메일과 비밀번호로 로그인합니다. 성공 시 Access Token은 본문에, Refresh Token은 "
+                    + "HttpOnly 쿠키에 발급됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 로그인 성공",
@@ -1017,24 +949,11 @@ public interface AuthControllerDocs {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "COMMON406", value = COMMON406_EXAMPLE)
                     })),
-            @ApiResponse(responseCode = "401", description = """
-                    AUTH006 - 선택적으로 전달한 Access Token이 만료·변조되었거나 형식이 올바르지 않음
-                    AUTH010 - 선택 Access Token의 사용자가 존재하지 않음
-                    AUTH011 - 이메일 또는 비밀번호가 일치하지 않거나 계정이 잠김
-                    """,
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
-                            @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE),
-                            @ExampleObject(name = "AUTH011", value = AUTH011_EXAMPLE)
-                    })),
-            @ApiResponse(responseCode = "403", description = """
-                    AUTH009 - 선택 Access Token의 역할이 게스트가 아니거나 토큰 역할과 사용자 역할이 불일치
-                    AUTH020 - 로컬 계정 또는 선택 Access Token의 사용자가 비활성·탈퇴 상태
-                    """,
-                    content = @Content(examples = {
-                            @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
-                            @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE)
-                    })),
+            @ApiResponse(responseCode = "401",
+                    description = "AUTH011 - 이메일 또는 비밀번호가 일치하지 않거나 계정이 잠김",
+                    content = @Content(examples = @ExampleObject(name = "AUTH011", value = AUTH011_EXAMPLE))),
+            @ApiResponse(responseCode = "403", description = "AUTH020 - 로컬 계정이 비활성 또는 탈퇴 상태",
+                    content = @Content(examples = @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE))),
             @ApiResponse(responseCode = "429", description = "AUTH043 - 로그인 요청 한도 초과",
                     content = @Content(examples = @ExampleObject(name = "AUTH043", value = AUTH043_EXAMPLE))),
             @ApiResponse(responseCode = "503", description = """
@@ -1051,7 +970,6 @@ public interface AuthControllerDocs {
     @SecurityRequirements
     BaseResponse<LocalAuthResponse> localLogin(
             LocalLoginRequest request,
-            @Parameter(hidden = true) PrincipalDetails principal,
             @Parameter(hidden = true) HttpServletRequest httpRequest,
             @Parameter(hidden = true) HttpServletResponse response
     );

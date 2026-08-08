@@ -12,8 +12,6 @@ import java.util.Optional;
 
 public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
 
-    boolean existsByImageId(Long imageId);
-
     @EntityGraph(attributePaths = {"moodType", "image"})
     List<Cocktail> findByMoodTypeId(Long moodTypeId);
 

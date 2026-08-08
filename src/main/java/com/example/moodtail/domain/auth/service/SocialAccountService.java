@@ -34,22 +34,18 @@ public class SocialAccountService {
     private final TermAgreementService termAgreementService;
     private final TokenSessionService tokenSessionService;
 
-    public Optional<SocialAuthenticationResult> loginExisting(
-            SocialUserProfile profile,
-            Long guestUserId
-    ) {
+    public Optional<SocialAuthenticationResult> loginExisting(SocialUserProfile profile) {
         validateProfile(profile);
         Optional<SocialLoginUser> authenticatedUser = requiresNewTransactionTemplate()
                 .execute(status -> loginInTransaction(profile));
         if (authenticatedUser == null) {
             throw new RestApiException(AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE);
         }
-        return authenticatedUser.map(user -> completeAuthentication(user, guestUserId));
+        return authenticatedUser.map(this::completeAuthentication);
     }
 
     public SocialAuthenticationResult register(
             SocialUserProfile profile,
-            Long guestUserId,
             List<Term> agreedTerms
     ) {
         validateProfile(profile);
@@ -64,7 +60,7 @@ public class SocialAccountService {
                 nickname
         );
         SocialLoginUser authenticatedUser = registerWithRecovery(normalizedProfile, agreedTerms);
-        return completeAuthentication(authenticatedUser, guestUserId);
+        return completeAuthentication(authenticatedUser);
     }
 
     private SocialLoginUser registerWithRecovery(
@@ -171,15 +167,11 @@ public class SocialAccountService {
         );
     }
 
-    private SocialAuthenticationResult completeAuthentication(SocialLoginUser user, Long guestUserId) {
+    private SocialAuthenticationResult completeAuthentication(SocialLoginUser user) {
         try {
             return new SocialAuthenticationResult(
                     user,
-                    tokenSessionService.issueSessionReplacingGuest(
-                        user.userId(),
-                        user.role(),
-                        guestUserId
-                    )
+                    tokenSessionService.issueSession(user.userId(), user.role())
             );
         } catch (RestApiException exception) {
             if (AuthErrorStatus.AUTH_INFRASTRUCTURE_UNAVAILABLE.getCode().getCode()

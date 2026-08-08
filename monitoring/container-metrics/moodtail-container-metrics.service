@@ -1,0 +1,12 @@
+[Unit]
+Description=Collect MoodTail Docker container resource metrics
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/moodtail-container-metrics /var/lib/moodtail-monitoring/textfile
+Nice=10
+CPUQuota=5%
+MemoryMax=64M
+TimeoutStartSec=45s

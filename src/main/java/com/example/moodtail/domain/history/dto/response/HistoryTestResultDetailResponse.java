@@ -9,7 +9,9 @@ public record HistoryTestResultDetailResponse(
         LocalDate resultDate,
         MoodType moodType,
         TasteProfile tasteProfile,
-        List<RecommendedCocktail> recommendedCocktails
+        DisplayTasteScores displayTasteScores,
+        List<RecommendedCocktail> recommendedCocktails,
+        Compatibilities compatibilities
 ) {
     public HistoryTestResultDetailResponse {
         recommendedCocktails = List.copyOf(recommendedCocktails);
@@ -22,7 +24,8 @@ public record HistoryTestResultDetailResponse(
             String shortDescription,
             String description,
             String characterQuote,
-            String characterImageUrl
+            String characterImageUrl,
+            DisplayTasteScores displayTasteScores
     ) {
     }
 
@@ -38,9 +41,32 @@ public record HistoryTestResultDetailResponse(
     public record RecommendedCocktail(
             Long cocktailId,
             String cocktailName,
+            String shortDescription,
             String cocktailImageUrl,
             int ranking,
             int matchScore
+    ) {
+    }
+
+    public record DisplayTasteScores(
+            int alcoholIntensity,
+            int sweetness,
+            int sourness,
+            int refreshing,
+            int bitterness
+    ) {
+    }
+
+    public record Compatibilities(
+            CompatibleMoodType best,
+            CompatibleMoodType worst
+    ) {
+    }
+
+    public record CompatibleMoodType(
+            Long moodTypeId,
+            String typeCode,
+            String name
     ) {
     }
 }

@@ -24,7 +24,6 @@ public class RedisRepositoryImpl implements RedisRepository {
 
 	private static final String REFRESH_TOKEN_KEY_PREFIX = "refresh:";
 	private static final String OAUTH_STATE_KEY_PREFIX = "oauth-state:";
-	private static final String OAUTH_STATE_OWNER_KEY_PREFIX = "oauth-state-owner:";
 	private static final String OAUTH_STATE_RATE_KEY_PREFIX = "oauth-state-rate:";
 	private static final String SOCIAL_SIGNUP_KEY_PREFIX = "social-signup:";
 	private static final String GUEST_LOGIN_RATE_KEY_PREFIX = "guest-rate:";
@@ -33,14 +32,6 @@ public class RedisRepositoryImpl implements RedisRepository {
 	private static final String PASSWORD_RESET_COOLDOWN_KEY_PREFIX = "password-reset-cooldown:";
 	private static final String PASSWORD_RESET_CODE_KEY_PREFIX = "password-reset-code:";
 	private static final String PASSWORD_RESET_TOKEN_KEY_PREFIX = "password-reset-token:";
-	private static final DefaultRedisScript<Long> SAVE_SINGLE_ACTIVE_VALUE_SCRIPT = new DefaultRedisScript<>(
-			"local previous = redis.call('get', KEYS[1]); "
-					+ "if previous then redis.call('del', ARGV[1] .. previous); end; "
-					+ "redis.call('set', KEYS[2], ARGV[2], 'PX', ARGV[3]); "
-					+ "redis.call('set', KEYS[1], ARGV[4], 'PX', ARGV[3]); "
-					+ "return 1;",
-			Long.class
-	);
 	private static final DefaultRedisScript<String> CONSUME_VALUE_SCRIPT = new DefaultRedisScript<>(
 			"local value = redis.call('get', KEYS[1]); "
 					+ "if value then redis.call('del', KEYS[1]); end; "
@@ -116,24 +107,14 @@ public class RedisRepositoryImpl implements RedisRepository {
 	@Override
 	public void saveOAuthState(
 			String state,
-			String ownerKey,
-			Long guestUserId,
 			String provider,
 			String codeVerifier,
 			Duration ttl
 	) {
-		String normalizedProvider = normalizeProvider(provider);
-		String stateKeyPrefix = createOAuthStateKeyPrefix(normalizedProvider);
-		redisTemplate.execute(
-				SAVE_SINGLE_ACTIVE_VALUE_SCRIPT,
-				List.of(
-						createAuthKey(OAUTH_STATE_OWNER_KEY_PREFIX + normalizedProvider + ":" + ownerKey),
-						stateKeyPrefix + state
-				),
-				stateKeyPrefix,
-				serialize(new OAuthStateSession(guestUserId, codeVerifier)),
-				String.valueOf(ttl.toMillis()),
-				state
+		redisTemplate.opsForValue().set(
+				createOAuthStateKeyPrefix(normalizeProvider(provider)) + state,
+				serialize(new OAuthStateSession(codeVerifier)),
+				ttl
 		);
 	}
 

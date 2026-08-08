@@ -50,7 +50,7 @@ class SocialSignupSessionServiceTest {
                 "제공자닉네임"
         );
 
-        SocialSignupTicket ticket = service.issue(profile, 2L);
+        SocialSignupTicket ticket = service.issue(profile);
 
         assertThat(ticket.value()).hasSize(43);
         assertThat(ticket.expiresInSeconds()).isEqualTo(600L);
@@ -64,7 +64,6 @@ class SocialSignupSessionServiceTest {
         assertThat(sessionCaptor.getValue().provider()).isEqualTo("GOOGLE");
         assertThat(sessionCaptor.getValue().providerUserId()).isEqualTo("google-user-id");
         assertThat(sessionCaptor.getValue().email()).isEqualTo("user@example.com");
-        assertThat(sessionCaptor.getValue().guestUserId()).isEqualTo(2L);
     }
 
     @Test
@@ -73,15 +72,14 @@ class SocialSignupSessionServiceTest {
                 .thenReturn(Optional.of(new RedisRepository.SocialSignupSession(
                         "KAKAO",
                         "kakao-user-id",
-                        "user@example.com",
-                        null
+                        "user@example.com"
                 )));
 
         SocialSignupSession result = service.consume(VALID_TOKEN);
 
         assertThat(result.provider()).isEqualTo(SocialProvider.KAKAO);
         assertThat(result.providerUserId()).isEqualTo("kakao-user-id");
-        assertThat(result.guestUserId()).isNull();
+        assertThat(result.email()).isEqualTo("user@example.com");
     }
 
     @Test
@@ -100,8 +98,7 @@ class SocialSignupSessionServiceTest {
                 .thenReturn(Optional.of(new RedisRepository.SocialSignupSession(
                         "UNSUPPORTED",
                         "provider-user-id",
-                        "user@example.com",
-                        null
+                        "user@example.com"
                 )));
 
         assertThatThrownBy(() -> service.consume(VALID_TOKEN))
@@ -116,8 +113,7 @@ class SocialSignupSessionServiceTest {
                 .thenReturn(Optional.of(new RedisRepository.SocialSignupSession(
                         null,
                         "provider-user-id",
-                        "user@example.com",
-                        null
+                        "user@example.com"
                 )));
 
         assertThatThrownBy(() -> service.consume(VALID_TOKEN))

@@ -4,6 +4,7 @@ import com.example.moodtail.domain.weather.client.dto.KakaoRegionResponse;
 import com.example.moodtail.domain.weather.config.KakaoLocalProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.RegionErrorStatus;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -16,6 +17,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
 
+@Slf4j
 @Component
 public class KakaoLocalClient {
     private final RestClient restClient;
@@ -117,6 +119,12 @@ public class KakaoLocalClient {
     private RestApiException mapResponseException(
             RestClientResponseException exception
     ) {
+        log.error(
+                "Kakao Local API failed: status={}, body={}",
+                exception.getStatusCode(),
+                exception.getResponseBodyAsString()
+        );
+
         int status = exception.getStatusCode().value();
 
         if (status == 401 || status == 403) {
