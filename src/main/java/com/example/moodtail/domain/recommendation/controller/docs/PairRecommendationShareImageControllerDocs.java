@@ -4,6 +4,7 @@ import com.example.moodtail.domain.recommendation.dto.response.PairRecommendatio
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -37,6 +38,12 @@ public interface PairRecommendationShareImageControllerDocs {
     String IMAGE400_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"IMAGE400","message":"이미지 파일 형식이 올바르지 않습니다."}
             """;
+    String INVITE_CODE400_EXAMPLE = """
+            {"timestamp":"2026-07-29T14:30:00","code":"INVITE_CODE400","message":"초대 코드 형식이 올바르지 않습니다."}
+            """;
+    String RECOMMENDATION400_SELF_EXAMPLE = """
+            {"timestamp":"2026-07-29T14:30:00","code":"RECOMMENDATION400","message":"본인의 초대 코드로는 페어 추천을 받을 수 없습니다."}
+            """;
     String IMAGE413_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"IMAGE413","message":"이미지 파일은 5MB 이하여야 합니다."}
             """;
@@ -60,8 +67,13 @@ public interface PairRecommendationShareImageControllerDocs {
                             name = "COMMON200",
                             value = UPLOAD_SHARE_IMAGE_SUCCESS_EXAMPLE
                     ))),
-            @ApiResponse(responseCode = "400", description = "IMAGE400 - 이미지가 없거나 지원하지 않는 파일 형식",
-                    content = @Content(examples = @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE))),
+            @ApiResponse(responseCode = "400",
+                    description = "IMAGE400/INVITE_CODE400/RECOMMENDATION400 - 이미지 형식 오류, 초대 코드 형식 오류 또는 본인 초대 코드 입력",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE),
+                            @ExampleObject(name = "INVITE_CODE400", value = INVITE_CODE400_EXAMPLE),
+                            @ExampleObject(name = "RECOMMENDATION400", value = RECOMMENDATION400_SELF_EXAMPLE)
+                    })),
             @ApiResponse(responseCode = "401",
                     description = "COMMON401/AUTH006 - 인증 정보 없음 또는 유효하지 않은 액세스 토큰",
                     content = @Content(examples = {
@@ -85,7 +97,10 @@ public interface PairRecommendationShareImageControllerDocs {
     })
     BaseResponse<PairRecommendationShareImageResponse> uploadPairRecommendationShareImage(
             PrincipalDetails principalDetails,
+
+            @Parameter(description = "상대방 초대 코드", example = "MOOD-4821")
             String partnerInviteCode,
+
             MultipartFile image
     );
 }

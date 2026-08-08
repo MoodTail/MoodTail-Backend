@@ -4,12 +4,15 @@ import com.example.moodtail.domain.weather.client.dto.OpenWeatherCurrentResponse
 import com.example.moodtail.domain.weather.config.OpenWeatherProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.WeatherErrorStatus;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.ResourceAccessException;
+
+import java.time.Duration;
 
 @Component
 public class OpenWeatherClient {
@@ -20,12 +23,27 @@ public class OpenWeatherClient {
             RestClient.Builder restClientBuilder,
             OpenWeatherProperties properties
     ) {
-        if (!StringUtils.hasText(properties.baseUrl()) || !StringUtils.hasText(properties.apiKey())) {
+        if (!StringUtils.hasText(properties.baseUrl())
+                || !StringUtils.hasText(properties.apiKey())
+                || properties.connectTimeoutMillis() <= 0
+                || properties.readTimeoutMillis() <= 0) {
             throw new RestApiException(WeatherErrorStatus.WEATHER_CONFIGURATION_ERROR);
         }
 
+        SimpleClientHttpRequestFactory requestFactory =
+                new SimpleClientHttpRequestFactory();
+
+        requestFactory.setConnectTimeout(
+                Duration.ofMillis(properties.connectTimeoutMillis())
+        );
+
+        requestFactory.setReadTimeout(
+                Duration.ofMillis(properties.readTimeoutMillis())
+        );
+
         this.restClient = restClientBuilder
                 .baseUrl(properties.baseUrl())
+                .requestFactory(requestFactory)
                 .build();
 
         this.apiKey = properties.apiKey();

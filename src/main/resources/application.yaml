@@ -60,16 +60,97 @@ spring:
 server:
   port: 8080
   forward-headers-strategy: native
+  tomcat:
+    mbeanregistry:
+      enabled: true
+
+management:
+  server:
+    port: 9091
+  endpoints:
+    access:
+      default: none
+    web:
+      discovery:
+        enabled: false
+      exposure:
+        include: "health,prometheus"
+    jmx:
+      exposure:
+        exclude: "*"
+  endpoint:
+    health:
+      access: read-only
+      show-details: never
+    prometheus:
+      access: read-only
+  metrics:
+    tags:
+      application: ${spring.application.name}
+      environment: ${MONITORING_ENVIRONMENT:${spring.profiles.active}}
 
 logging:
+  file:
+    path: ${LOG_PATH:logs}
   level:
-    root: INFO
-    org.springframework.security: ${SECURITY_LOG_LEVEL:INFO}
+    root: WARN
+    com.example.moodtail: INFO
+    org.springframework.security: ${SECURITY_LOG_LEVEL:WARN}
+    org.zalando.logbook.Logbook: TRACE
+
+logbook:
+  format:
+    style: json
+  predicate:
+    include:
+      - path: /api/**
+      - path: /share/**
+    exclude:
+      - path: /**
+        methods:
+          - OPTIONS
+  obfuscate:
+    replacement: "<masked>"
+    headers:
+      - Authorization
+      - Proxy-Authorization
+      - Cookie
+      - Set-Cookie
+    parameters:
+      - access_token
+      - refresh_token
+      - token
+      - code
+      - email
+      - authorizationCode
+      - signupToken
+      - resetToken
+      - state
+    json-body-fields:
+      - password
+      - passwordConfirm
+      - newPassword
+      - newPasswordConfirm
+      - accessToken
+      - refreshToken
+      - signupToken
+      - resetToken
+      - authorizationCode
+      - state
+      - codeChallenge
+      - email
+      - contactEmail
+      - nickname
+      - guestUuid
+      - uuid
+      - memo
+  write:
+    max-body-size: 16384
 
 aws:
   s3:
     bucket: ${AWS_S3_BUCKET:}
-    region: ${AWS_REGION:ap-northeast-2}
+    region: ${AWS_REGION:ap-southeast-2}
     access-key: ${AWS_ACCESS_KEY_ID:}
     secret-key: ${AWS_SECRET_ACCESS_KEY:}
 
@@ -154,3 +235,10 @@ open-weather:
   api-key: ${OPEN_WEATHER_API_KEY:}
   connect-timeout-millis: 5000
   read-timeout-millis: 5000
+
+kakao:
+  local:
+    base-url: https://dapi.kakao.com
+    rest-api-key: ${KAKAO_CLIENT_ID:}
+    connect-timeout-millis: 3000
+    read-timeout-millis: 5000

@@ -5,10 +5,13 @@ import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
 import com.example.moodtail.domain.history.dto.request.HistoryCreateRequest;
 import com.example.moodtail.domain.history.dto.request.HistoryUpdateRequest;
 import com.example.moodtail.domain.history.entity.DrinkingRecord;
+import com.example.moodtail.domain.history.entity.HistoryPhoto;
 import com.example.moodtail.domain.history.repository.HistoryMoodTestResultRepository;
 import com.example.moodtail.domain.history.repository.HistoryPhotoRepository;
 import com.example.moodtail.domain.history.repository.HistoryRecommendationRepository;
 import com.example.moodtail.domain.history.repository.HistoryRepository;
+import com.example.moodtail.domain.image.entity.Image;
+import com.example.moodtail.domain.image.entity.ImageSourceType;
 import com.example.moodtail.domain.moodtest.entity.CompatibilityType;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
@@ -67,7 +70,6 @@ class HistoryServiceTest {
     private CocktailRepository cocktailRepository;
     @Mock
     private UserRepository userRepository;
-
     private HistoryService historyService;
 
     @BeforeEach
@@ -256,6 +258,50 @@ class HistoryServiceTest {
                         ),
                         org.assertj.core.groups.Tuple.tuple(32L, "네그로니", null, null)
                 );
+    }
+
+    @Test
+    void returnsPermanentPublicUrlsForAllPhotosOnTheDate() {
+        LocalDate recordDate = LocalDate.of(2026, 7, 10);
+        User user = User.createMember("회원", LocalDateTime.now(CLOCK));
+        List<String> storedUrls = List.of(
+                "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
+                        + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png",
+                "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
+                        + "49f0cc65-8c36-49b7-936d-10f06101cfba.webp",
+                "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
+                        + "73ac1330-c8ff-40f6-ab3d-e0076018b47d.jpg",
+                "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
+                        + "eab7a479-8471-4842-aeff-32331adba39b.jpeg",
+                "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
+                        + "6c498675-f058-45bc-a2cc-1e0fb782e8ac.png"
+        );
+        List<Image> images = storedUrls.stream()
+                .map(url -> Image.create(url, ImageSourceType.GALLERY))
+                .toList();
+        List<HistoryPhoto> photos = images.stream()
+                .map(image -> HistoryPhoto.create(user, recordDate, image))
+                .toList();
+        for (int index = 0; index < photos.size(); index++) {
+            ReflectionTestUtils.setField(photos.get(index), "id", (long) index + 1);
+        }
+        when(historyPhotoRepository.findAllByUserIdAndRecordDate(USER_ID, recordDate))
+                .thenReturn(photos);
+
+        var response = historyService.getByDate(USER_ID, "2026-07-10");
+
+        assertThat(response.photos())
+                .extracting(photo -> photo.photoId(), photo -> photo.imageUrl())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(1L, storedUrls.get(0)),
+                        org.assertj.core.groups.Tuple.tuple(2L, storedUrls.get(1)),
+                        org.assertj.core.groups.Tuple.tuple(3L, storedUrls.get(2)),
+                        org.assertj.core.groups.Tuple.tuple(4L, storedUrls.get(3)),
+                        org.assertj.core.groups.Tuple.tuple(5L, storedUrls.get(4))
+                );
+        assertThat(images)
+                .extracting(Image::getImageUrl)
+                .containsExactlyElementsOf(storedUrls);
     }
 
     @Test

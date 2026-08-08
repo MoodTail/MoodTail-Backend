@@ -5,8 +5,11 @@ services:
     restart: always
     ports:
       - "8080:8080"
+    volumes:
+      - ./logs:/app/logs
     environment:
       - TZ=Asia/Seoul
+      - LOG_PATH=/app/logs
       - SPRING_PROFILES_ACTIVE=prod
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
       - SPRING_JPA_SHOW_SQL=false
@@ -54,7 +57,7 @@ services:
 
       - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
       - AWS_S3_BUCKET=${AWS_S3_BUCKET}
-      - AWS_REGION=${AWS_REGION:-ap-northeast-2}
+      - AWS_REGION=${AWS_REGION:-ap-southeast-2}
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-}
     deploy:

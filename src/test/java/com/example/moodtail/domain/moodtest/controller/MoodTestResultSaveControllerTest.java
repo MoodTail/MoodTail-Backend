@@ -65,8 +65,8 @@ class MoodTestResultSaveControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(validRequest()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.isSuccess").value(true))
-                .andExpect(jsonPath("$.code").value("200"))
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.code").value("COMMON200"))
                 .andExpect(jsonPath("$.result.test_result_id").value(10));
 
         ArgumentCaptor<MoodTestResultSaveRequest> captor =

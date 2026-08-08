@@ -40,14 +40,14 @@ class MonthlyReportShareImageServiceTest {
 
     @Test
     void uploadsTheClientGeneratedImage() {
-        when(storageService.uploadImage(image, "reports/monthly"))
+        when(storageService.uploadImage(image, "public/reports/monthly"))
                 .thenReturn("https://cdn.example/monthly-report.png");
 
         var response = shareImageService.uploadShareImage(USER_ID, 2026, 7, image);
 
         assertThat(response.shareImageUrl()).isEqualTo("https://cdn.example/monthly-report.png");
         verify(monthlyReportService).getMonthlyReport(USER_ID, 2026, 7);
-        verify(storageService).uploadImage(image, "reports/monthly");
+        verify(storageService).uploadImage(image, "public/reports/monthly");
     }
 
     @Test
@@ -63,7 +63,7 @@ class MonthlyReportShareImageServiceTest {
 
     @Test
     void mapsS3UploadFailureToTheReportErrorContract() {
-        when(storageService.uploadImage(image, "reports/monthly"))
+        when(storageService.uploadImage(image, "public/reports/monthly"))
                 .thenThrow(new S3StorageException("storage unavailable"));
 
         assertThatThrownBy(() -> shareImageService.uploadShareImage(USER_ID, 2026, 7, image))

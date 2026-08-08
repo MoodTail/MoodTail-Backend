@@ -7,16 +7,19 @@ import com.example.moodtail.domain.cocktail.dto.response.CocktailFavoriteRespons
 import com.example.moodtail.domain.cocktail.dto.response.CocktailListResponse;
 import com.example.moodtail.domain.cocktail.dto.response.CustomCocktailRecommendationResponse;
 import com.example.moodtail.domain.cocktail.dto.response.DailyCocktailResponse;
+import com.example.moodtail.domain.cocktail.dto.request.DailyCocktailRequest;
 import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springdoc.core.annotations.ParameterObject;
 
 import java.math.BigDecimal;
 
@@ -477,6 +480,70 @@ public interface CocktailControllerDocs {
             PrincipalDetails principalDetails
     );
 
+    String REGION400_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "REGION400",
+            "message": "지원하지 않는 지역입니다."
+          }
+          """;
+
+    String REGION500_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "REGION500",
+            "message": "지역 API 설정이 올바르지 않습니다."
+          }
+          """;
+
+    String REGION502_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "REGION502",
+            "message": "지역 서비스의 응답을 처리할 수 없습니다."
+          }
+          """;
+
+    String REGION503_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "REGION503",
+            "message": "지역 서비스를 일시적으로 사용할 수 없습니다."
+          }
+          """;
+
+    String REGION503_1_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "REGION503_1",
+            "message": "지역 API 호출 한도를 초과했습니다."
+          }
+          """;
+
+    String DAILY_COCKTAIL500_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "DAILY_COCKTAIL500",
+            "message": "오늘의 칵테일 캐시 데이터를 처리할 수 없습니다."
+          }
+          """;
+
+    String DAILY_COCKTAIL500_1_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "DAILY_COCKTAIL500_1",
+            "message": "오늘의 칵테일 캐시 데이터를 읽을 수 없습니다."
+          }
+          """;
+
+    String DAILY_COCKTAIL503_EXAMPLE = """
+          {
+            "timestamp": "2026-07-28T14:30:00",
+            "code": "DAILY_COCKTAIL503",
+            "message": "오늘의 칵테일 저장소를 일시적으로 사용할 수 없습니다."
+          }
+          """;
+
     @Operation(
             operationId = "getCocktails",
             summary = "칵테일 도수 및 이름 검색",
@@ -611,6 +678,10 @@ public interface CocktailControllerDocs {
     })
     BaseResponse<CustomCocktailRecommendationResponse>
     recommendCustomCocktail(
+            @RequestBody(
+                    required = true,
+                    description = "커스텀 칵테일 추천을 위한 맛 지표"
+            )
             CustomCocktailRecommendationRequest request
     );
 
@@ -618,8 +689,19 @@ public interface CocktailControllerDocs {
             operationId = "getDailyCocktail",
             summary = "오늘의 칵테일 조회",
             description = """
-                      서울의 현재 날씨와 요일을 기준으로 오늘의 칵테일을 추천합니다.
-                      오늘 추천이 이미 생성된 경우 외부 날씨 API를 다시 호출하지 않고 저장된 추천을 반환합니다.
+                      사용자의 위도와 경도를 기준으로 광역 시·도를 판별합니다.
+                      위도 또는 경도가 전달되지 않으면 서울을 기본 지역으로 사용합니다.
+                      
+                      해당 지역 대표 좌표의 현재 날씨와 요일을 기준으로 오늘의 칵테일을 추천합니다.
+                      같은 날짜와 지역의 추천이 Redis에 저장되어 있으면
+                      외부 날씨 API를 다시 호출하지 않고 기존 추천을 반환합니다.
+                    
+                      Redis에 추천이 없으면 해당 지역의 대표 좌표로 날씨를 조회하고,
+                      추천을 생성하여 Redis에 저장한 후 반환합니다.
+                    
+                      recommendationSaved가 true이면 이번 요청에서 추천을 생성하여
+                      Redis에 저장한 것이며, false이면 기존 Redis 데이터를 반환한 것 입니다.
+                    
                       로그인하지 않아도 사용할 수 있습니다.
                       """
     )
@@ -636,6 +718,23 @@ public interface CocktailControllerDocs {
                     )
             ),
             @ApiResponse(
+                    responseCode = "400",
+                    description = """
+                          COMMON402 - 위도·경도 허용 범위 위반
+                          REGION400 - 지원하지 않는 지역
+                          """,
+                    content = @Content(examples = {
+                            @ExampleObject(
+                                    name = "COMMON402",
+                                    value = COMMON402_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "REGION400",
+                                    value = REGION400_EXAMPLE
+                            )
+                    })
+            ),
+            @ApiResponse(
                     responseCode = "422",
                     description = "RECOMMENDATION422 - 오늘의 칵테일 산출 불가",
                     content = @Content(
@@ -649,12 +748,27 @@ public interface CocktailControllerDocs {
                     responseCode = "500",
                     description = """
                               WEATHER500 - 날씨 API 설정 오류
+                              REGION500 - 카카오 지역 API 설정 오류
+                              DAILY_COCKTAIL500 - Redis 저장 데이터 직렬화 오류
+                              DAILY_COCKTAIL500_1 - Redis 조회 데이터 역직렬화 오류
                               COMMON500 - 서버 내부 오류
                               """,
                     content = @Content(examples = {
                             @ExampleObject(
                                     name = "WEATHER500",
                                     value = WEATHER500_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "REGION500",
+                                    value = REGION500_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "DAILY_COCKTAIL500",
+                                    value = DAILY_COCKTAIL500_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "DAILY_COCKTAIL500_1",
+                                    value = DAILY_COCKTAIL500_1_EXAMPLE
                             ),
                             @ExampleObject(
                                     name = "COMMON500",
@@ -664,18 +778,28 @@ public interface CocktailControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "502",
-                    description = "WEATHER502 - 날씨 API 응답 처리 불가",
-                    content = @Content(
-                            examples = @ExampleObject(
+                    description = """
+                            WEATHER502 - 날씨 API 응답 처리 불가
+                            REGION502 - 카카오 지역 API 응답 처리 불가
+                            """,
+                    content = @Content(examples = {
+                            @ExampleObject(
                                     name = "WEATHER502",
                                     value = WEATHER502_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "REGION502",
+                                    value = REGION502_EXAMPLE
                             )
-                    )
+                    })
             ),
             @ApiResponse(
                     responseCode = "503",
                     description = """
                               WEATHER503 - 날씨 서비스 이용 불가, 날씨 API 호출 한도 초과
+                              REGION503 - 카카오 지역 서비스 이용 불가
+                              REGION503_1 - 카카오 지역 API 호출 한도 초과
+                              DAILY_COCKTAIL503 - Redis 이용 불가
                               """,
                     content = @Content(examples = {
                             @ExampleObject(
@@ -685,9 +809,23 @@ public interface CocktailControllerDocs {
                             @ExampleObject(
                                     name = "WEATHER_RATE_LIMIT_EXCEEDED",
                                     value = WEATHER_RATE_LIMIT_EXCEEDED_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "REGION503",
+                                    value = REGION503_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "REGION503_1",
+                                    value = REGION503_1_EXAMPLE
+                            ),
+                            @ExampleObject(
+                                    name = "DAILY_COCKTAIL503",
+                                    value = DAILY_COCKTAIL503_EXAMPLE
                             )
                     })
             )
     })
-    BaseResponse<DailyCocktailResponse> getDailyCocktail();
+    BaseResponse<DailyCocktailResponse> getDailyCocktail(
+            DailyCocktailRequest request
+    );
 }

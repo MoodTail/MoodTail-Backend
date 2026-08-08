@@ -38,19 +38,19 @@ public class SharedPairRecommendation {
     @JoinColumn(name = "creator_user_id", nullable = false)
     private User creator;
 
-    @Column(name = "compromise_alcohol_intensity", nullable = false, precision = 2, scale = 1)
+    @Column(name = "compromise_alcohol_intensity", nullable = false, precision = 5, scale = 4)
     private BigDecimal compromiseAlcoholIntensity;
 
-    @Column(name = "compromise_sweetness", nullable = false, precision = 2, scale = 1)
+    @Column(name = "compromise_sweetness", nullable = false, precision = 5, scale = 4)
     private BigDecimal compromiseSweetness;
 
-    @Column(name = "compromise_sourness", nullable = false, precision = 2, scale = 1)
+    @Column(name = "compromise_sourness", nullable = false, precision = 5, scale = 4)
     private BigDecimal compromiseSourness;
 
-    @Column(name = "compromise_refreshing", nullable = false, precision = 2, scale = 1)
+    @Column(name = "compromise_refreshing", nullable = false, precision = 5, scale = 4)
     private BigDecimal compromiseRefreshing;
 
-    @Column(name = "compromise_bitterness", nullable = false, precision = 2, scale = 1)
+    @Column(name = "compromise_bitterness", nullable = false, precision = 5, scale = 4)
     private BigDecimal compromiseBitterness;
 
     @Column(name = "cocktail_id_1", nullable = false)

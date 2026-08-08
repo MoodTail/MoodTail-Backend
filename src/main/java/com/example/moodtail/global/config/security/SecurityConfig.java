@@ -95,7 +95,11 @@ public class SecurityConfig {
 								"/api/v1/cocktails/*"
 						).permitAll()
 						.requestMatchers("/api/v1/history/**", "/api/v1/reports/**").hasRole("USER")
-						.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+						.requestMatchers(
+								"/actuator/health",
+								"/actuator/health/**",
+								"/actuator/prometheus"
+						).permitAll()
 						.anyRequest().hasAnyRole("USER", "ADMIN")
 				)
 				.exceptionHandling(exceptionHandling -> exceptionHandling
@@ -114,6 +118,7 @@ public class SecurityConfig {
 		configuration.setAllowedOrigins(allowedOrigins);
 		configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 		configuration.setAllowedHeaders(List.of("*"));
+		configuration.setExposedHeaders(List.of("X-Request-Id"));
 		configuration.setAllowCredentials(true);
 		configuration.setMaxAge(corsMaxAge);
 

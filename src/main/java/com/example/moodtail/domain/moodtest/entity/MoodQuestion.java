@@ -31,7 +31,10 @@ public class MoodQuestion {
     private Long id;
 
     @Column(nullable = false, columnDefinition = "TEXT")
-    private String content;
+    private String title;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String subtitle;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "question_type", nullable = false, length = 20)

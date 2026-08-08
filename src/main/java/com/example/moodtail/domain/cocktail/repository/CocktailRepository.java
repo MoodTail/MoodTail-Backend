@@ -12,8 +12,6 @@ import java.util.Optional;
 
 public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
 
-    boolean existsByImageId(Long imageId);
-
     @EntityGraph(attributePaths = {"moodType", "image"})
     List<Cocktail> findByMoodTypeId(Long moodTypeId);
 
@@ -53,4 +51,14 @@ public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
 
     @EntityGraph(attributePaths = "image")
     List<Cocktail> findAllByOrderByIdAsc();
+
+    @EntityGraph(attributePaths = "image")
+    @Query("""
+          SELECT cocktail
+          FROM Cocktail cocktail
+          WHERE cocktail.id = :cocktailId
+          """)
+    Optional<Cocktail> findByIdWithImage(
+            @Param("cocktailId") Long cocktailId
+    );
 }

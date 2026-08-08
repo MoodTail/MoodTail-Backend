@@ -16,7 +16,7 @@ import static com.example.moodtail.global.common.exception.code.status.ReportErr
 @RequiredArgsConstructor
 public class MonthlyReportShareImageService {
 
-    private static final String DIRECTORY = "reports/monthly";
+    private static final String DIRECTORY = "public/reports/monthly";
 
     private final MonthlyReportService monthlyReportService;
     private final S3StorageService storageService;
