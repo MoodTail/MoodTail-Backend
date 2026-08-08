@@ -2,6 +2,7 @@ package com.example.moodtail.domain.user.controller.docs;
 
 import com.example.moodtail.domain.collection.dto.response.MoodTypesResponse;
 import com.example.moodtail.domain.user.dto.request.UserProfileUpdateRequest;
+import com.example.moodtail.domain.user.dto.response.InviteCodeResponse;
 import com.example.moodtail.domain.user.dto.response.MyPageResponse;
 import com.example.moodtail.domain.user.dto.response.UserProfileUpdateResponse;
 import com.example.moodtail.global.common.base.BaseResponse;
@@ -25,6 +26,12 @@ public interface UserControllerDocs {
             """;
     String PROFILE_UPDATE_SUCCESS_EXAMPLE = """
             {"timestamp":"2026-07-21T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"userId":37,"nickname":"새로운푸미","representativeMoodType":{"moodTypeId":2001,"typeCode":"TYPE01","name":"몽글몽글 낭만파","characterImageUrl":"https://cdn.moodtail.com/mood-types/type01.png"}}}
+            """;
+    String INVITE_CODE_SUCCESS_EXAMPLE = """
+            {"timestamp":"2026-07-21T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"inviteCode":"MOOD-0483"}}
+            """;
+    String USER500_INVITE_CODE_EXAMPLE = """
+            {"timestamp":"2026-07-21T14:30:00","code":"USER500","message":"초대 코드 생성에 실패했습니다. 잠시 후 다시 시도해주세요."}
             """;
     String COMMON401_EXAMPLE = """
             {"timestamp":"2026-07-21T14:30:00","code":"COMMON401","message":"인증이 필요합니다."}
@@ -145,5 +152,35 @@ public interface UserControllerDocs {
     BaseResponse<UserProfileUpdateResponse> updateProfile(
             @Parameter(hidden = true) PrincipalDetails principalDetails,
             UserProfileUpdateRequest request
+    );
+
+    @Tag(name = "Users", description = "마이페이지 및 사용자 프로필 API")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(operationId = "issueOrGetInviteCode", summary = "초대 코드 발급 또는 조회",
+            description = "이미 발급된 초대 코드가 있으면 그대로 반환하고, 없으면 새로 발급합니다.")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "COMMON200 - 초대 코드 발급 또는 조회 성공", useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = INVITE_CODE_SUCCESS_EXAMPLE))),
+            @ApiResponse(responseCode = "401", description = "COMMON401/AUTH002/AUTH006/AUTH010 - 인증 토큰 또는 사용자 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "COMMON401", value = COMMON401_EXAMPLE),
+                            @ExampleObject(name = "AUTH002", value = AUTH002_EXAMPLE),
+                            @ExampleObject(name = "AUTH006", value = AUTH006_EXAMPLE),
+                            @ExampleObject(name = "AUTH010", value = AUTH010_EXAMPLE)
+                    })),
+            @ApiResponse(responseCode = "403", description = "AUTH009/AUTH020/AUTH027 - 로그인 사용자 권한 필요",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "AUTH009", value = AUTH009_EXAMPLE),
+                            @ExampleObject(name = "AUTH020", value = AUTH020_EXAMPLE),
+                            @ExampleObject(name = "AUTH027", value = AUTH027_EXAMPLE)
+                    })),
+            @ApiResponse(responseCode = "500", description = "USER500/COMMON500 - 초대 코드 생성 실패 또는 서버 내부 오류",
+                    content = @Content(examples = {
+                            @ExampleObject(name = "USER500", value = USER500_INVITE_CODE_EXAMPLE),
+                            @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)
+                    }))
+    })
+    BaseResponse<InviteCodeResponse> issueOrGetInviteCode(
+            @Parameter(hidden = true) PrincipalDetails principalDetails
     );
 }

@@ -133,7 +133,11 @@ public interface HistoryControllerDocs {
                 "photos": [
                   {
                     "photoId": 3,
-                    "imageUrl": "https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"
+                    "imageUrl": "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
+                  },
+                  {
+                    "photoId": 4,
+                    "imageUrl": "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/49f0cc65-8c36-49b7-936d-10f06101cfba.webp"
                   }
                 ]
               }
@@ -277,7 +281,7 @@ public interface HistoryControllerDocs {
               "result": {
                 "photoId": 3,
                 "recordDate": "2026-07-05",
-                "imageUrl": "https://cdn.moodtail.com/histories/37/2026-07-05/photo.jpg"
+                "imageUrl": "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
               }
             }
             """;
@@ -501,7 +505,10 @@ public interface HistoryControllerDocs {
             description = "선택 날짜의 테스트 결과 요약, 서로 다른 칵테일 음주 기록 목록과 사진 목록을 "
                     + "조회합니다. 데이터가 없는 날짜도 빈 목록과 null 테스트 결과로 COMMON200을 반환하며 "
                     + "미래 날짜는 조회할 수 없습니다. 테스트 결과 TOP4와 맛·궁합 상세는 "
-                    + "testResult.resultId를 저장된 테스트 결과 상세 조회 API에 전달해 조회합니다."
+                    + "testResult.resultId를 저장된 테스트 결과 상세 조회 API에 전달해 조회합니다. "
+                    + "photos는 같은 날짜에 저장된 사진을 최대 5장까지 배열로 반환합니다. "
+                    + "각 photos[].imageUrl은 public/history/photos 경로의 서명 만료가 없는 공개 S3 "
+                    + "URL이며 별도의 URL 갱신 없이 사용할 수 있습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 날짜별 히스토리 조회 성공",
@@ -863,6 +870,8 @@ public interface HistoryControllerDocs {
 
                     같은 날짜에 사진이 이미 5장 있으면 여섯 번째 사진은 저장하지 않고
                     `HISTORY_PHOTO409`를 반환합니다. 미래 날짜에는 사진을 추가할 수 없습니다.
+                    성공 응답의 `imageUrl`은 public/history/photos 경로의 서명 만료가 없는 공개 S3
+                    URL이며 별도의 URL 갱신 없이 사용할 수 있습니다.
                     """
     )
     @ApiResponses({

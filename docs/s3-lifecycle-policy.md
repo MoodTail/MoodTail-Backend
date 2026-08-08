@@ -1,12 +1,12 @@
 # 월간 리포트 공유 이미지 수명 주기
 
-월간 리포트 공유 이미지는 `reports/monthly/` 경로에 저장되며 30일 동안 보관한다.
+월간 리포트 공유 이미지는 `public/reports/monthly/` 경로에 저장되며 30일 동안 보관한다.
 `docs/s3-monthly-report-lifecycle.json`은 이 경로의 현재 객체와, 버전 관리가 켜진 버킷의 이전 객체 버전을 각각 30일 경과 후 S3 Lifecycle 처리 시점에 삭제하는 규칙이다.
 
 이 정책은 애플리케이션의 업로드 로직이 아니라 실제 S3 버킷에 설정해야 한다. 운영 버킷의 **Management > Lifecycle rules**에서 다음 값으로 규칙을 추가한다.
 
 - Rule ID: `expire-monthly-report-share-images-after-30-days`
-- Scope: Prefix `reports/monthly/`
+- Scope: Prefix `public/reports/monthly/`
 - Expire current versions: 30 days after object creation
 - Permanently delete noncurrent versions: 30 days after becoming noncurrent
 

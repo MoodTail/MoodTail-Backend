@@ -4,7 +4,7 @@
       "ID": "expire-monthly-report-share-images-after-30-days",
       "Status": "Enabled",
       "Filter": {
-        "Prefix": "reports/monthly/"
+        "Prefix": "public/reports/monthly/"
       },
       "Expiration": {
         "Days": 30

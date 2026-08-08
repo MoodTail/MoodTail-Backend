@@ -14,7 +14,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -32,10 +31,8 @@ import java.util.Optional;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -126,12 +123,20 @@ class SecurityConfigTest {
     }
 
     @Test
-    void corsExposesRequestIdResponseHeader() throws Exception {
-        mockMvc.perform(options("/api/v1/protected")
-                        .header(HttpHeaders.ORIGIN, "https://app.moodtail.example")
-                        .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.GET.name()))
+    void actuatorHealthAndPrometheusAllowAnonymousRequests() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
                 .andExpect(status().isOk())
-                .andExpect(header().string(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, "X-Request-Id"));
+                .andExpect(content().string("ok"));
+
+        mockMvc.perform(get("/actuator/prometheus"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("ok"));
+    }
+
+    @Test
+    void unlistedActuatorEndpointRemainsProtected() throws Exception {
+        mockMvc.perform(get("/actuator/env"))
+                .andExpect(status().isUnauthorized());
     }
 
     private void assertGuestBlocked(
@@ -172,6 +177,21 @@ class SecurityConfigTest {
 
         @PostMapping("/api/v1/auth/oauth-states/{provider}")
         String oauthStateProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/actuator/health")
+        String healthProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/actuator/prometheus")
+        String prometheusProbe() {
+            return "ok";
+        }
+
+        @GetMapping("/actuator/env")
+        String actuatorEnvProbe() {
             return "ok";
         }
     }

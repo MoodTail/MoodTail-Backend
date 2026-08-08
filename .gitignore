@@ -44,10 +44,10 @@ application-prod.yml
 .env
 .env.prod
 
+### Monitoring runtime secrets ###
+monitoring/prometheus/runtime/*
+!monitoring/prometheus/runtime/.gitkeep
+
 ### .json ###
 firebase-service-account.json
 google-services.json
-
-### Logs ###
-logs/
-*.log

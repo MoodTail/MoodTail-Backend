@@ -27,7 +27,7 @@ import static org.mockito.Mockito.verify;
 class S3StorageServiceTest {
 
     private static final String MANAGED_IMAGE_URL =
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png";
 
     @Mock
@@ -38,12 +38,12 @@ class S3StorageServiceTest {
     @BeforeEach
     void setUp() {
         S3Utilities utilities = S3Utilities.builder()
-                .region(Region.AP_NORTHEAST_2)
+                .region(Region.AP_SOUTHEAST_2)
                 .build();
         lenient().when(s3Client.utilities()).thenReturn(utilities);
         storageService = new S3StorageService(
                 s3Client,
-                new S3Properties("moodtail", "ap-northeast-2", "", "")
+                new S3Properties("moodtail-bucket", "ap-southeast-2", "", "")
         );
     }
 
@@ -53,15 +53,15 @@ class S3StorageServiceTest {
 
         ArgumentCaptor<DeleteObjectRequest> request = ArgumentCaptor.forClass(DeleteObjectRequest.class);
         verify(s3Client).deleteObject(request.capture());
-        assertThat(request.getValue().bucket()).isEqualTo("moodtail");
+        assertThat(request.getValue().bucket()).isEqualTo("moodtail-bucket");
         assertThat(request.getValue().key()).isEqualTo(
-                "history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
+                "public/history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
         );
     }
 
     @Test
     void rejectsAnImageFromAnotherBucket() {
-        String imageUrl = MANAGED_IMAGE_URL.replace("moodtail.s3", "other-bucket.s3");
+        String imageUrl = MANAGED_IMAGE_URL.replace("moodtail-bucket.s3", "other-bucket.s3");
 
         assertThatThrownBy(() -> storageService.deleteImage(imageUrl))
                 .isInstanceOf(S3StorageException.class);
@@ -71,11 +71,11 @@ class S3StorageServiceTest {
 
     @ParameterizedTest
     @ValueSource(strings = {
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png?versionId=malicious",
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png#malicious",
-            "https://attacker@moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/"
+            "https://attacker@moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
     })
     void rejectsAnImageUrlContainingQueryFragmentOrUserInfo(String imageUrl) {
@@ -88,12 +88,12 @@ class S3StorageServiceTest {
     @ParameterizedTest
     @ValueSource(strings = {
             "not-a-url",
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/photos/photo.png",
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/history/photos/photo.png",
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png",
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/../photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/../photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png",
-            "https://moodtail.s3.ap-northeast-2.amazonaws.com/history/%2e%2e/photos/"
+            "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/history/%2e%2e/photos/"
                     + "8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
     })
     void rejectsAnObjectNotGeneratedByTheImageUploadService(String imageUrl) {

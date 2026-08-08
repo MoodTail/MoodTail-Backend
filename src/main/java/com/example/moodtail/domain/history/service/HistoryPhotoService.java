@@ -31,7 +31,7 @@ import static com.example.moodtail.global.common.exception.code.status.HistoryEr
 @RequiredArgsConstructor
 public class HistoryPhotoService {
 
-    private static final String PHOTO_DIRECTORY = "history/photos";
+    private static final String PHOTO_DIRECTORY = "public/history/photos";
     private static final int MAX_PHOTOS_PER_DATE = 5;
     // The shared images table still requires one of its legacy non-null source values.
     private static final ImageSourceType HISTORY_PHOTO_SOURCE_TYPE = ImageSourceType.GALLERY;
@@ -95,7 +95,11 @@ public class HistoryPhotoService {
         validatePhotoLimit(userId, recordDate);
         Image image = imageRepository.save(Image.create(imageUrl, HISTORY_PHOTO_SOURCE_TYPE));
         HistoryPhoto photo = historyPhotoRepository.save(HistoryPhoto.create(user, recordDate, image));
-        return new HistoryPhotoResponse(photo.getId(), recordDate, imageUrl);
+        return new HistoryPhotoResponse(
+                photo.getId(),
+                recordDate,
+                imageUrl
+        );
     }
 
     private void validatePhotoLimit(Long userId, LocalDate recordDate) {
