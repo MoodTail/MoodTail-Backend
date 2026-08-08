@@ -239,6 +239,6 @@ open-weather:
 kakao:
   local:
     base-url: https://dapi.kakao.com
-    rest-api-key: ${KAKAO_REST_API_KEY:}
+    rest-api-key: ${KAKAO_CLIENT_ID:}
     connect-timeout-millis: 3000
     read-timeout-millis: 5000
