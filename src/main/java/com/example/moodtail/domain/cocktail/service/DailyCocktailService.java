@@ -28,16 +28,20 @@ public class DailyCocktailService {
     private final CocktailRepository cocktailRepository;
 
     public DailyCocktailResponse getOrCreateTodayCocktail(
-            double latitude,
-            double longitude
+            Double latitude,
+            Double longitude
     ) {
         LocalDate today = LocalDate.now(SEOUL_ZONE_ID);
 
-        Region region =
-                reverseGeocodingService.resolve(
-                        latitude,
-                        longitude
-                );
+        Region region;
+        if (latitude == null || longitude == null) {
+            region = Region.SEOUL;
+        } else{
+            region = reverseGeocodingService.resolve(
+                    latitude,
+                    longitude
+            );
+        }
 
         Optional<DailyCocktailCacheValue> cached =
                 dailyCocktailRedisRepository.find(

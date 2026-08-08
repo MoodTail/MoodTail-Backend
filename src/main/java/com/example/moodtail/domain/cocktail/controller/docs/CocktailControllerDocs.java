@@ -714,7 +714,7 @@ public interface CocktailControllerDocs {
             @ApiResponse(
                     responseCode = "400",
                     description = """
-                          COMMON402 - 위도·경도 누락 또는 허용 범위 위반
+                          COMMON402 - 위도·경도 허용 범위 위반
                           REGION400 - 지원하지 않는 지역
                           """,
                     content = @Content(examples = {
