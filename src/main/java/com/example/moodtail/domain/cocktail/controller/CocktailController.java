@@ -86,7 +86,10 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
     @PostMapping("/custom")
     public BaseResponse<CustomCocktailRecommendationResponse>
     recommendCustomCocktail(
-            @Valid @RequestBody CustomCocktailRecommendationRequest request
+            @Valid
+            @ModelAttribute
+            @ParameterObject
+            CustomCocktailRecommendationRequest request
     ) {
         return BaseResponse.onSuccess(
                 customCocktailRecommendationService.recommend(request)
