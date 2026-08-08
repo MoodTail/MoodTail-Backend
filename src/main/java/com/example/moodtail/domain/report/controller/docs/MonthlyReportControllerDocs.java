@@ -121,7 +121,7 @@ public interface MonthlyReportControllerDocs {
               "code": "COMMON200",
               "message": "요청에 성공했습니다.",
               "result": {
-                "shareImageUrl": "https://moodtail.s3.ap-northeast-2.amazonaws.com/reports/monthly/share-image.png"
+                "shareImageUrl": "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/reports/monthly/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
               }
             }
             """;
@@ -303,9 +303,10 @@ public interface MonthlyReportControllerDocs {
             operationId = "createMonthlyReportShareImage",
             summary = "월간 리포트 공유 이미지 저장",
             description = "프론트엔드에서 월간 리포트 데이터로 생성한 JPG, PNG 또는 WEBP 이미지를 S3에 "
-                    + "저장하고 접근 URL을 반환합니다. 파일당 최대 5MB입니다. 조회 API와 동일하게 해당 월 "
-                    + "테스트 결과가 5건 이상이어야 합니다. 공유 이미지는 응답 시점부터 정확히 30일이 아니라, "
-                    + "객체 생성 30일 경과 후 S3 수명 주기 정책이 실행되는 시점에 삭제됩니다."
+                    + "public/reports/monthly 경로에 저장하고 서명 만료가 없는 공개 S3 URL을 반환합니다. "
+                    + "파일당 최대 5MB이며, 조회 API와 동일하게 해당 월 테스트 결과가 5건 이상이어야 "
+                    + "합니다. 공유 이미지는 응답 시점부터 정확히 30일이 아니라, 객체 생성 30일 경과 후 "
+                    + "S3 수명 주기 정책이 실행되는 시점에 삭제됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 리포트 공유 이미지 저장 성공",

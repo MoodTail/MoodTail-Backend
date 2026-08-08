@@ -83,8 +83,8 @@ class HistoryPhotoServiceTest {
     @Test
     void removesUploadedObjectWhenDatabasePersistenceFails() {
         MultipartFile file = mock(MultipartFile.class);
-        String url = "https://cdn.example/history/photos/photo.png";
-        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
+        String url = "https://cdn.example/public/history/photos/photo.png";
+        when(storageService.uploadImage(file, "public/history/photos")).thenReturn(url);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
         when(imageRepository.save(any(Image.class)))
                 .thenThrow(new IllegalStateException("database failure"));
@@ -98,9 +98,9 @@ class HistoryPhotoServiceTest {
     @Test
     void keepsTheDatabaseFailureWhenUploadCompensationAlsoFails() {
         MultipartFile file = mock(MultipartFile.class);
-        String url = "https://cdn.example/history/photos/photo.png";
+        String url = "https://cdn.example/public/history/photos/photo.png";
         IllegalStateException databaseFailure = new IllegalStateException("database failure");
-        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
+        when(storageService.uploadImage(file, "public/history/photos")).thenReturn(url);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
         when(imageRepository.save(any(Image.class))).thenThrow(databaseFailure);
         org.mockito.Mockito.doThrow(new S3StorageException("storage failure"))
@@ -112,11 +112,11 @@ class HistoryPhotoServiceTest {
     }
 
     @Test
-    void persistsUploadedPhoto() {
+    void persistsUploadedPhotoWithPermanentPublicUrl() {
         MultipartFile file = mock(MultipartFile.class);
-        String url = "https://cdn.example/history/photos/photo.png";
+        String storedUrl = "https://cdn.example/public/history/photos/photo.png";
         User user = member();
-        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
+        when(storageService.uploadImage(file, "public/history/photos")).thenReturn(storedUrl);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(user));
         when(imageRepository.save(any(Image.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(historyPhotoRepository.save(any())).thenAnswer(invocation -> {
@@ -129,15 +129,15 @@ class HistoryPhotoServiceTest {
 
         assertThat(response.photoId()).isEqualTo(3L);
         assertThat(response.recordDate()).isEqualTo(RECORD_DATE);
-        assertThat(response.imageUrl()).isEqualTo(url);
+        assertThat(response.imageUrl()).isEqualTo(storedUrl);
 
         ArgumentCaptor<Image> imageCaptor = ArgumentCaptor.forClass(Image.class);
         verify(imageRepository).save(imageCaptor.capture());
-        assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(url);
+        assertThat(imageCaptor.getValue().getImageUrl()).isEqualTo(storedUrl);
         assertThat(imageCaptor.getValue().getSourceType()).isEqualTo(ImageSourceType.GALLERY);
         InOrder persistenceOrder = inOrder(historyPhotoRepository, storageService, userRepository);
         persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
-        persistenceOrder.verify(storageService).uploadImage(file, "history/photos");
+        persistenceOrder.verify(storageService).uploadImage(file, "public/history/photos");
         persistenceOrder.verify(userRepository).findByIdForUpdate(1L);
         persistenceOrder.verify(historyPhotoRepository).countByUserIdAndRecordDate(1L, RECORD_DATE);
         verify(historyPhotoRepository, times(2)).countByUserIdAndRecordDate(1L, RECORD_DATE);
@@ -163,10 +163,10 @@ class HistoryPhotoServiceTest {
     @Test
     void removesUploadedObjectWhenConcurrentRequestFillsTheFifthSlot() {
         MultipartFile file = mock(MultipartFile.class);
-        String url = "https://cdn.example/history/photos/photo.png";
+        String url = "https://cdn.example/public/history/photos/photo.png";
         when(historyPhotoRepository.countByUserIdAndRecordDate(1L, RECORD_DATE))
                 .thenReturn(4L, 5L);
-        when(storageService.uploadImage(file, "history/photos")).thenReturn(url);
+        when(storageService.uploadImage(file, "public/history/photos")).thenReturn(url);
         when(userRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(member()));
 
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
@@ -185,7 +185,7 @@ class HistoryPhotoServiceTest {
     @Test
     void mapsUploadStorageFailureToHistoryContract() {
         MultipartFile file = mock(MultipartFile.class);
-        when(storageService.uploadImage(file, "history/photos"))
+        when(storageService.uploadImage(file, "public/history/photos"))
                 .thenThrow(new S3StorageException("storage unavailable"));
 
         assertThatThrownBy(() -> photoService.add(1L, "2026-07-10", file))
