@@ -4,6 +4,8 @@ import com.example.moodtail.domain.weather.client.dto.KakaoRegionResponse;
 import com.example.moodtail.domain.weather.config.KakaoLocalProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.RegionErrorStatus;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -15,18 +17,24 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.io.IOException;
 import java.time.Duration;
 
 @Slf4j
 @Component
 public class KakaoLocalClient {
+    private static final int KAKAO_RATE_LIMIT_ERROR_CODE = -10;
+
     private final RestClient restClient;
+    private final ObjectMapper objectMapper;
 
     public KakaoLocalClient(
             RestClient.Builder restClientBuilder,
-            KakaoLocalProperties properties
+            KakaoLocalProperties properties,
+            ObjectMapper objectMapper
     ) {
         validateProperties(properties);
+        this.objectMapper = objectMapper;
 
         SimpleClientHttpRequestFactory requestFactory =
                 new SimpleClientHttpRequestFactory();
@@ -116,7 +124,7 @@ public class KakaoLocalClient {
         }
     }
 
-    private RestApiException mapResponseException(
+    RestApiException mapResponseException(
             RestClientResponseException exception
     ) {
         log.error(
@@ -133,7 +141,7 @@ public class KakaoLocalClient {
             );
         }
 
-        if (status == 429) {
+        if (status == 429 || isKakaoRateLimitError(exception, status)) {
             return new RestApiException(
                     RegionErrorStatus.REGION_RATE_LIMIT_EXCEEDED
             );
@@ -149,4 +157,32 @@ public class KakaoLocalClient {
                 RegionErrorStatus.INVALID_REGION_RESPONSE
         );
     }
+
+    private boolean isKakaoRateLimitError(
+            RestClientResponseException exception,
+            int status
+    ) {
+        if (status != 400) {
+            return false;
+        }
+
+        try {
+            JsonNode errorResponse = objectMapper.readTree(
+                    exception.getResponseBodyAsByteArray()
+            );
+            JsonNode errorCode = errorResponse == null
+                    ? null
+                    : errorResponse.get("code");
+            return errorCode != null
+                    && errorCode.canConvertToInt()
+                    && errorCode.intValue() == KAKAO_RATE_LIMIT_ERROR_CODE;
+        } catch (IOException parsingException) {
+            log.warn(
+                    "Failed to parse Kakao Local API error response",
+                    parsingException
+            );
+            return false;
+        }
+    }
+
 }

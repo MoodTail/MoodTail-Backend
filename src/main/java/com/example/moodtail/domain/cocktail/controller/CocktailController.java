@@ -87,8 +87,7 @@ public class CocktailController implements CocktailControllerDocs, CocktailTrend
     public BaseResponse<CustomCocktailRecommendationResponse>
     recommendCustomCocktail(
             @Valid
-            @ModelAttribute
-            @ParameterObject
+            @RequestBody
             CustomCocktailRecommendationRequest request
     ) {
         return BaseResponse.onSuccess(

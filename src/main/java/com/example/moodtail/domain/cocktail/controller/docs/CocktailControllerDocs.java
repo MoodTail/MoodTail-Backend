@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.parameters.RequestBody;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -677,7 +678,10 @@ public interface CocktailControllerDocs {
     })
     BaseResponse<CustomCocktailRecommendationResponse>
     recommendCustomCocktail(
-            @ParameterObject
+            @RequestBody(
+                    required = true,
+                    description = "커스텀 칵테일 추천을 위한 맛 지표"
+            )
             CustomCocktailRecommendationRequest request
     );
 
