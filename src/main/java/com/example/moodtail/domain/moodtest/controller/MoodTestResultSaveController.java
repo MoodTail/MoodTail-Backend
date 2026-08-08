@@ -2,8 +2,9 @@ package com.example.moodtail.domain.moodtest.controller;
 
 import com.example.moodtail.domain.moodtest.controller.docs.MoodTestResultSaveControllerDocs;
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultSaveRequest;
-import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultSaveApiResponse;
+import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultSaveResponse;
 import com.example.moodtail.domain.moodtest.service.MoodTestResultSaveService;
+import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -21,11 +22,11 @@ public class MoodTestResultSaveController implements MoodTestResultSaveControlle
     private final MoodTestResultSaveService moodTestResultSaveService;
 
     @PostMapping("/save")
-    public MoodTestResultSaveApiResponse saveResult(
+    public BaseResponse<MoodTestResultSaveResponse> saveResult(
             @AuthenticationPrincipal PrincipalDetails principalDetails,
             @Valid @RequestBody MoodTestResultSaveRequest request
     ) {
         Long testResultId = moodTestResultSaveService.saveResult(principalDetails.getUserId(), request);
-        return MoodTestResultSaveApiResponse.success(testResultId);
+        return BaseResponse.onSuccess(new MoodTestResultSaveResponse(testResultId));
     }
 }

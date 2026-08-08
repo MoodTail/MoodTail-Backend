@@ -1,7 +1,8 @@
 package com.example.moodtail.domain.moodtest.controller.docs;
 
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultSaveRequest;
-import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultSaveApiResponse;
+import com.example.moodtail.domain.moodtest.dto.response.MoodTestResultSaveResponse;
+import com.example.moodtail.global.common.base.BaseResponse;
 import com.example.moodtail.global.config.security.auth.PrincipalDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -17,7 +18,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public interface MoodTestResultSaveControllerDocs {
 
     String SUCCESS_EXAMPLE = """
-            {"isSuccess":true,"code":"200","message":"테스트 분석 결과 저장 성공","result":{"test_result_id":10}}
+            {"timestamp":"2026-07-21T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"test_result_id":10}}
             """;
     String COMMON402_EXAMPLE = """
             {"timestamp":"2026-07-21T14:30:00","code":"COMMON402","message":"입력값 검증에 실패했습니다."}
@@ -57,7 +58,7 @@ public interface MoodTestResultSaveControllerDocs {
             description = "로그인 사용자의 테스트 결과와 추천 칵테일 4종을 저장합니다. "
                     + "같은 날짜의 결과가 있으면 갱신하고 해당 무드 타입을 해금합니다.")
     @ApiResponses({
-            @ApiResponse(responseCode = "200", description = "응답 본문 code=200 - 테스트 분석 결과 저장 성공", useReturnTypeSchema = true,
+            @ApiResponse(responseCode = "200", description = "COMMON200 - 테스트 분석 결과 저장 성공", useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "성공", value = SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = "COMMON402 - 요청값 검증 실패\nMOOD_TEST400 - 저장 요청의 타입·점수·추천 목록 오류",
                     content = @Content(examples = {
@@ -84,7 +85,7 @@ public interface MoodTestResultSaveControllerDocs {
             @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
                     content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))
     })
-    MoodTestResultSaveApiResponse saveResult(
+    BaseResponse<MoodTestResultSaveResponse> saveResult(
             @Parameter(hidden = true) PrincipalDetails principalDetails,
             MoodTestResultSaveRequest request
     );
