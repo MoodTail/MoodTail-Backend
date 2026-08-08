@@ -302,7 +302,7 @@ jobs:
           runtime_config.write_text(config, encoding="utf-8")
           runtime_token.write_text(write_token, encoding="utf-8")
           runtime_config.chmod(0o644)
-          runtime_token.chmod(0o600)
+          runtime_token.chmod(0o644)
           PY
 
       - name: Copy deployment files to Server
