@@ -17,6 +17,7 @@ import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepos
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
 import com.example.moodtail.domain.recommendation.repository.SharedPairRecommendationRepository;
+import com.example.moodtail.domain.report.repository.MonthlyReportShareRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
@@ -77,6 +78,8 @@ class AccountWithdrawalServiceTest {
     @Mock
     private SharedMoodTestResultRepository sharedMoodTestResultRepository;
     @Mock
+    private MonthlyReportShareRepository monthlyReportShareRepository;
+    @Mock
     private MoodTestResultRepository moodTestResultRepository;
     @Mock
     private UserTermAgreementRepository userTermAgreementRepository;
@@ -114,6 +117,7 @@ class AccountWithdrawalServiceTest {
         verify(userUnlockedMoodTypeRepository).deleteAllByUserId(7L);
         verify(inquiryRepository).anonymizeAllByUserId(7L);
         verify(sharedMoodTestResultRepository).deleteAllByUserId(7L);
+        verify(monthlyReportShareRepository).deleteAllByUserId(7L);
         verify(userTermAgreementRepository).deleteAllByUserId(7L);
         verify(socialAccountRepository).deleteAllByUserId(7L);
         verify(localAccountRepository).deleteAllByUserId(7L);
@@ -190,13 +194,17 @@ class AccountWithdrawalServiceTest {
         Image deletedImage = ownedImage(21L, "https://cdn.example/history-deleted.png");
         Image retainedImage = ownedImage(22L, "https://cdn.example/history-retained.png");
         String sharedResultImage = "https://cdn.example/shared-result.png";
+        String monthlyReportImage = "https://cdn.example/monthly-report.png";
         stubSuccessfulDatabaseDeletion(List.of(deletedImage, retainedImage), List.of(sharedResultImage));
+        when(monthlyReportShareRepository.findShareImageUrlsByUserId(7L))
+                .thenReturn(List.of(monthlyReportImage));
         when(imageRepository.findUnreferencedByIdIn(List.of(21L, 22L)))
                 .thenReturn(List.of(deletedImage));
         when(imageService.deleteImagesFromStorage(List.of(
                 deletedImage.getImageUrl(),
-                sharedResultImage
-        ))).thenReturn(new StorageCleanupResult(2, 0));
+                sharedResultImage,
+                monthlyReportImage
+        ))).thenReturn(new StorageCleanupResult(3, 0));
 
         service.withdraw(7L);
 
@@ -204,7 +212,8 @@ class AccountWithdrawalServiceTest {
         verify(imageRepository).deleteAllByIdInBatch(List.of(21L));
         verify(imageService).deleteImagesFromStorage(List.of(
                 deletedImage.getImageUrl(),
-                sharedResultImage
+                sharedResultImage,
+                monthlyReportImage
         ));
     }
 

@@ -9,10 +9,13 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3Utilities;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,6 +25,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class S3StorageServiceTest {
@@ -112,5 +116,49 @@ class S3StorageServiceTest {
         assertThatThrownBy(() -> storageService.deleteImage(MANAGED_IMAGE_URL))
                 .isInstanceOf(S3StorageException.class)
                 .hasMessage("Failed to delete image from S3");
+    }
+
+    @Test
+    void loadsAnImageGeneratedInTheConfiguredBucket() {
+        byte[] content = {1, 2, 3};
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(
+                        GetObjectResponse.builder().contentType("image/png").build(),
+                        content
+                ));
+
+        S3StorageService.StoredImage image = storageService.getImage(MANAGED_IMAGE_URL);
+
+        ArgumentCaptor<GetObjectRequest> request = ArgumentCaptor.forClass(GetObjectRequest.class);
+        verify(s3Client).getObjectAsBytes(request.capture());
+        assertThat(request.getValue().bucket()).isEqualTo("moodtail-bucket");
+        assertThat(request.getValue().key()).isEqualTo(
+                "public/history/photos/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
+        );
+        assertThat(image.content()).containsExactly(content);
+        assertThat(image.contentType()).isEqualTo("image/png");
+    }
+
+    @Test
+    void rejectsStoredObjectWithUnsupportedContentType() {
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenReturn(ResponseBytes.fromByteArray(
+                        GetObjectResponse.builder().contentType("text/html").build(),
+                        new byte[]{1, 2, 3}
+                ));
+
+        assertThatThrownBy(() -> storageService.getImage(MANAGED_IMAGE_URL))
+                .isInstanceOf(S3StorageException.class)
+                .hasMessage("Stored S3 object is not a supported image");
+    }
+
+    @Test
+    void wrapsS3ImageLoadingFailure() {
+        when(s3Client.getObjectAsBytes(any(GetObjectRequest.class)))
+                .thenThrow(S3Exception.builder().message("storage unavailable").build());
+
+        assertThatThrownBy(() -> storageService.getImage(MANAGED_IMAGE_URL))
+                .isInstanceOf(S3StorageException.class)
+                .hasMessage("Failed to load image from S3");
     }
 }
