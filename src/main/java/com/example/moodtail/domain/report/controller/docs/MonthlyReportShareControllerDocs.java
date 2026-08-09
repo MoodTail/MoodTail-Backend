@@ -6,9 +6,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 
 @Tag(name = "Reports", description = "월간 리포트 공개 공유 API")
 public interface MonthlyReportShareControllerDocs {
@@ -21,7 +24,7 @@ public interface MonthlyReportShareControllerDocs {
               "result": {
                 "year": 2026,
                 "month": 7,
-                "shareImageUrl": "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/reports/monthly/8d5f57e1-40e5-46b2-852d-1c3dd640efb8.png"
+                "shareImageUrl": "https://mood-tail.site/api/v1/reports/monthly/shares/mr_hJ7JngQmYV4x0aP9k2LmN3Qr/image"
               }
             }
             """;
@@ -30,6 +33,13 @@ public interface MonthlyReportShareControllerDocs {
               "timestamp": "2026-08-09T14:30:00",
               "code": "REPORT404",
               "message": "공유된 월간 리포트를 찾을 수 없습니다."
+            }
+            """;
+    String REPORT_IMAGE503_EXAMPLE = """
+            {
+              "timestamp": "2026-08-09T14:30:00",
+              "code": "REPORT_IMAGE503",
+              "message": "공유 이미지를 저장하거나 불러올 수 없습니다."
             }
             """;
     String COMMON500_EXAMPLE = """
@@ -41,9 +51,9 @@ public interface MonthlyReportShareControllerDocs {
             """;
 
     @Operation(
-            operationId = "getSharedMonthlyReportImage",
-            summary = "공유 월간 리포트 이미지 조회",
-            description = "공유 토큰으로 리포트 연도·월과 공개 이미지를 조회합니다. "
+            operationId = "getSharedImage",
+            summary = "공유 월간 리포트 정보 조회",
+            description = "공유 토큰으로 리포트 연도·월과 토큰 검증 이미지 URL을 조회합니다. "
                     + "공유 링크는 생성 후 30일 동안 조회할 수 있으며 인증이 필요하지 않습니다."
     )
     @ApiResponses({
@@ -65,6 +75,40 @@ public interface MonthlyReportShareControllerDocs {
                     )))
     })
     BaseResponse<MonthlyReportSharedImageResponse> getSharedImage(
+            @Parameter(
+                    description = "월간 리포트 공유 토큰",
+                    example = "mr_hJ7JngQmYV4x0aP9k2LmN3Qr"
+            )
+            String shareToken
+    );
+
+    @Operation(
+            operationId = "getSharedImageFile",
+            summary = "공유 월간 리포트 이미지 파일 조회",
+            description = "공유 토큰의 유효기간을 검사한 뒤 비공개 S3 객체를 이미지 파일로 반환합니다. "
+                    + "공유 링크 생성 후 30일 동안 인증 없이 조회할 수 있습니다."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "공유 월간 리포트 이미지 파일 조회 성공",
+                    content = {
+                            @Content(mediaType = MediaType.IMAGE_PNG_VALUE,
+                                    schema = @Schema(type = "string", format = "binary")),
+                            @Content(mediaType = MediaType.IMAGE_JPEG_VALUE,
+                                    schema = @Schema(type = "string", format = "binary")),
+                            @Content(mediaType = "image/webp",
+                                    schema = @Schema(type = "string", format = "binary"))
+                    }),
+            @ApiResponse(responseCode = "404", description = "REPORT404 - 토큰이 없거나 공유 기간이 만료됨",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            examples = @ExampleObject(name = "REPORT404", value = REPORT404_EXAMPLE))),
+            @ApiResponse(responseCode = "503", description = "REPORT_IMAGE503 - S3 이미지 조회 실패",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            examples = @ExampleObject(
+                                    name = "REPORT_IMAGE503",
+                                    value = REPORT_IMAGE503_EXAMPLE
+                            )))
+    })
+    ResponseEntity<byte[]> getSharedImageFile(
             @Parameter(
                     description = "월간 리포트 공유 토큰",
                     example = "mr_hJ7JngQmYV4x0aP9k2LmN3Qr"

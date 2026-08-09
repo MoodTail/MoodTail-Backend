@@ -7,6 +7,7 @@ import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.infra.s3.S3StorageException;
 import com.example.moodtail.global.infra.s3.S3StorageService;
+import com.example.moodtail.global.infra.s3.S3StorageService.StoredImage;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -178,7 +179,7 @@ class MonthlyReportShareImageServiceTest {
         assertThat(response.year()).isEqualTo(2026);
         assertThat(response.month()).isEqualTo(7);
         assertThat(response.shareImageUrl())
-                .isEqualTo("https://cdn.example/monthly-report.png");
+                .isEqualTo("https://mood-tail.site/api/v1/reports/monthly/shares/mr_test/image");
     }
 
     @Test
@@ -208,7 +209,53 @@ class MonthlyReportShareImageServiceTest {
         assertThat(response.frontendUrl())
                 .isEqualTo("https://mood-tail.site/reports/monthly/share/mr_test");
         assertThat(response.shareImageUrl())
-                .isEqualTo("https://cdn.example/monthly-report.png");
+                .isEqualTo("https://mood-tail.site/api/v1/reports/monthly/shares/mr_test/image");
+    }
+
+    @Test
+    void loadsSharedImageFileOnlyAfterValidatingShareToken() {
+        MonthlyReportShare share = share("mr_test");
+        when(monthlyReportShareRepository.findByShareTokenAndCreatedAtAfter(
+                "mr_test",
+                LocalDateTime.of(2026, 7, 10, 14, 30)
+        )).thenReturn(Optional.of(share));
+        when(storageService.getImage("https://cdn.example/monthly-report.png"))
+                .thenReturn(new StoredImage(new byte[]{1, 2, 3}, "image/png"));
+
+        var response = shareImageService.getSharedImageFile("mr_test");
+
+        assertThat(response.content()).containsExactly(1, 2, 3);
+        assertThat(response.contentType()).isEqualTo("image/png");
+        verify(storageService).getImage("https://cdn.example/monthly-report.png");
+    }
+
+    @Test
+    void mapsSharedImageLoadingFailureToReportErrorContract() {
+        MonthlyReportShare share = share("mr_test");
+        when(monthlyReportShareRepository.findByShareTokenAndCreatedAtAfter(
+                "mr_test",
+                LocalDateTime.of(2026, 7, 10, 14, 30)
+        )).thenReturn(Optional.of(share));
+        when(storageService.getImage("https://cdn.example/monthly-report.png"))
+                .thenThrow(new S3StorageException("storage unavailable"));
+
+        assertThatThrownBy(() -> shareImageService.getSharedImageFile("mr_test"))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT_IMAGE503"));
+    }
+
+    @Test
+    void rejectsExpiredShareBeforeLoadingImageFromStorage() {
+        when(monthlyReportShareRepository.findByShareTokenAndCreatedAtAfter(
+                "mr_expired",
+                LocalDateTime.of(2026, 7, 10, 14, 30)
+        )).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> shareImageService.getSharedImageFile("mr_expired"))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("REPORT404"));
+
+        verify(storageService, never()).getImage(anyString());
     }
 
     private MonthlyReportShare share(String shareToken) {

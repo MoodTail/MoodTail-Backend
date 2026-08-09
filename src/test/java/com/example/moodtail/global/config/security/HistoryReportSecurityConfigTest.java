@@ -82,6 +82,10 @@ class HistoryReportSecurityConfigTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string("shared-report"));
 
+        mockMvc.perform(get("/api/v1/reports/monthly/shares/mr_test/image"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("shared-report-image"));
+
         mockMvc.perform(get("/share/reports/monthly/mr_test"))
                 .andExpect(status().isOk())
                 .andExpect(content().string("share-page"));
@@ -110,6 +114,11 @@ class HistoryReportSecurityConfigTest {
         @GetMapping("/api/v1/reports/monthly/shares/{shareToken}")
         String sharedReport() {
             return "shared-report";
+        }
+
+        @GetMapping("/api/v1/reports/monthly/shares/{shareToken}/image")
+        String sharedReportImage() {
+            return "shared-report-image";
         }
 
         @GetMapping("/share/reports/monthly/{shareToken}")

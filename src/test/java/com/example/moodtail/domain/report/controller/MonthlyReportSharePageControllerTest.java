@@ -25,7 +25,7 @@ class MonthlyReportSharePageControllerTest {
                 .thenReturn(new MonthlyReportSharePageResponse(
                         "https://mood-tail.site/share/reports/monthly/mr_test",
                         "https://mood-tail.site/reports/monthly/share/mr_test",
-                        "https://cdn.example/monthly-report.png"
+                        "https://mood-tail.site/api/v1/reports/monthly/shares/mr_test/image"
                 ));
 
         ResponseEntity<String> response = controller.getSharePage("mr_test");
@@ -33,7 +33,7 @@ class MonthlyReportSharePageControllerTest {
         assertThat(response.getHeaders().getContentType().toString())
                 .isEqualTo("text/html;charset=UTF-8");
         assertThat(response.getBody())
-                .contains("<meta property=\"og:image\" content=\"https://cdn.example/monthly-report.png\">")
+                .contains("<meta property=\"og:image\" content=\"https://mood-tail.site/api/v1/reports/monthly/shares/mr_test/image\">")
                 .contains("<meta property=\"og:url\" content=\"https://mood-tail.site/share/reports/monthly/mr_test\">")
                 .contains("<meta http-equiv=\"refresh\" content=\"0;url=https://mood-tail.site/reports/monthly/share/mr_test\">");
     }

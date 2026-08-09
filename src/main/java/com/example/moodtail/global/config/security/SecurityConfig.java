@@ -79,7 +79,7 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/api/v1/tests/results/share/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/share/pair-recommendations/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/collections/share/*").permitAll()
-						.requestMatchers(HttpMethod.GET, "/api/v1/reports/monthly/shares/*").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/reports/monthly/shares/**").permitAll()
 						.requestMatchers(HttpMethod.GET, "/share/results/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/share/pair/*").permitAll()
 						.requestMatchers(HttpMethod.GET, "/share/collections/*").permitAll()

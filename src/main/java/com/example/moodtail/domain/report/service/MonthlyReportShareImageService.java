@@ -2,6 +2,7 @@ package com.example.moodtail.domain.report.service;
 
 import com.example.moodtail.domain.report.dto.response.MonthlyReportShareImageResponse;
 import com.example.moodtail.domain.report.dto.response.MonthlyReportSharePageResponse;
+import com.example.moodtail.domain.report.dto.response.MonthlyReportSharedImageFile;
 import com.example.moodtail.domain.report.dto.response.MonthlyReportSharedImageResponse;
 import com.example.moodtail.domain.report.entity.MonthlyReportShare;
 import com.example.moodtail.domain.report.repository.MonthlyReportShareRepository;
@@ -35,7 +36,9 @@ public class MonthlyReportShareImageService {
 
     private static final String DIRECTORY = "public/reports/monthly";
     private static final String SHARE_PATH = "/share/reports/monthly/";
+    private static final String SHARED_IMAGE_PATH = "/api/v1/reports/monthly/shares/";
     private static final String FRONTEND_SHARE_PATH = "/reports/monthly/share/";
+    private static final String IMAGE_PATH_SUFFIX = "/image";
     private static final int SHARE_RETENTION_DAYS = 30;
     private static final int TOKEN_BYTE_LENGTH = 18;
     private static final SecureRandom SECURE_RANDOM = new SecureRandom();
@@ -93,18 +96,30 @@ public class MonthlyReportShareImageService {
         return new MonthlyReportSharedImageResponse(
                 share.getReportYear(),
                 share.getReportMonth(),
-                share.getShareImageUrl()
+                createSharedImageUrl(shareToken)
         );
     }
 
     @Transactional(readOnly = true)
     public MonthlyReportSharePageResponse getSharePage(String shareToken) {
-        MonthlyReportShare share = findShare(shareToken);
+        findShare(shareToken);
         return new MonthlyReportSharePageResponse(
                 normalizeBaseUrl(shareBaseUrl) + SHARE_PATH + shareToken,
                 normalizeBaseUrl(shareFrontendBaseUrl) + FRONTEND_SHARE_PATH + shareToken,
-                share.getShareImageUrl()
+                createSharedImageUrl(shareToken)
         );
+    }
+
+    @Transactional(readOnly = true)
+    public MonthlyReportSharedImageFile getSharedImageFile(String shareToken) {
+        MonthlyReportShare share = findShare(shareToken);
+        try {
+            S3StorageService.StoredImage image = storageService.getImage(share.getShareImageUrl());
+            return new MonthlyReportSharedImageFile(image.content(), image.contentType());
+        } catch (S3StorageException exception) {
+            log.error("Failed to load monthly report share image", exception);
+            throw new RestApiException(SHARE_IMAGE_UNAVAILABLE);
+        }
     }
 
     private String uploadImage(MultipartFile image) {
@@ -161,5 +176,12 @@ public class MonthlyReportShareImageService {
         return baseUrl.endsWith("/")
                 ? baseUrl.substring(0, baseUrl.length() - 1)
                 : baseUrl;
+    }
+
+    private String createSharedImageUrl(String shareToken) {
+        return normalizeBaseUrl(shareBaseUrl)
+                + SHARED_IMAGE_PATH
+                + shareToken
+                + IMAGE_PATH_SUFFIX;
     }
 }
