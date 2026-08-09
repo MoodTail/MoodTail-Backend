@@ -86,7 +86,10 @@ class MonthlyReportControllerTest {
                 new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47}
         );
         when(shareImageService.uploadShareImage(eq(USER_ID), eq(2026), eq(7), any())).thenReturn(
-                new MonthlyReportShareImageResponse("https://cdn.example/report.png")
+                new MonthlyReportShareImageResponse(
+                        "mr_test",
+                        "https://mood-tail.site/share/reports/monthly/mr_test"
+                )
         );
 
         mockMvc.perform(multipart("/api/v1/reports/monthly/share-image")
@@ -94,7 +97,9 @@ class MonthlyReportControllerTest {
                         .param("year", "2026")
                         .param("month", "7"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.result.shareImageUrl").value("https://cdn.example/report.png"));
+                .andExpect(jsonPath("$.result.shareToken").value("mr_test"))
+                .andExpect(jsonPath("$.result.shareUrl")
+                        .value("https://mood-tail.site/share/reports/monthly/mr_test"));
 
         verify(shareImageService).uploadShareImage(eq(USER_ID), eq(2026), eq(7), any());
     }
