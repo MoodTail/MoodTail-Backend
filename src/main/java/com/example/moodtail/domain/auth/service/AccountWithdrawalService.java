@@ -17,6 +17,7 @@ import com.example.moodtail.domain.moodtest.repository.SharedMoodTestResultRepos
 import com.example.moodtail.domain.recommendation.repository.RecommendationItemRepository;
 import com.example.moodtail.domain.recommendation.repository.RecommendationSessionRepository;
 import com.example.moodtail.domain.recommendation.repository.SharedPairRecommendationRepository;
+import com.example.moodtail.domain.report.repository.MonthlyReportShareRepository;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
 import com.example.moodtail.domain.user.repository.UserTermAgreementRepository;
@@ -50,6 +51,7 @@ public class AccountWithdrawalService {
     private final UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     private final InquiryRepository inquiryRepository;
     private final SharedMoodTestResultRepository sharedMoodTestResultRepository;
+    private final MonthlyReportShareRepository monthlyReportShareRepository;
     private final MoodTestResultRepository moodTestResultRepository;
     private final UserTermAgreementRepository userTermAgreementRepository;
     private final SocialAccountRepository socialAccountRepository;
@@ -99,6 +101,10 @@ public class AccountWithdrawalService {
                 sharedMoodTestResultRepository.findThumbnailImageUrlsByUserId(userId).stream()
                         .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
                         .toList();
+        List<String> monthlyReportShareImages =
+                monthlyReportShareRepository.findShareImageUrlsByUserId(userId).stream()
+                        .filter(imageUrl -> imageUrl != null && !imageUrl.isBlank())
+                        .toList();
 
         String collectionShareImage =
                 collectionShareRepository.findThumbnailImageUrlByUserId(userId)
@@ -121,6 +127,8 @@ public class AccountWithdrawalService {
         inquiryRepository.anonymizeAllByUserId(userId);
         sharedMoodTestResultRepository.deleteAllByUserId(userId);
         storageCleanupCandidates.addAll(sharedResultImages);
+        monthlyReportShareRepository.deleteAllByUserId(userId);
+        storageCleanupCandidates.addAll(monthlyReportShareImages);
         userTermAgreementRepository.deleteAllByUserId(userId);
         socialAccountRepository.deleteAllByUserId(userId);
         localAccountRepository.deleteAllByUserId(userId);

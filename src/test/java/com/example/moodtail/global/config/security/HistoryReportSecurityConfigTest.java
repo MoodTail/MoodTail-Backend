@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -75,6 +76,28 @@ class HistoryReportSecurityConfigTest {
                 .andExpect(content().string("report"));
     }
 
+    @Test
+    void monthlyReportShareReadsArePublic() throws Exception {
+        mockMvc.perform(get("/api/v1/reports/monthly/shares/mr_test"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("shared-report"));
+
+        mockMvc.perform(get("/api/v1/reports/monthly/shares/mr_test/image"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("shared-report-image"));
+
+        mockMvc.perform(get("/share/reports/monthly/mr_test"))
+                .andExpect(status().isOk())
+                .andExpect(content().string("share-page"));
+    }
+
+    @Test
+    @WithMockUser(roles = "GUEST")
+    void publicShareReadsDoNotOpenMonthlyReportWrites() throws Exception {
+        mockMvc.perform(multipart("/api/v1/reports/monthly/share-image"))
+                .andExpect(status().isForbidden());
+    }
+
     @RestController
     static class ProbeController {
 
@@ -86,6 +109,21 @@ class HistoryReportSecurityConfigTest {
         @GetMapping("/api/v1/reports/probe")
         String report() {
             return "report";
+        }
+
+        @GetMapping("/api/v1/reports/monthly/shares/{shareToken}")
+        String sharedReport() {
+            return "shared-report";
+        }
+
+        @GetMapping("/api/v1/reports/monthly/shares/{shareToken}/image")
+        String sharedReportImage() {
+            return "shared-report-image";
+        }
+
+        @GetMapping("/share/reports/monthly/{shareToken}")
+        String sharePage() {
+            return "share-page";
         }
     }
 }
