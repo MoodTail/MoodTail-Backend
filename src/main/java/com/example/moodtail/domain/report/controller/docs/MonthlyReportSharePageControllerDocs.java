@@ -60,7 +60,7 @@ public interface MonthlyReportSharePageControllerDocs {
             @ApiResponse(responseCode = "200", description = "OG 메타데이터가 포함된 UTF-8 HTML",
                     content = @Content(
                             mediaType = MediaType.TEXT_HTML_VALUE,
-                            schema = @Schema(type = "string"),
+                            schema = @Schema(types = {"string"}),
                             examples = @ExampleObject(
                                     name = "성공 HTML",
                                     value = SUCCESS_EXAMPLE
