@@ -39,7 +39,7 @@ public interface MonthlyReportShareControllerDocs {
             {
               "timestamp": "2026-08-09T14:30:00",
               "code": "REPORT_IMAGE503",
-              "message": "공유 이미지를 저장하거나 불러올 수 없습니다."
+              "message": "월간 리포트 공유 이미지를 일시적으로 저장할 수 없습니다."
             }
             """;
     String COMMON500_EXAMPLE = """
@@ -85,18 +85,18 @@ public interface MonthlyReportShareControllerDocs {
     @Operation(
             operationId = "getSharedImageFile",
             summary = "공유 월간 리포트 이미지 파일 조회",
-            description = "공유 토큰의 유효기간을 검사한 뒤 비공개 S3 객체를 이미지 파일로 반환합니다. "
-                    + "공유 링크 생성 후 30일 동안 인증 없이 조회할 수 있습니다."
+            description = "공유 토큰의 유효기간을 검사한 뒤 저장된 월간 리포트 이미지를 백엔드 이미지 "
+                    + "응답으로 반환합니다. 공유 링크 생성 후 30일 동안 인증 없이 조회할 수 있습니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "공유 월간 리포트 이미지 파일 조회 성공",
                     content = {
                             @Content(mediaType = MediaType.IMAGE_PNG_VALUE,
-                                    schema = @Schema(type = "string", format = "binary")),
+                                    schema = @Schema(types = {"string"}, format = "binary")),
                             @Content(mediaType = MediaType.IMAGE_JPEG_VALUE,
-                                    schema = @Schema(type = "string", format = "binary")),
+                                    schema = @Schema(types = {"string"}, format = "binary")),
                             @Content(mediaType = "image/webp",
-                                    schema = @Schema(type = "string", format = "binary"))
+                                    schema = @Schema(types = {"string"}, format = "binary"))
                     }),
             @ApiResponse(responseCode = "404", description = "REPORT404 - 토큰이 없거나 공유 기간이 만료됨",
                     content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
@@ -106,6 +106,12 @@ public interface MonthlyReportShareControllerDocs {
                             examples = @ExampleObject(
                                     name = "REPORT_IMAGE503",
                                     value = REPORT_IMAGE503_EXAMPLE
+                            ))),
+            @ApiResponse(responseCode = "500", description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON_VALUE,
+                            examples = @ExampleObject(
+                                    name = "COMMON500",
+                                    value = COMMON500_EXAMPLE
                             )))
     })
     ResponseEntity<byte[]> getSharedImageFile(

@@ -18,6 +18,9 @@ import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
+import com.fasterxml.jackson.databind.node.TextNode;
+import io.swagger.v3.core.converter.ModelConverters;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.junit.jupiter.api.Test;
 
@@ -54,17 +57,61 @@ class AuthDtoSchemaTest {
         for (Class<?> dto : AUTH_DTOS) {
             for (RecordComponent component : dto.getRecordComponents()) {
                 Schema schema = component.getAccessor().getAnnotation(Schema.class);
+                ArraySchema arraySchema = component.getAccessor().getAnnotation(ArraySchema.class);
 
-                assertThat(schema)
+                assertThat(schema != null || arraySchema != null)
                         .as(dto.getSimpleName() + "." + component.getName())
-                        .isNotNull();
-                assertThat(schema.description())
+                        .isTrue();
+                Schema documentedSchema = schema == null ? arraySchema.arraySchema() : schema;
+                assertThat(documentedSchema.description())
                         .as(dto.getSimpleName() + "." + component.getName())
                         .isNotBlank();
-                assertThat(schema.example())
+                assertThat(documentedSchema.example())
                         .as(dto.getSimpleName() + "." + component.getName())
                         .isNotBlank();
             }
         }
+    }
+
+    @Test
+    void generatedSignupSchemasMatchValidationConstraints() {
+        assertAgreementArrayConstraints(LocalSignupRequest.class);
+        assertAgreementArrayConstraints(SocialSignupRequest.class);
+    }
+
+    @Test
+    void generatedPasswordResetCodeExampleIsAString() {
+        io.swagger.v3.oas.models.media.Schema<?> request = generatedSchema(
+                PasswordResetCodeVerifyRequest.class
+        );
+        Object example = property(request, "code").getExample();
+
+        assertThat(example)
+                .isInstanceOf(TextNode.class);
+        assertThat(((TextNode) example).asText()).isEqualTo("123456");
+    }
+
+    private void assertAgreementArrayConstraints(Class<?> requestType) {
+        io.swagger.v3.oas.models.media.Schema<?> agreements = property(
+                generatedSchema(requestType),
+                "agreements"
+        );
+
+        assertThat(agreements.getTypes()).contains("array");
+        assertThat(agreements.getMinItems()).isEqualTo(1);
+        assertThat(agreements.getMaxItems()).isEqualTo(20);
+    }
+
+    private io.swagger.v3.oas.models.media.Schema<?> generatedSchema(Class<?> type) {
+        return ModelConverters.getInstance(true)
+                .readAll(type)
+                .get(type.getSimpleName());
+    }
+
+    private io.swagger.v3.oas.models.media.Schema<?> property(
+            io.swagger.v3.oas.models.media.Schema<?> schema,
+            String name
+    ) {
+        return (io.swagger.v3.oas.models.media.Schema<?>) schema.getProperties().get(name);
     }
 }

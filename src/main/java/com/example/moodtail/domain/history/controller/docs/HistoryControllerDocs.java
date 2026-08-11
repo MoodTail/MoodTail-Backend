@@ -495,8 +495,16 @@ public interface HistoryControllerDocs {
     })
     BaseResponse<HistoryCalendarResponse> getHistoryCalendar(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "조회 연도(1000 이상, 미래 월 조회 불가)", example = "2026") int year,
-            @Parameter(description = "조회 월(1~12)", example = "7") int month
+            @Parameter(
+                    description = "조회 연도(1000 이상, 미래 월 조회 불가)",
+                    schema = @Schema(minimum = "1000"),
+                    example = "2026"
+            ) int year,
+            @Parameter(
+                    description = "조회 월(1~12)",
+                    schema = @Schema(minimum = "1", maximum = "12"),
+                    example = "7"
+            ) int month
     );
 
     @Operation(
@@ -546,7 +554,11 @@ public interface HistoryControllerDocs {
     })
     BaseResponse<HistoryDateResponse> getHistoryByDate(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "조회 날짜(yyyy-MM-dd)", example = "2026-07-05") String date
+            @Parameter(
+                    description = "조회 날짜(yyyy-MM-dd)",
+                    schema = @Schema(types = {"string"}, format = "date"),
+                    example = "2026-07-05"
+            ) String date
     );
 
     @Operation(
@@ -615,6 +627,7 @@ public interface HistoryControllerDocs {
             @Parameter(
                     description = "월간 히스토리 testResults[].resultId 또는 날짜별 히스토리 "
                             + "testResult.resultId에서 얻은 테스트 결과 ID(양수)",
+                    schema = @Schema(minimum = "1"),
                     example = "71"
             ) Long resultId
     );
@@ -671,7 +684,11 @@ public interface HistoryControllerDocs {
     })
     BaseResponse<HistoryDetailResponse> getHistoryDetail(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "음주 기록 ID(양수)", example = "31") Long recordId
+            @Parameter(
+                    description = "음주 기록 ID(양수)",
+                    schema = @Schema(minimum = "1"),
+                    example = "31"
+            ) Long recordId
     );
 
     @Operation(
@@ -802,7 +819,11 @@ public interface HistoryControllerDocs {
     })
     BaseResponse<HistoryUpdateResponse> updateHistory(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "수정할 음주 기록 ID(양수)", example = "31") Long recordId,
+            @Parameter(
+                    description = "수정할 음주 기록 ID(양수)",
+                    schema = @Schema(minimum = "1"),
+                    example = "31"
+            ) Long recordId,
             HistoryUpdateRequest request
     );
 
@@ -855,7 +876,11 @@ public interface HistoryControllerDocs {
     })
     BaseResponse<Void> deleteHistory(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "삭제할 음주 기록 ID(양수)", example = "31") Long recordId
+            @Parameter(
+                    description = "삭제할 음주 기록 ID(양수)",
+                    schema = @Schema(minimum = "1"),
+                    example = "31"
+            ) Long recordId
     );
 
     @Operation(
@@ -965,7 +990,7 @@ public interface HistoryControllerDocs {
             @Parameter(
                     description = "multipart/form-data의 사진 기록 날짜(yyyy-MM-dd, 미래 날짜 불가)",
                     required = true,
-                    schema = @Schema(type = "string", format = "date"),
+                    schema = @Schema(types = {"string"}, format = "date"),
                     example = "2026-07-05"
             )
             String date,
@@ -973,7 +998,7 @@ public interface HistoryControllerDocs {
             @Parameter(
                     description = "JPG, PNG 또는 WEBP 형식의 이미지 한 장(파일당 최대 5MB)",
                     required = true,
-                    schema = @Schema(type = "string", format = "binary")
+                    schema = @Schema(types = {"string"}, format = "binary")
             )
             MultipartFile image
     );
@@ -1030,7 +1055,15 @@ public interface HistoryControllerDocs {
     })
     BaseResponse<Void> deleteHistoryPhoto(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "사진 기록 날짜(yyyy-MM-dd)", example = "2026-07-05") String date,
-            @Parameter(description = "삭제할 사진 ID(양수)", example = "3") Long photoId
+            @Parameter(
+                    description = "사진 기록 날짜(yyyy-MM-dd)",
+                    schema = @Schema(types = {"string"}, format = "date"),
+                    example = "2026-07-05"
+            ) String date,
+            @Parameter(
+                    description = "삭제할 사진 ID(양수)",
+                    schema = @Schema(minimum = "1"),
+                    example = "3"
+            ) Long photoId
     );
 }

@@ -27,6 +27,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -127,7 +128,7 @@ public class AuthController implements AuthControllerDocs {
     @Override
     @GetMapping("/signup/local/email-availability")
     public BaseResponse<LocalEmailAvailabilityResponse> checkLocalEmailAvailability(
-            @Valid @ModelAttribute LocalEmailAvailabilityRequest request,
+            @ParameterObject @Valid @ModelAttribute LocalEmailAvailabilityRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse response
     ) {
