@@ -1,5 +1,7 @@
 package com.example.moodtail.domain.auth.controller.docs;
 
+import com.example.moodtail.domain.auth.controller.AuthController;
+import com.example.moodtail.domain.auth.dto.request.LocalEmailAvailabilityRequest;
 import com.example.moodtail.global.common.exception.code.BaseCodeDto;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
 import com.example.moodtail.global.common.exception.code.status.GlobalErrorStatus;
@@ -11,7 +13,10 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
+import org.springdoc.core.annotations.ParameterObject;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
@@ -27,6 +32,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 class AuthControllerDocsTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+
+    @Test
+    void emailAvailabilityRequestIsDocumentedAsQueryParameters() throws Exception {
+        Method method = AuthController.class.getDeclaredMethod(
+                "checkLocalEmailAvailability",
+                LocalEmailAvailabilityRequest.class,
+                HttpServletRequest.class,
+                HttpServletResponse.class
+        );
+
+        assertThat(method.getParameters()[0].isAnnotationPresent(ParameterObject.class)).isTrue();
+    }
 
     @Test
     void socialSignupTokenExampleMatchesRequestContract() throws Exception {
