@@ -20,7 +20,7 @@ public record PasswordResetCodeVerifyRequest(
         @Schema(
                 description = "이메일로 받은 6자리 숫자 인증 코드",
                 pattern = "^[0-9]{6}$",
-                example = "123456"
+                example = "\"123456\""
         )
         @NotBlank(message = "인증 코드는 필수입니다.")
         @Pattern(regexp = "^[0-9]{6}$", message = "인증 코드는 6자리 숫자여야 합니다.")
