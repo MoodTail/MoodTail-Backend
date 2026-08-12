@@ -152,6 +152,62 @@ public interface MoodTypeControllerDocs {
           }
           """;
 
+    String COMMON405_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "COMMON405",
+            "message": "요청 인자 타입이 올바르지 않습니다."
+          }
+          """;
+
+    String AUTH006_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "AUTH006",
+            "message": "유효하지 않은 액세스 토큰입니다."
+          }
+          """;
+
+    String AUTH009_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "AUTH009",
+            "message": "권한이 없습니다."
+          }
+          """;
+
+    String AUTH020_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "AUTH020",
+            "message": "비활성화된 사용자입니다."
+          }
+          """;
+
+    String AUTH027_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "AUTH027",
+            "message": "기록을 저장하려면 로그인하세요."
+          }
+          """;
+
+    String COMMON500_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "COMMON500",
+            "message": "서버 에러가 발생했습니다."
+          }
+          """;
+
+    String AUTH028_EXAMPLE = """
+          {
+            "timestamp": "2026-08-13T14:30:00",
+            "code": "AUTH028",
+            "message": "인증 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요."
+          }
+          """;
+
     @Operation(
             operationId = "getMoodType",
             summary = "도감 무드 타입 상세 조회",
@@ -174,8 +230,22 @@ public interface MoodTypeControllerDocs {
                     )
             ),
             @ApiResponse(
+                    responseCode = "400",
+                    description = "COMMON405 - moodTypeId 타입 오류",
+                    content = @Content(
+                            examples = @ExampleObject(
+                                    name = "COMMON405",
+                                    value = COMMON405_EXAMPLE
+                            )
+                    )
+            ),
+            @ApiResponse(
                     responseCode = "401",
-                    description = "COMMON401/AUTH010 - 인증 정보 또는 사용자 오류",
+                    description = """
+                          COMMON401 - 인증 정보 없음
+                          AUTH006 - 유효하지 않은 액세스 토큰
+                          AUTH010 - 존재하지 않는 사용자
+                          """,
                     content = @Content(
                             examples = {
                                     @ExampleObject(
@@ -183,8 +253,36 @@ public interface MoodTypeControllerDocs {
                                             value = COMMON401_EXAMPLE
                                     ),
                                     @ExampleObject(
+                                            name = "AUTH006",
+                                            value = AUTH006_EXAMPLE
+                                    ),
+                                    @ExampleObject(
                                             name = "AUTH010",
                                             value = AUTH010_EXAMPLE
+                                    )
+                            }
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = """
+                          AUTH009 - 권한 정보가 올바르지 않음
+                          AUTH020 - 비활성 사용자
+                          AUTH027 - 게스트 사용자 접근 불가
+                          """,
+                    content = @Content(
+                            examples = {
+                                    @ExampleObject(
+                                            name = "AUTH009",
+                                            value = AUTH009_EXAMPLE
+                                    ),
+                                    @ExampleObject(
+                                            name = "AUTH020",
+                                            value = AUTH020_EXAMPLE
+                                    ),
+                                    @ExampleObject(
+                                            name = "AUTH027",
+                                            value = AUTH027_EXAMPLE
                                     )
                             }
                     )
@@ -196,6 +294,26 @@ public interface MoodTypeControllerDocs {
                             examples = @ExampleObject(
                                     name = "MOOD_TYPE404",
                                     value = MOOD_TYPE404_EXAMPLE
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 서버 내부 오류",
+                    content = @Content(
+                            examples = @ExampleObject(
+                                    name = "COMMON500",
+                                    value = COMMON500_EXAMPLE
+                            )
+                    )
+            ),
+            @ApiResponse(
+                    responseCode = "503",
+                    description = "AUTH028 - 인증 서비스 일시 장애",
+                    content = @Content(
+                            examples = @ExampleObject(
+                                    name = "AUTH028",
+                                    value = AUTH028_EXAMPLE
                             )
                     )
             )
