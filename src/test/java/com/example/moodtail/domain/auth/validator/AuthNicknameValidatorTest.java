@@ -1,4 +1,4 @@
-package com.example.moodtail.domain.user.validator;
+package com.example.moodtail.domain.auth.validator;
 
 import com.example.moodtail.global.common.exception.RestApiException;
 import org.junit.jupiter.api.Test;
@@ -6,18 +6,18 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-class NicknameValidatorTest {
+class AuthNicknameValidatorTest {
 
     @Test
     void allowsOneCharacterNicknameAfterTrimming() {
-        assertThat(NicknameValidator.normalize(" 가 ")).isEqualTo("가");
+        assertThat(AuthNicknameValidator.normalize(" 가 ")).isEqualTo("가");
     }
 
     @Test
     void allowsFiftyUnicodeCodePoints() {
         String nickname = "😀".repeat(50);
 
-        assertThat(NicknameValidator.normalize(nickname)).isEqualTo(nickname);
+        assertThat(AuthNicknameValidator.normalize(nickname)).isEqualTo(nickname);
     }
 
     @Test
@@ -36,7 +36,7 @@ class NicknameValidatorTest {
     }
 
     private void assertInvalid(String nickname) {
-        assertThatThrownBy(() -> NicknameValidator.normalize(nickname))
+        assertThatThrownBy(() -> AuthNicknameValidator.normalize(nickname))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("USER400")
                 );

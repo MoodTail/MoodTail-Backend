@@ -1,17 +1,15 @@
-package com.example.moodtail.domain.user.validator;
+package com.example.moodtail.domain.auth.validator;
 
 import com.example.moodtail.global.common.exception.RestApiException;
 
 import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.INVALID_NICKNAME;
 
-public final class NicknameValidator {
+public final class AuthNicknameValidator {
 
-    public static final int MIN_LENGTH = 1;
-    public static final int MAX_LENGTH = 50;
-    public static final String POLICY_DESCRIPTION =
-            "앞뒤 공백 제거 후 Unicode 문자 기준 1~50자인 닉네임";
+    private static final int MIN_LENGTH = 1;
+    private static final int MAX_LENGTH = 50;
 
-    private NicknameValidator() {
+    private AuthNicknameValidator() {
     }
 
     public static String normalize(String value) {

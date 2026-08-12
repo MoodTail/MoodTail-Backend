@@ -1,6 +1,5 @@
 package com.example.moodtail.domain.auth.dto.request;
 
-import com.example.moodtail.domain.user.validator.NicknameValidator;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -39,9 +38,9 @@ public record LocalSignupRequest(
         String passwordConfirm,
 
         @Schema(
-                description = NicknameValidator.POLICY_DESCRIPTION,
-                minLength = NicknameValidator.MIN_LENGTH,
-                maxLength = NicknameValidator.MAX_LENGTH,
+                description = "앞뒤 공백 제거 후 Unicode 문자 기준 1~50자인 닉네임",
+                minLength = 1,
+                maxLength = 50,
                 example = "무드테일"
         )
         @NotBlank(message = "닉네임은 필수입니다.")

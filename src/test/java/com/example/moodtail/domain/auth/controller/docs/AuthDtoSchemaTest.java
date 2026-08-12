@@ -18,7 +18,6 @@ import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
-import com.example.moodtail.domain.user.validator.NicknameValidator;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -111,9 +110,10 @@ class AuthDtoSchemaTest {
                 "nickname"
         );
 
-        assertThat(nickname.getMinLength()).isEqualTo(NicknameValidator.MIN_LENGTH);
-        assertThat(nickname.getMaxLength()).isEqualTo(NicknameValidator.MAX_LENGTH);
-        assertThat(nickname.getDescription()).isEqualTo(NicknameValidator.POLICY_DESCRIPTION);
+        assertThat(nickname.getMinLength()).isEqualTo(1);
+        assertThat(nickname.getMaxLength()).isEqualTo(50);
+        assertThat(nickname.getDescription())
+                .isEqualTo("앞뒤 공백 제거 후 Unicode 문자 기준 1~50자인 닉네임");
     }
 
     private io.swagger.v3.oas.models.media.Schema<?> generatedSchema(Class<?> type) {

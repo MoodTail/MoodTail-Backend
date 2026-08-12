@@ -8,8 +8,8 @@ import com.example.moodtail.domain.auth.model.PasswordResetAccount;
 import com.example.moodtail.domain.auth.repository.LocalAccountRepository;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
+import com.example.moodtail.domain.auth.validator.AuthNicknameValidator;
 import com.example.moodtail.domain.user.repository.UserRepository;
-import com.example.moodtail.domain.user.validator.NicknameValidator;
 import com.example.moodtail.global.auth.config.LocalAuthProperties;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -229,7 +229,7 @@ public class LocalAccountService {
     }
 
     private String normalizeNickname(String nickname) {
-        return NicknameValidator.normalize(nickname);
+        return AuthNicknameValidator.normalize(nickname);
     }
 
     public void validatePassword(String password, String passwordConfirm) {

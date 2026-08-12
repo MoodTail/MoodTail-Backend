@@ -10,7 +10,6 @@ import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.entity.UserRole;
 import com.example.moodtail.domain.user.repository.MyPageProjection;
 import com.example.moodtail.domain.user.repository.UserRepository;
-import com.example.moodtail.domain.user.validator.NicknameValidator;
 import com.example.moodtail.global.common.exception.RestApiException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -22,6 +21,7 @@ import java.time.ZoneId;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.INVALID_ROLE;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.LOGIN_USER_REQUIRED;
 import static com.example.moodtail.global.common.exception.code.status.AuthErrorStatus.USER_NOT_FOUND;
+import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.INVALID_NICKNAME;
 import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.INVALID_PROFILE_UPDATE;
 import static com.example.moodtail.global.common.exception.code.status.UserErrorStatus.REPRESENTATIVE_MOOD_TYPE_NOT_UNLOCKED;
 
@@ -75,9 +75,7 @@ public class MyPageService {
     ) {
         validateRole(role);
         validateProfileUpdateRequest(request);
-        String nickname = request.nickname() == null
-                ? null
-                : NicknameValidator.normalize(request.nickname());
+        String nickname = request.nickname() == null ? null : validateNickname(request.nickname());
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
         if (nickname != null) {
@@ -97,6 +95,14 @@ public class MyPageService {
         if (request == null || (request.nickname() == null && request.representativeMoodTypeId() == null)) {
             throw new RestApiException(INVALID_PROFILE_UPDATE);
         }
+    }
+
+    private String validateNickname(String nicknameValue) {
+        String nickname = nicknameValue.trim();
+        if (nickname.isEmpty() || nickname.length() > 50) {
+            throw new RestApiException(INVALID_NICKNAME);
+        }
+        return nickname;
     }
 
     private void validateRole(String role) {
