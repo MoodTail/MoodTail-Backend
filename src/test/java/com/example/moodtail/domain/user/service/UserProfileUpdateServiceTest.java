@@ -55,6 +55,24 @@ class UserProfileUpdateServiceTest {
     }
 
     @Test
+    void updateNicknameAllowsFiftyUnicodeCodePoints() {
+        String nickname = "😀".repeat(50);
+        User user = mock(User.class);
+        given(user.getId()).willReturn(1L);
+        given(user.getNickname()).willReturn(nickname);
+        given(userRepository.findById(1L)).willReturn(Optional.of(user));
+
+        UserProfileUpdateResponse response = myPageService.updateProfile(
+                1L,
+                UserRole.USER.name(),
+                new UserProfileUpdateRequest(nickname, null)
+        );
+
+        assertThat(response.nickname()).isEqualTo(nickname);
+        org.mockito.Mockito.verify(user).updateNickname(nickname);
+    }
+
+    @Test
     void guestCannotUpdateProfile() {
         assertThatThrownBy(() -> myPageService.updateProfile(
                 1L,
@@ -74,6 +92,20 @@ class UserProfileUpdateServiceTest {
                 1L,
                 UserRole.USER.name(),
                 new UserProfileUpdateRequest(" ", null)
+        ))
+                .isInstanceOfSatisfying(RestApiException.class, exception ->
+                        assertThat(exception.getErrorCode().getCode()).isEqualTo("USER400")
+                );
+
+        verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void rejectNicknameLongerThanFiftyUnicodeCodePoints() {
+        assertThatThrownBy(() -> myPageService.updateProfile(
+                1L,
+                UserRole.USER.name(),
+                new UserProfileUpdateRequest("😀".repeat(51), null)
         ))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("USER400")

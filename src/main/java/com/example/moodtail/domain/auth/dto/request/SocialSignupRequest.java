@@ -1,5 +1,6 @@
 package com.example.moodtail.domain.auth.dto.request;
 
+import com.example.moodtail.domain.user.validator.NicknameValidator;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -23,7 +24,12 @@ public record SocialSignupRequest(
         )
         String signupToken,
 
-        @Schema(description = "공백 제거 후 2~10자", minLength = 2, maxLength = 10, example = "무드테일")
+        @Schema(
+                description = NicknameValidator.POLICY_DESCRIPTION,
+                minLength = NicknameValidator.MIN_LENGTH,
+                maxLength = NicknameValidator.MAX_LENGTH,
+                example = "무드테일"
+        )
         @NotBlank(message = "닉네임은 필수입니다.")
         String nickname,
 

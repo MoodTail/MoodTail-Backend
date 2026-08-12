@@ -25,7 +25,7 @@ import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.model.SocialSignupSession;
 import com.example.moodtail.domain.auth.model.SocialSignupTicket;
-import com.example.moodtail.domain.auth.validator.AuthNicknameValidator;
+import com.example.moodtail.domain.user.validator.NicknameValidator;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.auth.validator.GuestLoginRateLimiter;
 import com.example.moodtail.domain.auth.validator.LocalAuthRateLimiter;
@@ -134,7 +134,7 @@ public class AuthService {
     }
 
     public AuthResult<SocialLoginResponse> socialSignup(SocialSignupRequest request) {
-        String nickname = AuthNicknameValidator.normalize(request.nickname());
+        String nickname = NicknameValidator.normalize(request.nickname());
         List<Term> agreedTerms = termAgreementService.validateAgreements(toConsents(request.agreements()));
         SocialSignupSession signupSession = socialSignupSessionService.consume(request.signupToken());
         SocialUserProfile profile = new SocialUserProfile(

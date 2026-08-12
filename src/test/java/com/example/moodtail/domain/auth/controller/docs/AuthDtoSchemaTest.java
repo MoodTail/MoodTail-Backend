@@ -18,6 +18,7 @@ import com.example.moodtail.domain.auth.dto.response.PasswordResetCodeResponse;
 import com.example.moodtail.domain.auth.dto.response.PasswordResetVerificationResponse;
 import com.example.moodtail.domain.auth.dto.response.SocialLoginResponse;
 import com.example.moodtail.domain.auth.dto.response.TokenResponse;
+import com.example.moodtail.domain.user.validator.NicknameValidator;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.core.converter.ModelConverters;
 import io.swagger.v3.oas.annotations.media.ArraySchema;
@@ -77,6 +78,8 @@ class AuthDtoSchemaTest {
     void generatedSignupSchemasMatchValidationConstraints() {
         assertAgreementArrayConstraints(LocalSignupRequest.class);
         assertAgreementArrayConstraints(SocialSignupRequest.class);
+        assertNicknameConstraints(LocalSignupRequest.class);
+        assertNicknameConstraints(SocialSignupRequest.class);
     }
 
     @Test
@@ -100,6 +103,17 @@ class AuthDtoSchemaTest {
         assertThat(agreements.getTypes()).contains("array");
         assertThat(agreements.getMinItems()).isEqualTo(1);
         assertThat(agreements.getMaxItems()).isEqualTo(20);
+    }
+
+    private void assertNicknameConstraints(Class<?> requestType) {
+        io.swagger.v3.oas.models.media.Schema<?> nickname = property(
+                generatedSchema(requestType),
+                "nickname"
+        );
+
+        assertThat(nickname.getMinLength()).isEqualTo(NicknameValidator.MIN_LENGTH);
+        assertThat(nickname.getMaxLength()).isEqualTo(NicknameValidator.MAX_LENGTH);
+        assertThat(nickname.getDescription()).isEqualTo(NicknameValidator.POLICY_DESCRIPTION);
     }
 
     private io.swagger.v3.oas.models.media.Schema<?> generatedSchema(Class<?> type) {

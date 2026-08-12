@@ -122,12 +122,23 @@ public interface UserControllerDocs {
 
     @Tag(name = "Users", description = "마이페이지 및 사용자 프로필 API")
     @SecurityRequirement(name = "bearerAuth")
-    @Operation(operationId = "updateUserProfile", summary = "프로필 수정",
-            description = "닉네임 또는 대표 무드 타입 중 하나 이상을 수정합니다. 대표 타입은 이미 해금한 타입만 지정할 수 있습니다.")
+    @Operation(
+            operationId = "updateUserProfile",
+            summary = "프로필 수정",
+            description = """
+                    닉네임 또는 대표 무드 타입 중 하나 이상을 수정합니다.
+                    닉네임은 앞뒤 공백 제거 후 Unicode 문자 기준 1~50자여야 합니다.
+                    대표 타입은 이미 해금한 타입만 지정할 수 있습니다.
+                    """
+    )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 프로필 수정 성공", useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = PROFILE_UPDATE_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400", description = "USER400 - 수정 필드 누락, 닉네임 오류 또는 미해금 대표 타입",
+            @ApiResponse(responseCode = "400", description = """
+                    USER400 - 수정할 필드가 없음
+                    USER400 - 앞뒤 공백 제거 후 Unicode 문자 기준 닉네임 길이가 1~50자를 벗어남
+                    USER400 - 대표 무드 타입이 해금되지 않음
+                    """,
                     content = @Content(examples = {
                             @ExampleObject(name = "수정 필드 누락", value = USER400_UPDATE_EXAMPLE),
                             @ExampleObject(name = "닉네임 오류", value = USER400_NICKNAME_EXAMPLE),

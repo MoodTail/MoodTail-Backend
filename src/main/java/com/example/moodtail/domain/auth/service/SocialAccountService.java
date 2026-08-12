@@ -4,10 +4,10 @@ import com.example.moodtail.domain.auth.entity.SocialAccount;
 import com.example.moodtail.domain.auth.model.SocialAuthenticationResult;
 import com.example.moodtail.domain.auth.model.SocialLoginUser;
 import com.example.moodtail.domain.auth.repository.SocialAccountRepository;
-import com.example.moodtail.domain.auth.validator.AuthNicknameValidator;
 import com.example.moodtail.domain.term.entity.Term;
 import com.example.moodtail.domain.user.entity.User;
 import com.example.moodtail.domain.user.repository.UserRepository;
+import com.example.moodtail.domain.user.validator.NicknameValidator;
 import com.example.moodtail.global.auth.model.SocialUserProfile;
 import com.example.moodtail.global.common.exception.RestApiException;
 import com.example.moodtail.global.common.exception.code.status.AuthErrorStatus;
@@ -49,7 +49,7 @@ public class SocialAccountService {
             List<Term> agreedTerms
     ) {
         validateProfile(profile);
-        String nickname = AuthNicknameValidator.normalize(profile.nickname());
+        String nickname = NicknameValidator.normalize(profile.nickname());
         if (agreedTerms == null || agreedTerms.isEmpty()) {
             throw new RestApiException(AuthErrorStatus.INVALID_TERM_AGREEMENT);
         }
