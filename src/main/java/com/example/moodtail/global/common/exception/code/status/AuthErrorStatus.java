@@ -21,7 +21,6 @@ public enum AuthErrorStatus implements BaseCodeInterface {
     INVALID_SOCIAL_LOGIN(HttpStatus.UNAUTHORIZED, "AUTH016", "소셜 로그인 인증 정보가 유효하지 않습니다."),
     SOCIAL_LOGIN_CONFIGURATION_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "AUTH017", "소셜 로그인 설정이 올바르지 않습니다."),
     INVALID_OAUTH_STATE(HttpStatus.UNAUTHORIZED, "AUTH018", "OAuth state가 만료되었거나 유효하지 않습니다."),
-    INVALID_GUEST_SESSION(HttpStatus.UNAUTHORIZED, "AUTH019", "유효한 게스트 세션이 필요합니다."),
     INACTIVE_USER(HttpStatus.FORBIDDEN, "AUTH020", "비활성화된 사용자입니다."),
     TOO_MANY_GUEST_LOGIN_REQUESTS(HttpStatus.TOO_MANY_REQUESTS, "AUTH021", "게스트 로그인 요청이 너무 많습니다."),
     REQUIRED_TERMS_NOT_AGREED(HttpStatus.BAD_REQUEST, "AUTH024", "필수 약관에 모두 동의해야 합니다."),
