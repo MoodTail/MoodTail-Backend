@@ -8,6 +8,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class AuthNicknameValidatorTest {
 
+    private static final String SUPPLEMENTARY_UNICODE_LETTER =
+            new String(Character.toChars(0x10400));
+
     @Test
     void allowsOneCharacterNicknameAfterTrimming() {
         assertThat(AuthNicknameValidator.normalize(" 가 ")).isEqualTo("가");
@@ -15,14 +18,14 @@ class AuthNicknameValidatorTest {
 
     @Test
     void allowsFiftyUnicodeCodePoints() {
-        String nickname = "😀".repeat(50);
+        String nickname = SUPPLEMENTARY_UNICODE_LETTER.repeat(50);
 
         assertThat(AuthNicknameValidator.normalize(nickname)).isEqualTo(nickname);
     }
 
     @Test
     void rejectsMoreThanFiftyUnicodeCodePoints() {
-        assertInvalid("😀".repeat(51));
+        assertInvalid(SUPPLEMENTARY_UNICODE_LETTER.repeat(51));
     }
 
     @Test
