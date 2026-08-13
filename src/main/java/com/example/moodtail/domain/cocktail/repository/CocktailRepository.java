@@ -12,6 +12,8 @@ import java.util.Optional;
 
 public interface CocktailRepository extends JpaRepository<Cocktail, Long> {
 
+    long countByMoodTypeId(Long moodTypeId);
+
     @EntityGraph(attributePaths = {"moodType", "image"})
     List<Cocktail> findByMoodTypeId(Long moodTypeId);
 

@@ -26,17 +26,16 @@ public class MoodTypeCalculator {
         );
     }
 
-    public int calculateCollectionRate(
+    public double calculateCollectionRate(
             int unlockedCocktailCount,
             int totalCocktailCount
     ) {
         if (totalCocktailCount == 0) {
-            return 0;
+            return 0.0;
         }
 
-        return (int) (
-                unlockedCocktailCount * 100L
-                        / totalCocktailCount
-        );
+        return Math.round(
+                unlockedCocktailCount * 1000.0 / totalCocktailCount
+        ) / 10.0;
     }
 }

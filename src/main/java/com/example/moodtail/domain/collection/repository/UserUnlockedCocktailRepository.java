@@ -21,6 +21,19 @@ public interface UserUnlockedCocktailRepository extends JpaRepository<UserUnlock
             @Param("moodTypeId") Long moodTypeId
     );
 
+    @Query("""
+          select unlockedCocktail.cocktail.id
+            from UserUnlockedCocktail unlockedCocktail
+           where unlockedCocktail.user.id = :userId
+             and unlockedCocktail.cocktail.id in :cocktailIds
+          """)
+    Set<Long> findUnlockedCocktailIds(
+            @Param("userId") Long userId,
+            @Param("cocktailIds") Set<Long> cocktailIds
+    );
+
+    long countByUserIdAndCocktailMoodTypeId(Long userId, Long moodTypeId);
+
     @Modifying(flushAutomatically = true)
     @Query("""
          delete from UserUnlockedCocktail unlocked

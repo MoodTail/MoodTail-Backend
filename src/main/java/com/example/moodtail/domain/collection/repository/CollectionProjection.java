@@ -13,6 +13,8 @@ public interface CollectionProjection {
 
     Long getUnlockedMoodTypeId();
 
+    LocalDateTime getUnlockedAt();
+
     Long getTotalCocktailCount();
 
     Long getCollectedUserCount();

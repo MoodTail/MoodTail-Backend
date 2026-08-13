@@ -697,7 +697,8 @@ public interface HistoryControllerDocs {
             description = "선택 날짜에 마신 칵테일 여러 개를 한 번에 기록합니다. 같은 날짜에 서로 다른 "
                     + "칵테일은 여러 건 기록할 수 있지만, 요청 목록이나 기존 기록에 같은 칵테일이 있으면 "
                     + "전체 요청을 저장하지 않고 HISTORY409를 반환합니다. 존재하지 않는 칵테일이 하나라도 "
-                    + "있으면 전체 요청을 저장하지 않으며, 미래 날짜는 기록할 수 없습니다."
+                    + "있으면 전체 요청을 저장하지 않으며, 미래 날짜는 기록할 수 없습니다. 저장된 서로 다른 "
+                    + "칵테일은 도감 수집에 반영되고 타입별 수집률이 50% 이상이면 해당 무드 타입이 해금됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 생성 성공",
@@ -758,7 +759,8 @@ public interface HistoryControllerDocs {
             summary = "음주 기록 수정",
             description = "칵테일 또는 기록 날짜 중 변경할 필드만 전달합니다. 두 필드를 모두 생략하거나 미래 "
                     + "날짜로 변경할 수 없습니다. 변경 결과가 같은 날짜의 다른 동일 칵테일 기록과 중복되면 "
-                    + "HISTORY409를 반환합니다."
+                    + "HISTORY409를 반환합니다. 새로운 칵테일로 변경하면 해당 칵테일도 도감 수집에 반영되며, "
+                    + "기존 칵테일의 수집 상태와 이미 해금된 무드 타입은 유지됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 수정 성공",
@@ -831,7 +833,8 @@ public interface HistoryControllerDocs {
             operationId = "deleteHistory",
             summary = "음주 기록 삭제",
             description = "본인의 음주 기록 한 건을 삭제합니다. 존재하지 않거나 다른 회원 소유인 기록은 "
-                    + "동일하게 HISTORY404를 반환합니다."
+                    + "동일하게 HISTORY404를 반환합니다. 기록을 삭제해도 칵테일 수집 상태와 이미 해금된 "
+                    + "무드 타입은 유지됩니다."
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 삭제 성공",

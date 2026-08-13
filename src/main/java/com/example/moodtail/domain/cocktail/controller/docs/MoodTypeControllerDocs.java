@@ -34,7 +34,7 @@ public interface MoodTypeControllerDocs {
                   "representative": false,
                   "canSetRepresentative": true,
                   "typePercent": 33,
-                  "collectionRate": 0,
+                  "collectionRate": 12.5,
                   "typeFigures": {
                     "alcoholIntensity": 42,
                     "sweetness": 60,
@@ -63,7 +63,7 @@ public interface MoodTypeControllerDocs {
                       "nameEn": "Corpse Reviver #2",
                       "shortDescription": "묵직한 단맛 베이스에 톡 쏘는 신맛과 짙은 여운이 어우러진 목 넘김이 편한 칵테일",
                       "imageUrl": "https://moodtail-bucket.s3.ap-southeast-2.amazonaws.com/public/cocktails/CORPSE%20REVIVER%20%232.png",
-                      "unlocked": false
+                      "unlocked": true
                     },
                     {
                       "cocktailId": 10,
@@ -123,7 +123,7 @@ public interface MoodTypeControllerDocs {
                     }
                   ],
                   "totalCocktailCount": 8,
-                  "unlockedCocktailCount": 0
+                  "unlockedCocktailCount": 1
                 }
               }
               """;
