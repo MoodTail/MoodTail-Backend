@@ -18,7 +18,7 @@ import org.springframework.web.multipart.MultipartFile;
 public interface PairRecommendationShareImageControllerDocs {
 
     String UPLOAD_SHARE_IMAGE_SUCCESS_EXAMPLE = """
-            {"timestamp":"2026-07-29T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"shareImageUrl":"https://moodtail-bucket.s3.ap-northeast-2.amazonaws.com/recommendations/pair/9f3ab21c-1234-4a56-9abc-7890def12345.png"}}
+            {"timestamp":"2026-07-29T14:30:00","code":"COMMON200","message":"요청에 성공했습니다.","result":{"shareImageUrl":"https://moodtail-bucket.s3.ap-northeast-2.amazonaws.com/public/pair/9f3ab21c-1234-4a56-9abc-7890def12345.png"}}
             """;
     String COMMON401_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"COMMON401","message":"인증이 필요합니다."}

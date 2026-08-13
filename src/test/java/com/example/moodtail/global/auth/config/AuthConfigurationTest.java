@@ -20,12 +20,14 @@ class AuthConfigurationTest {
                     "auth.oauth.kakao.enabled=true",
                     "auth.oauth.kakao.client-secret=kakao-client-secret",
                     "auth.oauth.kakao.redirect-uri=https://frontend.example.com/kakao/callback",
+                    "auth.oauth.kakao.swagger-redirect-uri=https://api.example.com/swagger-ui/index.html",
                     "auth.oauth.kakao.token-uri=https://kauth.kakao.com/oauth/token",
                     "auth.oauth.kakao.user-info-uri=https://kapi.kakao.com/v2/user/me",
                     "auth.oauth.google.client-id=google-client-id",
                     "auth.oauth.google.enabled=true",
                     "auth.oauth.google.client-secret=google-client-secret",
                     "auth.oauth.google.redirect-uri=https://frontend.example.com/google/callback",
+                    "auth.oauth.google.swagger-redirect-uri=https://api.example.com/swagger-ui/index.html",
                     "auth.oauth.google.token-uri=https://oauth2.googleapis.com/token",
                     "auth.oauth.google.user-info-uri=https://openidconnect.googleapis.com/v1/userinfo",
                     "auth.refresh-cookie.name=refreshToken",
@@ -63,7 +65,11 @@ class AuthConfigurationTest {
             assertThat(context).hasSingleBean(org.springframework.security.crypto.password.PasswordEncoder.class);
             AuthProperties properties = context.getBean(AuthProperties.class);
             assertThat(properties.oauth().kakao().clientId()).isEqualTo("kakao-client-id");
+            assertThat(properties.oauth().kakao().swaggerRedirectUri())
+                    .isEqualTo("https://api.example.com/swagger-ui/index.html");
             assertThat(properties.oauth().google().clientId()).isEqualTo("google-client-id");
+            assertThat(properties.oauth().google().swaggerRedirectUri())
+                    .isEqualTo("https://api.example.com/swagger-ui/index.html");
             assertThat(properties.oauth().google().enabled()).isTrue();
             assertThat(properties.oauth().connectTimeoutMillis()).isEqualTo(3_000L);
             assertThat(properties.oauth().signupTokenExpirationMillis()).isEqualTo(600_000L);

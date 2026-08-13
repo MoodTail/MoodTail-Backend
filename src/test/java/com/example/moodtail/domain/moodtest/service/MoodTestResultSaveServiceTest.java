@@ -1,5 +1,7 @@
 package com.example.moodtail.domain.moodtest.service;
 
+import com.example.moodtail.domain.collection.entity.UserUnlockedMoodType;
+import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultSaveRequest;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
@@ -37,6 +39,7 @@ class MoodTestResultSaveServiceTest {
     @Mock UserRepository userRepository;
     @Mock MoodTypeRepository moodTypeRepository;
     @Mock MoodTestResultRepository moodTestResultRepository;
+    @Mock UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     @Mock RecommendationPersistenceService recommendationPersistenceService;
     @Mock PlatformTransactionManager transactionManager;
 
@@ -48,6 +51,7 @@ class MoodTestResultSaveServiceTest {
                 userRepository,
                 moodTypeRepository,
                 moodTestResultRepository,
+                userUnlockedMoodTypeRepository,
                 recommendationPersistenceService,
                 transactionManager
         );
@@ -79,6 +83,30 @@ class MoodTestResultSaveServiceTest {
         service.saveResult(3L, request(13L, "TYPE_13"));
 
         verify(existingResult).updateResult(any(), any());
+    }
+
+    @Test
+    void savingResultUnlocksMatchedMoodType() {
+        User user = member(4L);
+        MoodType moodType = moodType(14L, "TYPE_14");
+        givenSuccessfulSave(user, moodType, 104L);
+
+        service.saveResult(4L, request(14L, "TYPE_14"));
+
+        verify(userUnlockedMoodTypeRepository).save(any(UserUnlockedMoodType.class));
+    }
+
+    @Test
+    void savingResultDoesNotDuplicateAlreadyUnlockedMoodType() {
+        User user = member(6L);
+        MoodType moodType = moodType(16L, "TYPE_16");
+        givenSuccessfulSave(user, moodType, 106L);
+        when(userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(6L, 16L))
+                .thenReturn(true);
+
+        service.saveResult(6L, request(16L, "TYPE_16"));
+
+        verify(userUnlockedMoodTypeRepository, never()).save(any());
     }
 
     @Test

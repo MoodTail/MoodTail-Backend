@@ -16,7 +16,7 @@ import static com.example.moodtail.global.common.exception.code.status.Recommend
 @RequiredArgsConstructor
 public class PairRecommendationShareImageService {
 
-    private static final String DIRECTORY = "recommendations/pair";
+    private static final String DIRECTORY = "public/pair";
 
     private final PairRecommendationService pairRecommendationService;
     private final S3StorageService storageService;

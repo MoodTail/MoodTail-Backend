@@ -106,10 +106,12 @@ jobs:
           KAKAO_CLIENT_ID: ${{ secrets.KAKAO_CLIENT_ID }}
           KAKAO_CLIENT_SECRET: ${{ secrets.KAKAO_CLIENT_SECRET }}
           KAKAO_REDIRECT_URI: ${{ secrets.KAKAO_REDIRECT_URI }}
+          KAKAO_SWAGGER_REDIRECT_URI: ${{ secrets.KAKAO_SWAGGER_REDIRECT_URI }}
           GOOGLE_OAUTH_ENABLED: ${{ vars.GOOGLE_OAUTH_ENABLED || 'false' }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           GOOGLE_REDIRECT_URI: ${{ secrets.GOOGLE_REDIRECT_URI }}
+          GOOGLE_SWAGGER_REDIRECT_URI: ${{ secrets.GOOGLE_SWAGGER_REDIRECT_URI }}
           PASSWORD_RESET_ENABLED: ${{ vars.PASSWORD_RESET_ENABLED || 'false' }}
           PASSWORD_RESET_PEPPER: ${{ secrets.PASSWORD_RESET_PEPPER }}
           MAIL_HOST: ${{ secrets.MAIL_HOST }}
@@ -138,8 +140,9 @@ jobs:
               "DOCKERHUB_USERNAME", "SPRING_DATA_REDIS_HOST", "SPRING_DATA_REDIS_PORT",
               "SPRING_DATA_REDIS_CONNECT_TIMEOUT", "SPRING_DATA_REDIS_TIMEOUT", "JWT_SECRET",
               "JWT_REFRESH_COOKIE_DOMAIN", "KAKAO_OAUTH_ENABLED", "KAKAO_CLIENT_ID",
-              "KAKAO_CLIENT_SECRET", "KAKAO_REDIRECT_URI", "GOOGLE_OAUTH_ENABLED", "GOOGLE_CLIENT_ID",
-              "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI",
+              "KAKAO_CLIENT_SECRET", "KAKAO_REDIRECT_URI", "KAKAO_SWAGGER_REDIRECT_URI",
+              "GOOGLE_OAUTH_ENABLED", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET",
+              "GOOGLE_REDIRECT_URI", "GOOGLE_SWAGGER_REDIRECT_URI",
               "PASSWORD_RESET_ENABLED", "PASSWORD_RESET_PEPPER", "MAIL_HOST",
               "MAIL_PORT", "MAIL_USERNAME", "MAIL_PASSWORD", "MAIL_FROM", "MAIL_SMTP_AUTH",
               "MAIL_STARTTLS_ENABLED", "MAIL_STARTTLS_REQUIRED",
@@ -154,9 +157,14 @@ jobs:
               "SHARE_BASE_URL", "SHARE_FRONTEND_BASE_URL"
           }
           if os.environ.get("GOOGLE_OAUTH_ENABLED", "").lower() == "true":
-              required.update({"GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI"})
+              required.update({
+                  "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "GOOGLE_REDIRECT_URI",
+                  "GOOGLE_SWAGGER_REDIRECT_URI"
+              })
           if os.environ.get("KAKAO_OAUTH_ENABLED", "").lower() == "true":
-              required.update({"KAKAO_CLIENT_ID", "KAKAO_REDIRECT_URI"})
+              required.update({
+                  "KAKAO_CLIENT_ID", "KAKAO_REDIRECT_URI", "KAKAO_SWAGGER_REDIRECT_URI"
+              })
           if os.environ.get("PASSWORD_RESET_ENABLED", "").lower() == "true":
               required.update({"PASSWORD_RESET_PEPPER", "MAIL_HOST", "MAIL_FROM"})
               if os.environ.get("MAIL_SMTP_AUTH", "").lower() == "true":

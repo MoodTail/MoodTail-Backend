@@ -33,6 +33,7 @@ public class KakaoOAuthClient implements OAuthClient {
     private final String clientId;
     private final String clientSecret;
     private final String redirectUri;
+    private final String swaggerRedirectUri;
     private final String tokenUri;
     private final String userInfoUri;
 
@@ -47,6 +48,7 @@ public class KakaoOAuthClient implements OAuthClient {
         this.clientId = properties.clientId();
         this.clientSecret = properties.clientSecret();
         this.redirectUri = properties.redirectUri();
+        this.swaggerRedirectUri = properties.swaggerRedirectUri();
         this.tokenUri = properties.tokenUri();
         this.userInfoUri = properties.userInfoUri();
     }
@@ -169,10 +171,14 @@ public class KakaoOAuthClient implements OAuthClient {
         if (!StringUtils.hasText(redirectUri)) {
             throw new RestApiException(AuthErrorStatus.SOCIAL_LOGIN_CONFIGURATION_ERROR);
         }
-        if (StringUtils.hasText(requestRedirectUri) && !redirectUri.equals(requestRedirectUri)) {
+        if (!StringUtils.hasText(requestRedirectUri)) {
+            return redirectUri;
+        }
+        if (!redirectUri.equals(requestRedirectUri)
+                && !(StringUtils.hasText(swaggerRedirectUri) && swaggerRedirectUri.equals(requestRedirectUri))) {
             throw new RestApiException(AuthErrorStatus.INVALID_SOCIAL_LOGIN);
         }
-        return redirectUri;
+        return requestRedirectUri;
     }
 
 }
