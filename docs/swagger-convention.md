@@ -166,14 +166,14 @@ private double sweetness;
 
 응답 문서는 코딩 컨벤션의 공통 응답 형식을 기준으로 작성한다.
 
-성공 응답은 `ApiResponse<T>` 형태로 문서화한다.
+성공 응답은 실제 공통 응답 클래스인 `BaseResponse<T>` 형태로 문서화한다.
 
 ```json
 {
-  "success": true,
+  "timestamp": "2026-08-13T14:30:00",
   "code": "COMMON200",
   "message": "요청에 성공했습니다.",
-  "data": {}
+  "result": {}
 }
 ```
 
@@ -181,12 +181,14 @@ private double sweetness;
 
 ```json
 {
-  "success": false,
+  "timestamp": "2026-08-13T14:30:00",
   "code": "MOOD_TEST400",
-  "message": "테스트 답변이 올바르지 않습니다.",
-  "data": null
+  "message": "테스트 답변이 올바르지 않습니다."
 }
 ```
+
+`result`가 `null`이면 JSON 응답에서 해당 필드는 생략된다. Swagger 성공·오류 예시는
+`timestamp`, `code`, `message`, `result` 순서와 실제 런타임 코드·메시지를 사용한다.
 
 공통 에러 응답은 중복 작성을 피하고, 필요한 경우 공통 설정에서 관리한다.
 

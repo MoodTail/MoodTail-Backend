@@ -453,8 +453,10 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 히스토리 조회 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = CALENDAR_SUCCESS_EXAMPLE))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.Calendar.class),
+                            examples = @ExampleObject(name = "COMMON200", value = CALENDAR_SUCCESS_EXAMPLE)
+                    )),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - year 또는 month 필수 요청 값 누락
@@ -520,8 +522,10 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 날짜별 히스토리 조회 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = DATE_SUCCESS_EXAMPLE))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.Date.class),
+                            examples = @ExampleObject(name = "COMMON200", value = DATE_SUCCESS_EXAMPLE)
+                    )),
             @ApiResponse(responseCode = "400",
                     description = "HISTORY400 - 날짜 형식 오류, MySQL 지원 범위 밖 또는 미래 날짜",
                     content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
@@ -577,11 +581,13 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 테스트 결과 상세 조회 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = TEST_RESULT_DETAIL_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.TestResultDetail.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = TEST_RESULT_DETAIL_SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - resultId 타입 변환 실패
                             HISTORY400 - 0 이하의 테스트 결과 ID
@@ -640,11 +646,13 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 상세 조회 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.DrinkingRecordDetail.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - recordId 타입 변환 실패
                             HISTORY400 - 0 이하의 음주 기록 ID
@@ -701,11 +709,13 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 생성 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.DrinkingRecordCreate.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - cocktailIds 또는 recordDate 필수 값 누락·검증 실패
@@ -762,11 +772,13 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 수정 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.DrinkingRecordUpdate.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - 요청 필드 검증 실패
@@ -835,8 +847,10 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 삭제 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.VoidResponse.class),
+                            examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE)
+                    )),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - recordId 타입 변환 실패
                             HISTORY400 - 0 이하의 음주 기록 ID
@@ -890,7 +904,8 @@ public interface HistoryControllerDocs {
                     `multipart/form-data` 요청으로 선택 날짜에 사진 한 장을 추가합니다.
 
                     - `date`: 사진 기록 날짜(`yyyy-MM-dd`, 미래 날짜 불가)
-                    - `image`: JPG, PNG 또는 WEBP 형식의 5MB 이하 이미지
+                    - `image`: 파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치하는
+                      JPG, PNG 또는 WEBP 형식의 5MB 이하 이미지
                     - 사용자별 같은 날짜에 기존에 저장된 사진을 포함하여 최대 5장까지 저장 가능
 
                     같은 날짜에 사진이 이미 5장 있으면 여섯 번째 사진은 저장하지 않고
@@ -903,18 +918,21 @@ public interface HistoryControllerDocs {
             @ApiResponse(
                     responseCode = "200",
                     description = "COMMON200 - 히스토리 사진 추가 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = PHOTO_CREATE_SUCCESS_EXAMPLE
-                    ))
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.Photo.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = PHOTO_CREATE_SUCCESS_EXAMPLE
+                            )
+                    )
             ),
             @ApiResponse(
                     responseCode = "400",
                     description = """
                             COMMON402 - date 또는 image multipart 파트 누락
                             HISTORY400 - 날짜 형식 오류 또는 미래 날짜
-                            IMAGE400 - 빈 파일 또는 지원하지 않는 이미지 형식
+                            IMAGE400 - 빈 파일, 파일 확장자·Content-Type 불일치 또는
+                            Magic Bytes가 PNG, JPEG, WEBP 형식과 일치하지 않음
                             """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
@@ -996,7 +1014,8 @@ public interface HistoryControllerDocs {
             String date,
 
             @Parameter(
-                    description = "JPG, PNG 또는 WEBP 형식의 이미지 한 장(파일당 최대 5MB)",
+                    description = "JPG, PNG 또는 WEBP 형식의 이미지 한 장(파일당 최대 5MB). "
+                            + "파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다.",
                     required = true,
                     schema = @Schema(types = {"string"}, format = "binary")
             )
@@ -1011,8 +1030,10 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 히스토리 사진 삭제 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
+                    content = @Content(
+                            schema = @Schema(implementation = HistoryApiResponseSchemas.VoidResponse.class),
+                            examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE)
+                    )),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - photoId 타입 변환 실패
                             HISTORY400 - 날짜 형식 오류 또는 0 이하의 사진 ID

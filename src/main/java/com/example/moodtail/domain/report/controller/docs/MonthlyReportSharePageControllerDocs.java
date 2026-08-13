@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -51,7 +52,7 @@ public interface MonthlyReportSharePageControllerDocs {
             """;
 
     @Operation(
-            operationId = "getMonthlyReportSharePage",
+            operationId = "getSharePage",
             summary = "월간 리포트 공유 OG 페이지 조회",
             description = "SNS 크롤러에는 토큰 검증 이미지 URL이 포함된 OG 메타데이터를 제공하고 일반 브라우저는 "
                     + "프론트엔드 월간 리포트 공유 화면으로 이동시킵니다."
@@ -77,9 +78,16 @@ public interface MonthlyReportSharePageControllerDocs {
                             examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)
                     ))
     })
+    @SecurityRequirements
     ResponseEntity<String> getSharePage(
             @Parameter(
-                    description = "월간 리포트 공유 토큰",
+                    description = "월간 리포트 공유 URL 생성 API가 반환한 27자 공유 토큰",
+                    required = true,
+                    schema = @Schema(
+                            pattern = "^mr_[A-Za-z0-9_-]{24}$",
+                            minLength = 27,
+                            maxLength = 27
+                    ),
                     example = "mr_hJ7JngQmYV4x0aP9k2LmN3Qr"
             )
             String shareToken

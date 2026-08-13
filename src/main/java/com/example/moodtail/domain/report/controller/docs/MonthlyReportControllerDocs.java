@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -249,11 +250,13 @@ public interface MonthlyReportControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 리포트 조회 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = MONTHLY_REPORT_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = ReportApiResponseSchemas.MonthlyReport.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = MONTHLY_REPORT_SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - year 또는 month 필수 요청 값 누락
@@ -296,32 +299,50 @@ public interface MonthlyReportControllerDocs {
     })
     BaseResponse<MonthlyReportResponse> getMonthlyReport(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "조회 연도(1000 이상, 미래 월 조회 불가)", example = "2026") int year,
-            @Parameter(description = "조회 월(1~12)", example = "7") int month
+            @Parameter(
+                    description = "조회 연도(1000 이상, 미래 월 조회 불가)",
+                    required = true,
+                    schema = @Schema(minimum = "1000"),
+                    example = "2026"
+            ) int year,
+            @Parameter(
+                    description = "조회 월(1~12)",
+                    required = true,
+                    schema = @Schema(minimum = "1", maximum = "12"),
+                    example = "7"
+            ) int month
     );
 
     @Operation(
             operationId = "createMonthlyReportShareImage",
             summary = "월간 리포트 공유 URL 생성",
-            description = "프론트엔드에서 월간 리포트 데이터로 생성한 JPG, PNG 또는 WEBP 이미지를 S3에 "
-                    + "public/reports/monthly 경로에 저장하고 공유 토큰과 공개 공유 URL을 반환합니다. "
-                    + "파일당 최대 5MB이며, 조회 API와 동일하게 해당 월 테스트 결과가 5건 이상이어야 "
-                    + "합니다. 공유 토큰은 생성 후 30일 동안 조회할 수 있으며, 이미지는 객체 생성 30일 "
-                    + "경과 후 S3 수명 주기 정책이 실행되는 시점에 삭제됩니다."
+            description = """
+                    프론트엔드에서 월간 리포트 데이터로 생성한 이미지를 S3의
+                    `public/reports/monthly` 경로에 저장하고 공유 토큰과 공개 공유 URL을 반환합니다.
+
+                    - 이미지는 5MB 이하의 JPG, PNG 또는 WEBP 형식만 허용합니다.
+                    - 파일 확장자·Content-Type·Magic Bytes가 실제 이미지 형식과 일치해야 합니다.
+                    - 조회 API와 동일하게 해당 월 테스트 결과가 5건 이상이어야 합니다.
+                    - 공유 토큰은 생성 후 30일 동안 조회할 수 있습니다.
+                    - 이미지는 객체 생성 30일 경과 후 S3 수명 주기 정책이 실행되는 시점에 삭제됩니다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 리포트 공유 URL 생성 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = SHARE_IMAGE_SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = ReportApiResponseSchemas.ShareImage.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = SHARE_IMAGE_SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - year·month 또는 image 필수 요청 값 누락
                             COMMON405 - year 또는 month 타입 변환 실패
                             REPORT400 - 지원 범위 밖의 연도·월 또는 미래 월 요청
-                            IMAGE400 - 빈 파일 또는 지원하지 않는 이미지 형식
+                            IMAGE400 - 빈 파일, 파일 확장자·Content-Type 불일치 또는
+                            Magic Bytes가 PNG, JPEG, WEBP 형식과 일치하지 않음
                             """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
@@ -369,9 +390,24 @@ public interface MonthlyReportControllerDocs {
     })
     BaseResponse<MonthlyReportShareImageResponse> createMonthlyReportShareImage(
             @Parameter(hidden = true) PrincipalDetails principal,
-            @Parameter(description = "리포트 연도(1000 이상, 미래 월 불가)", example = "2026") int year,
-            @Parameter(description = "리포트 월(1~12)", example = "7") int month,
-            @Parameter(description = "프론트엔드에서 생성한 JPG, PNG 또는 WEBP 이미지(최대 5MB)")
+            @Parameter(
+                    description = "리포트 연도(1000 이상, 미래 월 불가)",
+                    required = true,
+                    schema = @Schema(minimum = "1000"),
+                    example = "2026"
+            ) int year,
+            @Parameter(
+                    description = "리포트 월(1~12)",
+                    required = true,
+                    schema = @Schema(minimum = "1", maximum = "12"),
+                    example = "7"
+            ) int month,
+            @Parameter(
+                    description = "프론트엔드에서 생성한 5MB 이하의 JPG, PNG 또는 WEBP 이미지. "
+                            + "파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다.",
+                    required = true,
+                    schema = @Schema(types = {"string"}, format = "binary")
+            )
             MultipartFile image
     );
 }

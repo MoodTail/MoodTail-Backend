@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.ExampleObject;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -58,11 +59,13 @@ public interface MonthlyReportShareControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 공유 월간 리포트 조회 성공",
-                    useReturnTypeSchema = true,
-                    content = @Content(examples = @ExampleObject(
-                            name = "COMMON200",
-                            value = SUCCESS_EXAMPLE
-                    ))),
+                    content = @Content(
+                            schema = @Schema(implementation = ReportApiResponseSchemas.SharedImage.class),
+                            examples = @ExampleObject(
+                                    name = "COMMON200",
+                                    value = SUCCESS_EXAMPLE
+                            )
+                    )),
             @ApiResponse(responseCode = "404", description = "REPORT404 - 토큰이 없거나 공유 기간이 만료됨",
                     content = @Content(examples = @ExampleObject(
                             name = "REPORT404",
@@ -74,9 +77,16 @@ public interface MonthlyReportShareControllerDocs {
                             value = COMMON500_EXAMPLE
                     )))
     })
+    @SecurityRequirements
     BaseResponse<MonthlyReportSharedImageResponse> getSharedImage(
             @Parameter(
-                    description = "월간 리포트 공유 토큰",
+                    description = "월간 리포트 공유 URL 생성 API가 반환한 27자 공유 토큰",
+                    required = true,
+                    schema = @Schema(
+                            pattern = "^mr_[A-Za-z0-9_-]{24}$",
+                            minLength = 27,
+                            maxLength = 27
+                    ),
                     example = "mr_hJ7JngQmYV4x0aP9k2LmN3Qr"
             )
             String shareToken
@@ -114,9 +124,16 @@ public interface MonthlyReportShareControllerDocs {
                                     value = COMMON500_EXAMPLE
                             )))
     })
+    @SecurityRequirements
     ResponseEntity<byte[]> getSharedImageFile(
             @Parameter(
-                    description = "월간 리포트 공유 토큰",
+                    description = "월간 리포트 공유 URL 생성 API가 반환한 27자 공유 토큰",
+                    required = true,
+                    schema = @Schema(
+                            pattern = "^mr_[A-Za-z0-9_-]{24}$",
+                            minLength = 27,
+                            maxLength = 27
+                    ),
                     example = "mr_hJ7JngQmYV4x0aP9k2LmN3Qr"
             )
             String shareToken
