@@ -774,11 +774,14 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "socialSignup",
             summary = "소셜 신규 회원가입 완료",
-            description = "OAuth 인증 API가 SIGNUP_REQUIRED로 반환한 일회성 signupToken과 새 UI에서 입력한 "
-                    + "닉네임·약관 동의를 제출합니다. 검증이 끝난 뒤에만 회원과 소셜 계정을 생성하고 Access "
-                    + "Token과 Refresh Token 쿠키를 발급합니다. 동일한 소셜 계정의 가입이 먼저 완료된 경우 "
-                    + "LOGIN_COMPLETED로 기존 계정 로그인을 완료합니다. 닉네임·약관 검증 실패 시에는 같은 "
-                    + "signupToken으로 다시 요청할 수 있습니다."
+            description = """
+                    OAuth 인증 API가 SIGNUP_REQUIRED로 반환한 일회성 signupToken과 새 UI에서 입력한
+                    닉네임·약관 동의를 제출합니다. 닉네임은 앞뒤 공백 제거 후 Unicode 문자 기준
+                    1~50자여야 합니다. 검증이 끝난 뒤에만 회원과 소셜 계정을 생성하고 Access Token과
+                    Refresh Token 쿠키를 발급합니다. 동일한 소셜 계정의 가입이 먼저 완료된 경우
+                    LOGIN_COMPLETED로 기존 계정 로그인을 완료합니다. 닉네임·약관 검증 실패 시에는
+                    같은 signupToken으로 다시 요청할 수 있습니다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200",
@@ -800,7 +803,7 @@ public interface AuthControllerDocs {
                     description = """
                             COMMON402 - signupToken, nickname 또는 agreements 값 검증 실패
                             COMMON406 - 요청 본문 JSON 형식 오류
-                            USER400 - 앞뒤 공백 제거 후 닉네임 길이가 2~10자를 벗어남
+                            USER400 - 앞뒤 공백 제거 후 Unicode 문자 기준 닉네임 길이가 1~50자를 벗어남
                             AUTH024 - 활성 필수 약관에 모두 동의하지 않음
                             AUTH026 - 중복·비활성·존재하지 않는 약관 ID 등 동의 정보가 유효하지 않음
                             """,
@@ -841,10 +844,12 @@ public interface AuthControllerDocs {
     @Operation(
             operationId = "localSignup",
             summary = "로컬 계정 회원가입",
-            description = "이메일, 비밀번호, 비밀번호 확인, 닉네임과 활성 필수 약관 동의로 로컬 계정을 "
-                    + "생성합니다. 비밀번호는 8자 이상이며 UTF-8 "
-                    + "기준 72바이트 이하여야 합니다. 성공 시 Access Token은 본문에, Refresh Token은 "
-                    + "HttpOnly 쿠키에 발급됩니다."
+            description = """
+                    이메일, 비밀번호, 비밀번호 확인, 닉네임과 활성 필수 약관 동의로 로컬 계정을
+                    생성합니다. 닉네임은 앞뒤 공백 제거 후 Unicode 문자 기준 1~50자여야 합니다.
+                    비밀번호는 8자 이상이며 UTF-8 기준 72바이트 이하여야 합니다. 성공 시 Access Token은
+                    본문에, Refresh Token은 HttpOnly 쿠키에 발급됩니다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 로컬 회원가입 성공",
@@ -856,7 +861,7 @@ public interface AuthControllerDocs {
                     description = """
                             COMMON402 - 이메일·비밀번호·닉네임·약관 필드 검증 실패
                             COMMON406 - 요청 본문 JSON 형식 오류
-                            USER400 - 앞뒤 공백 제거 후 닉네임 길이가 2~10자를 벗어남
+                            USER400 - 앞뒤 공백 제거 후 Unicode 문자 기준 닉네임 길이가 1~50자를 벗어남
                             AUTH024 - 활성 필수 약관에 모두 동의하지 않음
                             AUTH026 - 중복·비활성·존재하지 않는 약관 ID 등 동의 정보가 유효하지 않음
                             AUTH035 - 비밀번호가 길이 또는 영문자·숫자 포함 정책을 충족하지 않음

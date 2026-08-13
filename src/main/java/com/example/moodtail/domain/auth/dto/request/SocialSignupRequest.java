@@ -23,7 +23,12 @@ public record SocialSignupRequest(
         )
         String signupToken,
 
-        @Schema(description = "공백 제거 후 2~10자", minLength = 2, maxLength = 10, example = "무드테일")
+        @Schema(
+                description = "앞뒤 공백 제거 후 Unicode 문자 기준 1~50자인 닉네임",
+                minLength = 1,
+                maxLength = 50,
+                example = "무드테일"
+        )
         @NotBlank(message = "닉네임은 필수입니다.")
         String nickname,
 

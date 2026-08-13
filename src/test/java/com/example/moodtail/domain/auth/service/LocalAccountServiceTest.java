@@ -83,14 +83,14 @@ class LocalAccountServiceTest {
                 " User@Example.com ",
                 "password123!",
                 "password123!",
-                "무드테일러",
+                "가",
                 List.of(new Consent(1L, true))
         );
         LocalAuthUser result = authentication.user();
 
         assertThat(result.userId()).isEqualTo(9L);
         assertThat(result.email()).isEqualTo("user@example.com");
-        assertThat(result.nickname()).isEqualTo("무드테일러");
+        assertThat(result.nickname()).isEqualTo("가");
         assertThat(result.role()).isEqualTo(UserRole.USER);
         verify(termAgreementService).recordValidatedAgreements(any(), any(), any());
         InOrder order = inOrder(transactionManager, tokenSessionService);

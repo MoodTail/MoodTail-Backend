@@ -267,7 +267,7 @@ class AuthServiceTest {
         Term requiredTerm = org.mockito.Mockito.mock(Term.class);
         SocialSignupRequest request = new SocialSignupRequest(
                 "signup-token",
-                "새회원",
+                "가",
                 List.of(new TermAgreementRequest(1L, true))
         );
         SocialSignupSession signupSession = new SocialSignupSession(
@@ -279,12 +279,12 @@ class AuthServiceTest {
                 SocialProvider.GOOGLE,
                 "google-user-id",
                 "new-user@example.com",
-                "새회원"
+                "가"
         );
         SocialLoginUser newUser = new SocialLoginUser(
                 100L,
                 UserRole.USER,
-                "새회원",
+                "가",
                 SocialProvider.GOOGLE,
                 "new-user@example.com",
                 true
@@ -328,7 +328,7 @@ class AuthServiceTest {
     void invalidSocialSignupNicknameDoesNotConsumeSignupTicket() {
         SocialSignupRequest request = new SocialSignupRequest(
                 "signup-token",
-                "a",
+                "가".repeat(51),
                 List.of(new TermAgreementRequest(1L, true))
         );
 

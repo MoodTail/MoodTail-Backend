@@ -77,6 +77,8 @@ class AuthDtoSchemaTest {
     void generatedSignupSchemasMatchValidationConstraints() {
         assertAgreementArrayConstraints(LocalSignupRequest.class);
         assertAgreementArrayConstraints(SocialSignupRequest.class);
+        assertNicknameConstraints(LocalSignupRequest.class);
+        assertNicknameConstraints(SocialSignupRequest.class);
     }
 
     @Test
@@ -100,6 +102,18 @@ class AuthDtoSchemaTest {
         assertThat(agreements.getTypes()).contains("array");
         assertThat(agreements.getMinItems()).isEqualTo(1);
         assertThat(agreements.getMaxItems()).isEqualTo(20);
+    }
+
+    private void assertNicknameConstraints(Class<?> requestType) {
+        io.swagger.v3.oas.models.media.Schema<?> nickname = property(
+                generatedSchema(requestType),
+                "nickname"
+        );
+
+        assertThat(nickname.getMinLength()).isEqualTo(1);
+        assertThat(nickname.getMaxLength()).isEqualTo(50);
+        assertThat(nickname.getDescription())
+                .isEqualTo("앞뒤 공백 제거 후 Unicode 문자 기준 1~50자인 닉네임");
     }
 
     private io.swagger.v3.oas.models.media.Schema<?> generatedSchema(Class<?> type) {
