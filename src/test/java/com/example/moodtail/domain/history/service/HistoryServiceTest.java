@@ -2,6 +2,7 @@ package com.example.moodtail.domain.history.service;
 
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
+import com.example.moodtail.domain.collection.service.CollectionProgressService;
 import com.example.moodtail.domain.history.dto.request.HistoryCreateRequest;
 import com.example.moodtail.domain.history.dto.request.HistoryUpdateRequest;
 import com.example.moodtail.domain.history.entity.DrinkingRecord;
@@ -70,6 +71,8 @@ class HistoryServiceTest {
     private CocktailRepository cocktailRepository;
     @Mock
     private UserRepository userRepository;
+    @Mock
+    private CollectionProgressService collectionProgressService;
     private HistoryService historyService;
 
     @BeforeEach
@@ -82,6 +85,7 @@ class HistoryServiceTest {
                 moodTypeCompatibilityRepository,
                 cocktailRepository,
                 userRepository,
+                collectionProgressService,
                 CLOCK
         );
     }
@@ -355,7 +359,7 @@ class HistoryServiceTest {
                 recordDate,
                 List.of(7L, 8L)
         )).thenReturn(List.of());
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(cocktailRepository.findAllById(List.of(7L, 8L)))
                 .thenReturn(List.of(secondCocktail, firstCocktail));
         when(historyRepository.saveAllAndFlush(any())).thenAnswer(invocation -> {
@@ -375,6 +379,7 @@ class HistoryServiceTest {
         assertThat(response).extracting(
                 com.example.moodtail.domain.history.dto.response.HistoryCreateResponse::cocktailId
         ).containsExactly(7L, 8L);
+        verify(collectionProgressService).collect(user, List.of(firstCocktail, secondCocktail));
     }
 
     @Test
@@ -390,7 +395,7 @@ class HistoryServiceTest {
         );
 
         verify(historyRepository, never()).findExistingCocktailIds(any(), any(), any());
-        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).findByIdForUpdate(any());
         verify(cocktailRepository, never()).findAllById(any());
         verify(historyRepository, never()).saveAllAndFlush(any());
     }
@@ -411,7 +416,7 @@ class HistoryServiceTest {
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("HISTORY409")
         );
 
-        verify(userRepository, never()).findById(any());
+        verify(userRepository, never()).findByIdForUpdate(any());
         verify(cocktailRepository, never()).findAllById(any());
         verify(historyRepository, never()).saveAllAndFlush(any());
     }
@@ -427,7 +432,7 @@ class HistoryServiceTest {
                 recordDate,
                 List.of(7L, 8L)
         )).thenReturn(List.of());
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(cocktailRepository.findAllById(List.of(7L, 8L)))
                 .thenReturn(List.of(existingCocktail));
 
@@ -452,7 +457,7 @@ class HistoryServiceTest {
                 recordDate,
                 List.of(7L)
         )).thenReturn(List.of());
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(cocktailRepository.findAllById(List.of(7L))).thenReturn(List.of(cocktail));
         when(historyRepository.saveAllAndFlush(any()))
                 .thenThrow(new DataIntegrityViolationException(
@@ -478,7 +483,7 @@ class HistoryServiceTest {
                 recordDate,
                 List.of(7L)
         )).thenReturn(List.of());
-        when(userRepository.findById(USER_ID)).thenReturn(Optional.of(user));
+        when(userRepository.findByIdForUpdate(USER_ID)).thenReturn(Optional.of(user));
         when(cocktailRepository.findAllById(List.of(7L))).thenReturn(List.of(cocktail));
         DataIntegrityViolationException databaseFailure =
                 new DataIntegrityViolationException("foreign key failure");
@@ -521,6 +526,7 @@ class HistoryServiceTest {
                 8L,
                 31L
         );
+        verify(collectionProgressService).collect(record.getUser(), List.of(replacement));
     }
 
     @Test

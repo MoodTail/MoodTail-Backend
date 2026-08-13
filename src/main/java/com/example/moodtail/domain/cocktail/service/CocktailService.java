@@ -142,7 +142,7 @@ public class CocktailService {
         int totalCocktailCount = cocktails.size();
         int unlockedCocktailCount = unlockedCocktailIds.size();
 
-        int collectionRate = moodTypeCalculator.calculateCollectionRate(
+        double collectionRate = moodTypeCalculator.calculateCollectionRate(
                 unlockedCocktailCount,
                 totalCocktailCount
         );

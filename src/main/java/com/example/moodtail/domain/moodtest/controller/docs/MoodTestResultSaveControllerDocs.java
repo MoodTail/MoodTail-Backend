@@ -56,7 +56,7 @@ public interface MoodTestResultSaveControllerDocs {
 
     @Operation(operationId = "saveMoodTestResult", summary = "테스트 분석 결과 저장",
             description = "로그인 사용자의 테스트 결과와 추천 칵테일 4종을 저장합니다. "
-                    + "같은 날짜의 결과가 있으면 갱신하고 해당 무드 타입을 해금합니다.")
+                    + "같은 날짜의 결과가 있으면 갱신합니다. 무드 타입 해금에는 영향을 주지 않습니다.")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 테스트 분석 결과 저장 성공", useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "성공", value = SUCCESS_EXAMPLE))),
