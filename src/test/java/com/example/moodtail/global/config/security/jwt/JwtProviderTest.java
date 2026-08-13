@@ -33,6 +33,7 @@ class JwtProviderTest {
         jwtProvider = new JwtProvider(redisRepository);
         ReflectionTestUtils.setField(jwtProvider, "jwtSecretKey", JWT_SECRET);
         ReflectionTestUtils.setField(jwtProvider, "jwtAccessExpiration", 900_000L);
+        ReflectionTestUtils.setField(jwtProvider, "jwtGuestAccessExpiration", 7_200_000L);
         ReflectionTestUtils.setField(jwtProvider, "jwtRefreshExpiration", 1_209_600_000L);
         jwtProvider.init();
     }
@@ -79,8 +80,33 @@ class JwtProviderTest {
     }
 
     @Test
+    void generatedTokensUseRoleSpecificAccessExpirationAndCommonRefreshExpiration() {
+        TokenInfo userTokens = jwtProvider.generateToken(1L, UserRole.USER);
+        Claims userRefreshClaims = jwtProvider.getRefreshTokenClaims(userTokens.refreshToken());
+        when(redisRepository.findRefreshJtiByUserId(1L)).thenReturn(Optional.of(userRefreshClaims.getId()));
+        Claims userAccessClaims = jwtProvider.validateAccessTokenAndGetClaims(userTokens.accessToken())
+                .orElseThrow();
+
+        TokenInfo guestTokens = jwtProvider.generateToken(2L, UserRole.GUEST);
+        Claims guestRefreshClaims = jwtProvider.getRefreshTokenClaims(guestTokens.refreshToken());
+        when(redisRepository.findRefreshJtiByUserId(2L)).thenReturn(Optional.of(guestRefreshClaims.getId()));
+        Claims guestAccessClaims = jwtProvider.validateAccessTokenAndGetClaims(guestTokens.accessToken())
+                .orElseThrow();
+
+        assertThat(validityMillis(userAccessClaims)).isEqualTo(900_000L);
+        assertThat(validityMillis(guestAccessClaims)).isEqualTo(7_200_000L);
+        assertThat(validityMillis(userRefreshClaims)).isEqualTo(1_209_600_000L);
+        assertThat(validityMillis(guestRefreshClaims)).isEqualTo(1_209_600_000L);
+    }
+
+    @Test
     void initializationRejectsWeakSecret() {
-        JwtProvider provider = configuredProvider("d2Vhaw==", 900_000L, 1_209_600_000L);
+        JwtProvider provider = configuredProvider(
+                "d2Vhaw==",
+                900_000L,
+                7_200_000L,
+                1_209_600_000L
+        );
 
         assertThatThrownBy(provider::init)
                 .isInstanceOf(IllegalStateException.class)
@@ -89,18 +115,37 @@ class JwtProviderTest {
 
     @Test
     void initializationRejectsRefreshExpirationNotLongerThanAccessExpiration() {
-        JwtProvider provider = configuredProvider(JWT_SECRET, 900_000L, 900_000L);
+        JwtProvider provider = configuredProvider(JWT_SECRET, 900_000L, 600_000L, 900_000L);
 
         assertThatThrownBy(provider::init)
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("greater than access expiration");
     }
 
-    private JwtProvider configuredProvider(String secret, long accessExpiration, long refreshExpiration) {
+    @Test
+    void initializationRejectsRefreshExpirationNotLongerThanGuestAccessExpiration() {
+        JwtProvider provider = configuredProvider(JWT_SECRET, 900_000L, 7_200_000L, 7_200_000L);
+
+        assertThatThrownBy(provider::init)
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("greater than access expiration");
+    }
+
+    private JwtProvider configuredProvider(
+            String secret,
+            long accessExpiration,
+            long guestAccessExpiration,
+            long refreshExpiration
+    ) {
         JwtProvider provider = new JwtProvider(redisRepository);
         ReflectionTestUtils.setField(provider, "jwtSecretKey", secret);
         ReflectionTestUtils.setField(provider, "jwtAccessExpiration", accessExpiration);
+        ReflectionTestUtils.setField(provider, "jwtGuestAccessExpiration", guestAccessExpiration);
         ReflectionTestUtils.setField(provider, "jwtRefreshExpiration", refreshExpiration);
         return provider;
+    }
+
+    private long validityMillis(Claims claims) {
+        return claims.getExpiration().getTime() - claims.getIssuedAt().getTime();
     }
 }

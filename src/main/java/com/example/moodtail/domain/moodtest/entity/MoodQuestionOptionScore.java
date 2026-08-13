@@ -49,6 +49,6 @@ public class MoodQuestionOptionScore {
     @Column(name = "score_type", nullable = false, length = 20)
     private QuestionScoreType scoreType;
 
-    @Column(name = "score_value", nullable = false, precision = 3, scale = 1)
+    @Column(name = "score_value", nullable = false, precision = 3, scale = 2)
     private BigDecimal scoreValue;
 }

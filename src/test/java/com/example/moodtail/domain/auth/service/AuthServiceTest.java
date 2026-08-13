@@ -267,7 +267,7 @@ class AuthServiceTest {
         Term requiredTerm = org.mockito.Mockito.mock(Term.class);
         SocialSignupRequest request = new SocialSignupRequest(
                 "signup-token",
-                "새회원",
+                "가",
                 List.of(new TermAgreementRequest(1L, true))
         );
         SocialSignupSession signupSession = new SocialSignupSession(
@@ -279,12 +279,12 @@ class AuthServiceTest {
                 SocialProvider.GOOGLE,
                 "google-user-id",
                 "new-user@example.com",
-                "새회원"
+                "가"
         );
         SocialLoginUser newUser = new SocialLoginUser(
                 100L,
                 UserRole.USER,
-                "새회원",
+                "가",
                 SocialProvider.GOOGLE,
                 "new-user@example.com",
                 true
@@ -328,7 +328,7 @@ class AuthServiceTest {
     void invalidSocialSignupNicknameDoesNotConsumeSignupTicket() {
         SocialSignupRequest request = new SocialSignupRequest(
                 "signup-token",
-                "a",
+                "가".repeat(51),
                 List.of(new TermAgreementRequest(1L, true))
         );
 
@@ -488,6 +488,33 @@ class AuthServiceTest {
     }
 
     @Test
+    void reissueUsesGuestRoleWhenRotatingGuestToken() {
+        User guest = guestUserWithId(2L);
+        Claims oldRefreshClaims = refreshClaims("2", "old-guest-refresh-jti");
+        Claims newRefreshClaims = refreshClaims("2", "new-guest-refresh-jti");
+        oldRefreshClaims.put("role", UserRole.GUEST.name());
+        newRefreshClaims.put("role", UserRole.GUEST.name());
+        TokenInfo newTokenInfo = new TokenInfo("new-guest-access-token", "new-guest-refresh-token");
+
+        when(jwtProvider.getRefreshTokenClaims("old-guest-refresh-token")).thenReturn(oldRefreshClaims);
+        when(redisRepository.findRefreshJtiByUserId(2L)).thenReturn(Optional.of("old-guest-refresh-jti"));
+        when(userRepository.findAuthUserById(2L)).thenReturn(Optional.of(guest));
+        when(jwtProvider.generateToken(2L, UserRole.GUEST)).thenReturn(newTokenInfo);
+        when(jwtProvider.getRefreshTokenClaims("new-guest-refresh-token")).thenReturn(newRefreshClaims);
+        when(redisRepository.replaceRefreshJti(
+                2L,
+                "old-guest-refresh-jti",
+                "new-guest-refresh-jti"
+        )).thenReturn(true);
+
+        AuthResult<TokenResponse> result = authService.reissue("old-guest-refresh-token");
+
+        assertThat(result.response().accessToken()).isEqualTo("new-guest-access-token");
+        assertThat(result.refreshToken()).isEqualTo("new-guest-refresh-token");
+        verify(jwtProvider).generateToken(2L, UserRole.GUEST);
+    }
+
+    @Test
     void reissueRejectsRefreshTokenWhenStoredJtiDoesNotMatch() {
         Claims oldRefreshClaims = refreshClaims("1", "old-refresh-jti");
         when(jwtProvider.getRefreshTokenClaims("old-refresh-token")).thenReturn(oldRefreshClaims);
@@ -601,6 +628,12 @@ class AuthServiceTest {
     private User socialUserWithId(Long id) {
         User user = User.createGuest(GUEST_UUID.toString(), "게스트", LocalDateTime.now());
         user.upgradeToUser("테스터", LocalDateTime.now());
+        ReflectionTestUtils.setField(user, "id", id);
+        return user;
+    }
+
+    private User guestUserWithId(Long id) {
+        User user = User.createGuest(GUEST_UUID.toString(), "게스트", LocalDateTime.now());
         ReflectionTestUtils.setField(user, "id", id);
         return user;
     }

@@ -890,7 +890,8 @@ public interface HistoryControllerDocs {
                     `multipart/form-data` 요청으로 선택 날짜에 사진 한 장을 추가합니다.
 
                     - `date`: 사진 기록 날짜(`yyyy-MM-dd`, 미래 날짜 불가)
-                    - `image`: JPG, PNG 또는 WEBP 형식의 5MB 이하 이미지
+                    - `image`: 파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치하는
+                      JPG, PNG 또는 WEBP 형식의 5MB 이하 이미지
                     - 사용자별 같은 날짜에 기존에 저장된 사진을 포함하여 최대 5장까지 저장 가능
 
                     같은 날짜에 사진이 이미 5장 있으면 여섯 번째 사진은 저장하지 않고
@@ -914,7 +915,8 @@ public interface HistoryControllerDocs {
                     description = """
                             COMMON402 - date 또는 image multipart 파트 누락
                             HISTORY400 - 날짜 형식 오류 또는 미래 날짜
-                            IMAGE400 - 빈 파일 또는 지원하지 않는 이미지 형식
+                            IMAGE400 - 빈 파일, 파일 확장자·Content-Type 불일치 또는
+                            Magic Bytes가 PNG, JPEG, WEBP 형식과 일치하지 않음
                             """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
@@ -996,7 +998,8 @@ public interface HistoryControllerDocs {
             String date,
 
             @Parameter(
-                    description = "JPG, PNG 또는 WEBP 형식의 이미지 한 장(파일당 최대 5MB)",
+                    description = "JPG, PNG 또는 WEBP 형식의 이미지 한 장(파일당 최대 5MB). "
+                            + "파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다.",
                     required = true,
                     schema = @Schema(types = {"string"}, format = "binary")
             )

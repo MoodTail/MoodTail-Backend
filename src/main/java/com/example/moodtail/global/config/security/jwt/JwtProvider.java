@@ -40,6 +40,9 @@ public class JwtProvider {
 	@Value("${jwt.accessExpiration}")
 	private long jwtAccessExpiration;
 
+	@Value("${jwt.guestAccessExpiration}")
+	private long jwtGuestAccessExpiration;
+
 	@Value("${jwt.refreshExpiration}")
 	private long jwtRefreshExpiration;
 
@@ -52,7 +55,9 @@ public class JwtProvider {
 		if (!StringUtils.hasText(jwtSecretKey)) {
 			throw new IllegalStateException("JWT secret is required");
 		}
-		if (jwtAccessExpiration <= 0 || jwtRefreshExpiration <= jwtAccessExpiration) {
+		if (jwtAccessExpiration <= 0 || jwtGuestAccessExpiration <= 0
+				|| jwtRefreshExpiration <= jwtAccessExpiration
+				|| jwtRefreshExpiration <= jwtGuestAccessExpiration) {
 			throw new IllegalStateException("JWT refresh expiration must be greater than access expiration");
 		}
 		try {
@@ -67,7 +72,10 @@ public class JwtProvider {
 		Date now = new Date();
 		Date expiration;
 		if (TokenType.ACCESS.equals(tokenType)) {
-			expiration = calculateExpirationDate(now, jwtAccessExpiration);
+			long accessExpiration = UserRole.GUEST.equals(role)
+					? jwtGuestAccessExpiration
+					: jwtAccessExpiration;
+			expiration = calculateExpirationDate(now, accessExpiration);
 		} else {
 			expiration = calculateExpirationDate(now, jwtRefreshExpiration);
 		}

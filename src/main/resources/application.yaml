@@ -44,7 +44,7 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
+      ddl-auto: validate
     show-sql: true
     properties:
       hibernate:
@@ -54,8 +54,7 @@ spring:
 
   flyway:
     enabled: true
-    baseline-on-migrate: true
-    baseline-version: 0
+    baseline-on-migrate: false
 
 server:
   port: 8080
@@ -156,7 +155,8 @@ aws:
 
 jwt:
   secret: ${JWT_SECRET}
-  accessExpiration: 900000
+  accessExpiration: 7200000
+  guestAccessExpiration: ${JWT_GUEST_ACCESS_EXPIRATION:7200000}
   refreshExpiration: 1209600000
 
 auth:

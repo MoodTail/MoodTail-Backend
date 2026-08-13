@@ -316,6 +316,8 @@ public interface CollectionControllerDocs {
                       프론트엔드에서 생성한 도감 공유 이미지를 저장하고 공유 URL을 반환합니다.
                       사용자별 공유 토큰은 하나만 유지됩니다.
                       기존 공유 도감이 있으면 토큰은 유지하고 이미지와 버전을 갱신합니다.
+                      이미지는 5MB 이하의 PNG, JPEG 또는 WEBP 형식만 허용하며,
+                      파일 확장자·Content-Type·Magic Bytes가 모두 일치해야 합니다.
                       """,
             security = @SecurityRequirement(name = "bearerAuth")
     )
@@ -333,9 +335,16 @@ public interface CollectionControllerDocs {
             ),
             @ApiResponse(
                     responseCode = "400",
-                    description = "IMAGE400 - 이미지가 비었거나 형식 또는 확장자가 올 바르지 않음",
+                    description = """
+                            IMAGE400 - 이미지가 비어 있거나 파일 확장자·Content-Type이 올바르지 않음,
+                            또는 Magic Bytes가 PNG, JPEG, WEBP 형식과 일치하지 않음
+                            """,
                     content = @Content(
-                    examples = @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE))
+                            examples = @ExampleObject(
+                                    name = "IMAGE400",
+                                    value = IMAGE400_EXAMPLE
+                            )
+                    )
             ),
             @ApiResponse(
                     responseCode = "401",
@@ -354,23 +363,31 @@ public interface CollectionControllerDocs {
                                     value = AUTH010_EXAMPLE
                             )
                     })
-              ),
-    @ApiResponse(
-            responseCode = "413",
-            description = "IMAGE413 - 이미지가 5MB를 초과함",
-            content = @Content(examples = @ExampleObject(name = "IMAGE413", value = IMAGE413_EXAMPLE))
-    ),
-    @ApiResponse(
-            responseCode = "500",
-            description = "COMMON500 - 이미지 저장 또는 서버 내부 오류",
-            content = @Content(examples = @ExampleObject(name = "COMMON500", value = COMMON500_EXAMPLE)))
+            ),
+            @ApiResponse(
+                    responseCode = "413",
+                    description = "IMAGE413 - 이미지가 5MB를 초과함",
+                    content = @Content(examples = @ExampleObject(
+                            name = "IMAGE413",
+                            value = IMAGE413_EXAMPLE
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "500",
+                    description = "COMMON500 - 이미지 저장 또는 서버 내부 오류",
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON500",
+                            value = COMMON500_EXAMPLE
+                    ))
+            )
     })
     BaseResponse<CollectionShareCreateResponse> createOrUpdateShare(
             @Parameter(hidden = true)
             PrincipalDetails principalDetails,
 
             @Parameter(
-                    description = "PNG, JPG, JPEG 또는 WEBP 형식의 5MB 이하 도감 공유 이미지"
+                    description = "5MB 이하의 PNG, JPG, JPEG 또는 WEBP 도감 공유 이미지. "
+                            + "파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다."
             )
             MultipartFile thumbnail
     );
