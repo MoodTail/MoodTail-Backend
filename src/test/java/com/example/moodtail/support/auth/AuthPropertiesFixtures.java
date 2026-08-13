@@ -34,6 +34,7 @@ public final class AuthPropertiesFixtures {
                 "kakao-client-id",
                 "kakao-client-secret",
                 "http://localhost:5173/auth/kakao/callback",
+                "http://localhost:8080/swagger-ui/index.html",
                 "https://kauth.kakao.com/oauth/token",
                 "https://kapi.kakao.com/v2/user/me"
         );
@@ -45,6 +46,7 @@ public final class AuthPropertiesFixtures {
                 "google-client-id",
                 "google-client-secret",
                 "http://localhost:5173/auth/google/callback",
+                "http://localhost:8080/swagger-ui/index.html",
                 "https://oauth2.googleapis.com/token",
                 "https://openidconnect.googleapis.com/v1/userinfo"
         );

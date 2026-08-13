@@ -46,6 +46,7 @@ public record AuthProperties(
             String clientId,
             String clientSecret,
             String redirectUri,
+            String swaggerRedirectUri,
             String tokenUri,
             String userInfoUri
     ) {
@@ -56,6 +57,9 @@ public record AuthProperties(
             requireAbsoluteHttpsUri(userInfoUri, "OAuth user-info URI");
             if (StringUtils.hasText(redirectUri)) {
                 requireAbsoluteHttpUri(redirectUri, "OAuth redirect URI");
+            }
+            if (StringUtils.hasText(swaggerRedirectUri)) {
+                requireAbsoluteHttpUri(swaggerRedirectUri, "OAuth Swagger redirect URI");
             }
             if (enabled) {
                 requireText(clientId, "Enabled OAuth provider client ID");
