@@ -155,7 +155,7 @@ aws:
 
 jwt:
   secret: ${JWT_SECRET}
-  accessExpiration: 900000
+  accessExpiration: 7200000
   refreshExpiration: 1209600000
 
 auth:
