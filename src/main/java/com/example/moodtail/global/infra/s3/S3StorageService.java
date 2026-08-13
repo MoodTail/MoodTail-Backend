@@ -20,6 +20,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,15 @@ public class S3StorageService {
                     + "[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\\.(png|jpg|jpeg|webp)"
     );
     private static final long MAX_IMAGE_SIZE = 5L * 1024 * 1024;
+    private static final int IMAGE_HEADER_LENGTH = 12;
+    private static final byte[] PNG_SIGNATURE = {
+            (byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+    };
+    private static final byte[] JPEG_SIGNATURE = {
+            (byte) 0xFF, (byte) 0xD8, (byte) 0xFF
+    };
+    private static final byte[] RIFF_SIGNATURE = {0x52, 0x49, 0x46, 0x46};
+    private static final byte[] WEBP_SIGNATURE = {0x57, 0x45, 0x42, 0x50};
     private static final Map<String, Set<String>> ALLOWED_IMAGE_EXTENSIONS = Map.of(
             "image/png", Set.of("png"),
             "image/jpeg", Set.of("jpg", "jpeg"),
@@ -113,7 +123,8 @@ public class S3StorageService {
         String extension = StringUtils.getFilenameExtension(image.getOriginalFilename());
         if (!StringUtils.hasText(contentType)
                 || !StringUtils.hasText(extension)
-                || !isAllowedImageExtension(contentType, extension)) {
+                || !isAllowedImageExtension(contentType, extension)
+                || !hasMatchingImageSignature(image, contentType)) {
             throw new RestApiException(INVALID_IMAGE);
         }
         if (!StringUtils.hasText(properties.bucket())) {
@@ -125,6 +136,35 @@ public class S3StorageService {
         Set<String> allowedExtensions = ALLOWED_IMAGE_EXTENSIONS.get(contentType.toLowerCase(Locale.ROOT));
         return allowedExtensions != null
                 && allowedExtensions.contains(extension.toLowerCase(Locale.ROOT));
+    }
+
+    private boolean hasMatchingImageSignature(MultipartFile image, String contentType) {
+        byte[] header;
+        try (InputStream inputStream = image.getInputStream()) {
+            header = inputStream.readNBytes(IMAGE_HEADER_LENGTH);
+        } catch (IOException exception) {
+            return false;
+        }
+
+        return switch (contentType.toLowerCase(Locale.ROOT)) {
+            case "image/png" -> hasSignature(header, 0, PNG_SIGNATURE);
+            case "image/jpeg" -> hasSignature(header, 0, JPEG_SIGNATURE);
+            case "image/webp" -> hasSignature(header, 0, RIFF_SIGNATURE)
+                    && hasSignature(header, 8, WEBP_SIGNATURE);
+            default -> false;
+        };
+    }
+
+    private boolean hasSignature(byte[] header, int offset, byte[] signature) {
+        return header.length >= offset + signature.length
+                && Arrays.equals(
+                        header,
+                        offset,
+                        offset + signature.length,
+                        signature,
+                        0,
+                        signature.length
+                );
     }
 
     private String createObjectKey(String directory, String originalFilename) {
