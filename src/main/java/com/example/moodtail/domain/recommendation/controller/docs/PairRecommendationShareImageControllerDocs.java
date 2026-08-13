@@ -36,7 +36,11 @@ public interface PairRecommendationShareImageControllerDocs {
             {"timestamp":"2026-07-29T14:30:00","code":"RECOMMENDATION422","message":"추천 결과를 산출할 수 없습니다."}
             """;
     String IMAGE400_EXAMPLE = """
-            {"timestamp":"2026-07-29T14:30:00","code":"IMAGE400","message":"이미지 파일 형식이 올바르지 않습니다."}
+            {
+              "timestamp": "2026-07-29T14:30:00",
+              "code": "IMAGE400",
+              "message": "이미지 파일 형식이 올바르지 않습니다."
+            }
             """;
     String INVITE_CODE400_EXAMPLE = """
             {"timestamp":"2026-07-29T14:30:00","code":"INVITE_CODE400","message":"초대 코드 형식이 올바르지 않습니다."}
@@ -57,8 +61,15 @@ public interface PairRecommendationShareImageControllerDocs {
     @Operation(
             operationId = "uploadPairRecommendationShareImage",
             summary = "페어 추천 결과 공유 이미지 업로드",
-            description = "partnerInviteCode로 상대방을 다시 조회해 페어 추천 결과(초대 코드 유효성, 양쪽 최신 감정 테스트 결과 존재 여부)를 "
-                    + "재검증한 뒤, 전달받은 이미지를 S3에 저장하고 공유 이미지 URL을 반환합니다. 로그인이 필요합니다."
+            description = """
+                    `partnerInviteCode`로 상대방을 다시 조회하여 초대 코드 유효성과
+                    양쪽의 최신 감정 테스트 결과 존재 여부를 재검증합니다.
+
+                    검증이 완료되면 전달받은 이미지를 S3에 저장하고 공유 이미지 URL을 반환합니다.
+                    이미지는 5MB 이하의 PNG, JPEG 또는 WEBP 형식만 허용하며,
+                    파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다.
+                    이 API는 로그인이 필요합니다.
+                    """
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 페어 추천 공유 이미지 업로드 성공",
@@ -68,7 +79,12 @@ public interface PairRecommendationShareImageControllerDocs {
                             value = UPLOAD_SHARE_IMAGE_SUCCESS_EXAMPLE
                     ))),
             @ApiResponse(responseCode = "400",
-                    description = "IMAGE400/INVITE_CODE400/RECOMMENDATION400 - 이미지 형식 오류, 초대 코드 형식 오류 또는 본인 초대 코드 입력",
+                    description = """
+                            IMAGE400 - 이미지가 비어 있거나 파일 확장자·Content-Type이 올바르지 않음,
+                            또는 Magic Bytes가 PNG, JPEG, WEBP 형식과 일치하지 않음
+                            INVITE_CODE400 - 초대 코드 형식이 올바르지 않음
+                            RECOMMENDATION400 - 본인의 초대 코드를 입력함
+                            """,
                     content = @Content(examples = {
                             @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE),
                             @ExampleObject(name = "INVITE_CODE400", value = INVITE_CODE400_EXAMPLE),
@@ -101,6 +117,10 @@ public interface PairRecommendationShareImageControllerDocs {
             @Parameter(description = "상대방 초대 코드", example = "MOOD-4821")
             String partnerInviteCode,
 
+            @Parameter(
+                    description = "5MB 이하의 PNG, JPG, JPEG 또는 WEBP 페어 추천 공유 이미지. "
+                            + "파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다."
+            )
             MultipartFile image
     );
 }
