@@ -26,7 +26,11 @@ public interface MoodTestResultShareControllerDocs {
             {"timestamp":"2026-07-21T14:30:00","code":"COMMON402","message":"입력값 검증에 실패했습니다."}
             """;
     String IMAGE400_EXAMPLE = """
-            {"timestamp":"2026-07-21T14:30:00","code":"IMAGE400","message":"이미지 파일 형식이 올바르지 않습니다."}
+            {
+              "timestamp": "2026-07-21T14:30:00",
+              "code": "IMAGE400",
+              "message": "이미지 파일 형식이 올바르지 않습니다."
+            }
             """;
     String COMMON401_EXAMPLE = """
             {"timestamp":"2026-07-21T14:30:00","code":"COMMON401","message":"인증이 필요합니다."}
@@ -75,13 +79,26 @@ public interface MoodTestResultShareControllerDocs {
             @Parameter(description = "공유 결과 토큰", example = "r_hJ7JngQmYV4x0aP9k2LmN3Qr") String shareToken
     );
 
-    @Operation(operationId = "createMoodTestResultShare", summary = "테스트 결과 공유 URL 생성",
-            description = "게스트 또는 회원의 맛 프로필과 프론트엔드에서 생성한 썸네일을 저장하고 공유 토큰과 공개 URL을 반환합니다.")
+    @Operation(
+            operationId = "createMoodTestResultShare",
+            summary = "테스트 결과 공유 URL 생성",
+            description = """
+                    게스트 또는 회원의 맛 프로필과 프론트엔드에서 생성한 썸네일을 저장하고
+                    공유 토큰과 공개 URL을 반환합니다.
+
+                    썸네일은 5MB 이하의 PNG, JPEG 또는 WEBP 형식만 허용하며,
+                    파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다.
+                    """
+    )
     @SecurityRequirement(name = "bearerAuth")
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 공유 URL 생성 성공", useReturnTypeSchema = true,
                     content = @Content(examples = @ExampleObject(name = "COMMON200", value = CREATE_SUCCESS_EXAMPLE))),
-            @ApiResponse(responseCode = "400", description = "COMMON402 - 맛 프로필 검증 실패\nIMAGE400 - 썸네일 형식·확장자 오류",
+            @ApiResponse(responseCode = "400", description = """
+                    COMMON402 - 맛 프로필 검증 실패
+                    IMAGE400 - 썸네일이 비어 있거나 파일 확장자·Content-Type이 올바르지 않음,
+                    또는 Magic Bytes가 PNG, JPEG, WEBP 형식과 일치하지 않음
+                    """,
                     content = @Content(examples = {
                             @ExampleObject(name = "COMMON402", value = COMMON402_EXAMPLE),
                             @ExampleObject(name = "IMAGE400", value = IMAGE400_EXAMPLE)
@@ -106,6 +123,10 @@ public interface MoodTestResultShareControllerDocs {
     BaseResponse<MoodTestResultShareCreateResponse> createShare(
             @Parameter(hidden = true) PrincipalDetails principalDetails,
             MoodTestResultShareCreateRequest request,
-            @Parameter(description = "PNG, JPG, JPEG 또는 WEBP 형식의 5MB 이하 공유 썸네일") MultipartFile thumbnail
+            @Parameter(
+                    description = "5MB 이하의 PNG, JPG, JPEG 또는 WEBP 공유 썸네일. "
+                            + "파일 확장자·Content-Type·Magic Bytes가 실제 형식과 일치해야 합니다."
+            )
+            MultipartFile thumbnail
     );
 }
