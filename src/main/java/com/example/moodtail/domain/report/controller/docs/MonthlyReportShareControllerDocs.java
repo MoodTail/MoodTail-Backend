@@ -59,13 +59,11 @@ public interface MonthlyReportShareControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 공유 월간 리포트 조회 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = ReportApiResponseSchemas.SharedImage.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "404", description = "REPORT404 - 토큰이 없거나 공유 기간이 만료됨",
                     content = @Content(examples = @ExampleObject(
                             name = "REPORT404",

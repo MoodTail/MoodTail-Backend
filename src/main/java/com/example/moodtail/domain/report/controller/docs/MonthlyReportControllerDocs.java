@@ -250,13 +250,11 @@ public interface MonthlyReportControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 리포트 조회 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = ReportApiResponseSchemas.MonthlyReport.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = MONTHLY_REPORT_SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = MONTHLY_REPORT_SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - year 또는 month 필수 요청 값 누락
@@ -329,13 +327,11 @@ public interface MonthlyReportControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 리포트 공유 URL 생성 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = ReportApiResponseSchemas.ShareImage.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = SHARE_IMAGE_SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = SHARE_IMAGE_SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - year·month 또는 image 필수 요청 값 누락

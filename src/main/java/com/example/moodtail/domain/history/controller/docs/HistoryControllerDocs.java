@@ -453,10 +453,8 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 월간 히스토리 조회 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.Calendar.class),
-                            examples = @ExampleObject(name = "COMMON200", value = CALENDAR_SUCCESS_EXAMPLE)
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = CALENDAR_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - year 또는 month 필수 요청 값 누락
@@ -522,10 +520,8 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 날짜별 히스토리 조회 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.Date.class),
-                            examples = @ExampleObject(name = "COMMON200", value = DATE_SUCCESS_EXAMPLE)
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = DATE_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400",
                     description = "HISTORY400 - 날짜 형식 오류, MySQL 지원 범위 밖 또는 미래 날짜",
                     content = @Content(examples = @ExampleObject(name = "HISTORY400", value = HISTORY400_EXAMPLE))),
@@ -581,13 +577,11 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 테스트 결과 상세 조회 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.TestResultDetail.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = TEST_RESULT_DETAIL_SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = TEST_RESULT_DETAIL_SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - resultId 타입 변환 실패
                             HISTORY400 - 0 이하의 테스트 결과 ID
@@ -646,13 +640,11 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 상세 조회 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.DrinkingRecordDetail.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = DRINKING_RECORD_DETAIL_SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - recordId 타입 변환 실패
                             HISTORY400 - 0 이하의 음주 기록 ID
@@ -709,13 +701,11 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 생성 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.DrinkingRecordCreate.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = DRINKING_RECORD_CREATE_SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - cocktailIds 또는 recordDate 필수 값 누락·검증 실패
@@ -772,13 +762,11 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 수정 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.DrinkingRecordUpdate.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE
-                            )
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = DRINKING_RECORD_UPDATE_SUCCESS_EXAMPLE
+                    ))),
             @ApiResponse(responseCode = "400",
                     description = """
                             COMMON402 - 요청 필드 검증 실패
@@ -847,10 +835,8 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 음주 기록 삭제 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.VoidResponse.class),
-                            examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE)
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - recordId 타입 변환 실패
                             HISTORY400 - 0 이하의 음주 기록 ID
@@ -918,13 +904,11 @@ public interface HistoryControllerDocs {
             @ApiResponse(
                     responseCode = "200",
                     description = "COMMON200 - 히스토리 사진 추가 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.Photo.class),
-                            examples = @ExampleObject(
-                                    name = "COMMON200",
-                                    value = PHOTO_CREATE_SUCCESS_EXAMPLE
-                            )
-                    )
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(
+                            name = "COMMON200",
+                            value = PHOTO_CREATE_SUCCESS_EXAMPLE
+                    ))
             ),
             @ApiResponse(
                     responseCode = "400",
@@ -1030,10 +1014,8 @@ public interface HistoryControllerDocs {
     )
     @ApiResponses({
             @ApiResponse(responseCode = "200", description = "COMMON200 - 히스토리 사진 삭제 성공",
-                    content = @Content(
-                            schema = @Schema(implementation = HistoryApiResponseSchemas.VoidResponse.class),
-                            examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE)
-                    )),
+                    useReturnTypeSchema = true,
+                    content = @Content(examples = @ExampleObject(name = "COMMON200", value = VOID_SUCCESS_EXAMPLE))),
             @ApiResponse(responseCode = "400", description = """
                             COMMON405 - photoId 타입 변환 실패
                             HISTORY400 - 날짜 형식 오류 또는 0 이하의 사진 ID
