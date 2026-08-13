@@ -11,7 +11,7 @@ services:
       - TZ=Asia/Seoul
       - LOG_PATH=/app/logs
       - SPRING_PROFILES_ACTIVE=prod
-      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=validate
       - SPRING_JPA_SHOW_SQL=false
       - SPRING_JPA_PROPERTIES_HIBERNATE_FORMAT_SQL=false
       - SERVER_URL=${SERVER_URL}
