@@ -86,7 +86,7 @@ class KakaoOAuthClientTest {
 
         SocialUserProfile result = kakaoOAuthClient.requestUserProfile(
                 "kakao-code",
-                null,
+                "http://localhost:5173/auth/kakao/callback",
                 PKCE_VERIFIER
         );
 
@@ -139,6 +139,7 @@ class KakaoOAuthClientTest {
                         "",
                         "",
                         "http://localhost:5173/auth/kakao/callback",
+                        "",
                         "https://kauth.kakao.com/oauth/token",
                         "https://kapi.kakao.com/v2/user/me"
                 )
@@ -147,7 +148,42 @@ class KakaoOAuthClientTest {
         assertThatThrownBy(() -> unconfiguredClient.requestUserProfile("kakao-code", null, PKCE_VERIFIER))
                 .isInstanceOfSatisfying(RestApiException.class, exception ->
                         assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH017")
-                );
+        );
+    }
+
+    @Test
+    void requestUserProfileUsesConfiguredSwaggerRedirectUriForTokenExchange() {
+        server.expect(requestTo("https://kauth.kakao.com/oauth/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString(
+                        "redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fswagger-ui%2Findex.html"
+                )))
+                .andRespond(withSuccess(
+                        """
+                                {
+                                  "access_token": "kakao-access-token"
+                                }
+                                """,
+                        MediaType.APPLICATION_JSON
+                ));
+        server.expect(requestTo("https://kapi.kakao.com/v2/user/me"))
+                .andRespond(withSuccess(
+                        """
+                                {
+                                  "id": 12345
+                                }
+                                """,
+                        MediaType.APPLICATION_JSON
+                ));
+
+        SocialUserProfile result = kakaoOAuthClient.requestUserProfile(
+                "kakao-code",
+                "http://localhost:8080/swagger-ui/index.html",
+                PKCE_VERIFIER
+        );
+
+        assertThat(result.providerUserId()).isEqualTo("12345");
+        server.verify();
     }
 
     @Test

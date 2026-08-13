@@ -36,6 +36,7 @@ class AuthPropertiesTest {
                 "client-id",
                 "client-secret",
                 "https://frontend.example.com/callback",
+                "",
                 "http://provider.example.com/token",
                 "https://provider.example.com/userinfo"
         )).isInstanceOf(IllegalArgumentException.class)
@@ -49,6 +50,7 @@ class AuthPropertiesTest {
                 "client-id",
                 "client-secret",
                 "http://localhost:5173/auth/callback",
+                "http://localhost:8080/swagger-ui/index.html",
                 "https://provider.example.com/token",
                 "https://provider.example.com/userinfo"
         );
@@ -58,6 +60,7 @@ class AuthPropertiesTest {
                 "client-id",
                 "client-secret",
                 "http://frontend.example.com/auth/callback",
+                "",
                 "https://provider.example.com/token",
                 "https://provider.example.com/userinfo"
         )).isInstanceOf(IllegalArgumentException.class)
@@ -71,6 +74,7 @@ class AuthPropertiesTest {
                 "client-id",
                 "client-secret",
                 "https://frontend.example.com/auth/callback#token",
+                "",
                 "https://provider.example.com/token",
                 "https://provider.example.com/userinfo"
         )).isInstanceOf(IllegalArgumentException.class);
@@ -80,9 +84,24 @@ class AuthPropertiesTest {
                 "client-id",
                 "client-secret",
                 "https://user:password@frontend.example.com/auth/callback",
+                "",
                 "https://provider.example.com/token",
                 "https://provider.example.com/userinfo"
         )).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void rejectsInvalidSwaggerRedirectUri() {
+        assertThatThrownBy(() -> new AuthProperties.Provider(
+                true,
+                "client-id",
+                "client-secret",
+                "https://frontend.example.com/auth/callback",
+                "http://api.example.com/swagger-ui/index.html",
+                "https://provider.example.com/token",
+                "https://provider.example.com/userinfo"
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("HTTPS");
     }
 
     private AuthProperties.Provider provider() {
@@ -91,6 +110,7 @@ class AuthPropertiesTest {
                 "client-id",
                 "client-secret",
                 "https://frontend.example.com/callback",
+                "https://api.example.com/swagger-ui/index.html",
                 "https://provider.example.com/token",
                 "https://provider.example.com/userinfo"
         );

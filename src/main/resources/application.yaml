@@ -178,6 +178,7 @@ auth:
       client-id: ${KAKAO_CLIENT_ID:}
       client-secret: ${KAKAO_CLIENT_SECRET:}
       redirect-uri: ${KAKAO_REDIRECT_URI:}
+      swagger-redirect-uri: ${KAKAO_SWAGGER_REDIRECT_URI:}
       token-uri: ${KAKAO_TOKEN_URI:https://kauth.kakao.com/oauth/token}
       user-info-uri: ${KAKAO_USER_INFO_URI:https://kapi.kakao.com/v2/user/me}
     google:
@@ -185,6 +186,7 @@ auth:
       client-id: ${GOOGLE_CLIENT_ID:}
       client-secret: ${GOOGLE_CLIENT_SECRET:}
       redirect-uri: ${GOOGLE_REDIRECT_URI:}
+      swagger-redirect-uri: ${GOOGLE_SWAGGER_REDIRECT_URI:}
       token-uri: ${GOOGLE_TOKEN_URI:https://oauth2.googleapis.com/token}
       user-info-uri: ${GOOGLE_USER_INFO_URI:https://openidconnect.googleapis.com/v1/userinfo}
   guest-login:

@@ -82,7 +82,7 @@ class GoogleOAuthClientTest {
 
         SocialUserProfile result = googleOAuthClient.requestUserProfile(
                 "google-code",
-                null,
+                "http://localhost:5173/auth/google/callback",
                 PKCE_VERIFIER
         );
 
@@ -116,6 +116,41 @@ class GoogleOAuthClientTest {
         )).isInstanceOfSatisfying(RestApiException.class, exception ->
                 assertThat(exception.getErrorCode().getCode()).isEqualTo("AUTH016")
         );
+    }
+
+    @Test
+    void requestUserProfileUsesConfiguredSwaggerRedirectUriForTokenExchange() {
+        server.expect(requestTo("https://oauth2.googleapis.com/token"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(content().string(containsString(
+                        "redirect_uri=http%3A%2F%2Flocalhost%3A8080%2Fswagger-ui%2Findex.html"
+                )))
+                .andRespond(withSuccess(
+                        """
+                                {
+                                  "access_token": "google-access-token"
+                                }
+                                """,
+                        MediaType.APPLICATION_JSON
+                ));
+        server.expect(requestTo("https://openidconnect.googleapis.com/v1/userinfo"))
+                .andRespond(withSuccess(
+                        """
+                                {
+                                  "sub": "google-user-id"
+                                }
+                                """,
+                        MediaType.APPLICATION_JSON
+                ));
+
+        SocialUserProfile result = googleOAuthClient.requestUserProfile(
+                "google-code",
+                "http://localhost:8080/swagger-ui/index.html",
+                PKCE_VERIFIER
+        );
+
+        assertThat(result.providerUserId()).isEqualTo("google-user-id");
+        server.verify();
     }
 
     @Test
@@ -184,6 +219,7 @@ class GoogleOAuthClientTest {
                 "google-client-id",
                 "",
                 "https://frontend.example.com/google/callback",
+                "",
                 "https://oauth2.googleapis.com/token",
                 "https://openidconnect.googleapis.com/v1/userinfo"
         );
@@ -197,6 +233,7 @@ class GoogleOAuthClientTest {
     void disabledGoogleProviderDoesNotRequireDeploymentCredentialsAtStartup() {
         AuthProperties.Provider disabledProperties = new AuthProperties.Provider(
                 false,
+                "",
                 "",
                 "",
                 "",
