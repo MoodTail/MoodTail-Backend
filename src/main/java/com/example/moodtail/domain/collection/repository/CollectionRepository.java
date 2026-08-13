@@ -14,6 +14,7 @@ public interface CollectionRepository extends Repository<MoodType, Long> {
                      moodType.name as name,
                      characterImage.imageUrl as characterImageUrl,
                      userUnlockedMoodType.id as unlockedMoodTypeId,
+                     userUnlockedMoodType.unlockedAt as unlockedAt,
                      count(distinct cocktail.id) as totalCocktailCount,
                      count(distinct userUnlockedCocktail.id) as collectedUserCount
                 from MoodType moodType
@@ -31,6 +32,7 @@ public interface CollectionRepository extends Repository<MoodType, Long> {
                         moodType.name,
                         characterImage.imageUrl,
                         userUnlockedMoodType.id,
+                        userUnlockedMoodType.unlockedAt,
                         moodType.sortOrder
                order by moodType.sortOrder asc,
                         moodType.id asc

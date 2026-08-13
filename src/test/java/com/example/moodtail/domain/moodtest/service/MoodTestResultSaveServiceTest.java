@@ -1,7 +1,5 @@
 package com.example.moodtail.domain.moodtest.service;
 
-import com.example.moodtail.domain.collection.entity.UserUnlockedMoodType;
-import com.example.moodtail.domain.collection.repository.UserUnlockedMoodTypeRepository;
 import com.example.moodtail.domain.moodtest.dto.request.MoodTestResultSaveRequest;
 import com.example.moodtail.domain.moodtest.entity.MoodTestResult;
 import com.example.moodtail.domain.moodtest.entity.MoodType;
@@ -13,7 +11,6 @@ import com.example.moodtail.domain.user.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -25,7 +22,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -42,7 +38,6 @@ class MoodTestResultSaveServiceTest {
     @Mock MoodTypeRepository moodTypeRepository;
     @Mock MoodTestResultRepository moodTestResultRepository;
     @Mock RecommendationPersistenceService recommendationPersistenceService;
-    @Mock UserUnlockedMoodTypeRepository userUnlockedMoodTypeRepository;
     @Mock PlatformTransactionManager transactionManager;
 
     private MoodTestResultSaveService service;
@@ -54,44 +49,26 @@ class MoodTestResultSaveServiceTest {
                 moodTypeRepository,
                 moodTestResultRepository,
                 recommendationPersistenceService,
-                userUnlockedMoodTypeRepository,
                 transactionManager
         );
         when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
     }
 
     @Test
-    void savingResultUnlocksItsMoodType() {
+    void savingResultReturnsSavedResultId() {
         User user = member(1L);
         MoodType moodType = moodType(11L, "TYPE_11");
         givenSuccessfulSave(user, moodType, 101L);
-        when(userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(1L, 11L)).thenReturn(false);
-
         Long resultId = service.saveResult(1L, request(11L, "TYPE_11"));
 
         assertThat(resultId).isEqualTo(101L);
-        ArgumentCaptor<UserUnlockedMoodType> captor = ArgumentCaptor.forClass(UserUnlockedMoodType.class);
-        verify(userUnlockedMoodTypeRepository).save(captor.capture());
-        assertThat(captor.getValue().getUser()).isSameAs(user);
-        assertThat(captor.getValue().getMoodType()).isSameAs(moodType);
     }
 
     @Test
-    void savingResultDoesNotDuplicateAlreadyUnlockedMoodType() {
-        User user = member(2L);
-        MoodType moodType = moodType(12L, "TYPE_12");
-        givenSuccessfulSave(user, moodType, 102L);
-        when(userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(2L, 12L)).thenReturn(true);
-
-        service.saveResult(2L, request(12L, "TYPE_12"));
-
-        verify(userUnlockedMoodTypeRepository, never()).save(any());
-    }
-
-    @Test
-    void overwritingTodaysResultUnlocksNewTypeWithoutDeletingPreviousUnlock() {
+    void overwritingTodaysResultUpdatesExistingResult() {
         User user = member(3L);
-        MoodType newMoodType = moodType(13L, "TYPE_13");
+        MoodType newMoodType = org.mockito.Mockito.mock(MoodType.class);
+        when(newMoodType.getCode()).thenReturn("TYPE_13");
         MoodTestResult existingResult = org.mockito.Mockito.mock(MoodTestResult.class);
         MoodTestResult savedResult = savedResult(103L);
         when(userRepository.findByIdForUpdate(3L)).thenReturn(Optional.of(user));
@@ -99,30 +76,13 @@ class MoodTestResultSaveServiceTest {
         when(moodTestResultRepository.findByUserIdAndResultDate(any(), any()))
                 .thenReturn(Optional.of(existingResult));
         when(moodTestResultRepository.saveAndFlush(existingResult)).thenReturn(savedResult);
-        when(userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(3L, 13L)).thenReturn(false);
-
         service.saveResult(3L, request(13L, "TYPE_13"));
 
         verify(existingResult).updateResult(any(), any());
-        verify(userUnlockedMoodTypeRepository).save(any(UserUnlockedMoodType.class));
-        verify(userUnlockedMoodTypeRepository, never()).delete(any(UserUnlockedMoodType.class));
     }
 
     @Test
-    void guestResultAlsoUnlocksMoodType() {
-        User guest = User.createGuest(UUID.randomUUID().toString(), "게스트", LocalDateTime.now());
-        ReflectionTestUtils.setField(guest, "id", 4L);
-        MoodType moodType = moodType(14L, "TYPE_14");
-        givenSuccessfulSave(guest, moodType, 104L);
-        when(userUnlockedMoodTypeRepository.existsByUserIdAndMoodTypeId(4L, 14L)).thenReturn(false);
-
-        service.saveResult(4L, request(14L, "TYPE_14"));
-
-        verify(userUnlockedMoodTypeRepository).save(any(UserUnlockedMoodType.class));
-    }
-
-    @Test
-    void recommendationFailureDoesNotAttemptUnlock() {
+    void recommendationFailureIsPropagated() {
         User user = member(5L);
         MoodType moodType = org.mockito.Mockito.mock(MoodType.class);
         when(moodType.getCode()).thenReturn("TYPE_15");
@@ -138,9 +98,6 @@ class MoodTestResultSaveServiceTest {
         assertThatThrownBy(() -> service.saveResult(5L, request(15L, "TYPE_15")))
                 .isInstanceOf(IllegalStateException.class);
 
-        verify(userUnlockedMoodTypeRepository, never())
-                .existsByUserIdAndMoodTypeId(any(), any());
-        verify(userUnlockedMoodTypeRepository, never()).save(any());
     }
 
     private void givenSuccessfulSave(User user, MoodType moodType, Long resultId) {

@@ -42,8 +42,12 @@ public interface CollectionControllerDocs {
                       "typeCode": "FRESH_SPARK",
                       "name": "상큼한 스파클러",
                       "unlocked": true,
-                      "collectionRate": 75,
-                      "collectedUserCount": 3,
+                      "unlockedAt": "2026-07-20T18:25:00",
+                      "collectionRate": 50,
+                      "collectedCocktailCount": 4,
+                      "totalCocktailCount": 8,
+                      "requiredCocktailCount": 4,
+                      "collectedUserCount": 4,
                       "characterImageUrl":
                       "https://cdn.moodtail.com/images/fresh-spark.png"
                     },
@@ -52,8 +56,12 @@ public interface CollectionControllerDocs {
                       "typeCode": "DEEP_NIGHT",
                       "name": "깊은 밤의 무드",
                       "unlocked": false,
-                      "collectionRate": 0,
-                      "collectedUserCount": 0,
+                      "unlockedAt": null,
+                      "collectionRate": 12.5,
+                      "collectedCocktailCount": 1,
+                      "totalCocktailCount": 8,
+                      "requiredCocktailCount": 4,
+                      "collectedUserCount": 1,
                       "characterImageUrl":
                       "https://cdn.moodtail.com/images/deep-night.png"
                     }
@@ -176,6 +184,9 @@ public interface CollectionControllerDocs {
             summary = "도감 전체 조회",
             description = """
                       사용자의 대표 무드 타입과 전체 무드 타입별 해금 여부 및 칵테일 수집률을 조회합니다.
+                      음주 기록에 저장한 서로 다른 칵테일을 타입별로 집계하며, 같은 칵테일을 여러 번 기록해도 한 번만 수집됩니다.
+                      타입에 속한 전체 칵테일의 50% 이상을 수집하면 해금되고, 음주 기록을 수정하거나 삭제해도 수집 및 해금 상태는 유지됩니다.
+                      collectedUserCount는 하위 호환용 필드이며 collectedCocktailCount와 같은 값입니다.
                       로그인한 회원만 사용할 수 있습니다.
                       """,
             security = @SecurityRequirement(name = "bearerAuth")

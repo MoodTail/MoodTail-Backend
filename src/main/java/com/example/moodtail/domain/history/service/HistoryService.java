@@ -2,6 +2,7 @@ package com.example.moodtail.domain.history.service;
 
 import com.example.moodtail.domain.cocktail.entity.Cocktail;
 import com.example.moodtail.domain.cocktail.repository.CocktailRepository;
+import com.example.moodtail.domain.collection.service.CollectionProgressService;
 import com.example.moodtail.domain.history.dto.request.HistoryCreateRequest;
 import com.example.moodtail.domain.history.dto.request.HistoryUpdateRequest;
 import com.example.moodtail.domain.history.dto.response.HistoryCalendarResponse;
@@ -75,6 +76,7 @@ public class HistoryService {
     private final MoodTypeCompatibilityRepository moodTypeCompatibilityRepository;
     private final CocktailRepository cocktailRepository;
     private final UserRepository userRepository;
+    private final CollectionProgressService collectionProgressService;
     private final Clock clock;
 
     @Transactional(readOnly = true)
@@ -251,7 +253,7 @@ public class HistoryService {
             throw new RestApiException(DRINKING_RECORD_ALREADY_EXISTS);
         }
 
-        User user = userRepository.findById(userId)
+        User user = userRepository.findByIdForUpdate(userId)
                 .orElseThrow(() -> new RestApiException(USER_NOT_FOUND));
         Map<Long, Cocktail> cocktailById = cocktailRepository.findAllById(cocktailIds).stream()
                 .collect(Collectors.toMap(Cocktail::getId, Function.identity()));
@@ -273,6 +275,9 @@ public class HistoryService {
         } catch (DataIntegrityViolationException exception) {
             throw translateWriteFailure(exception);
         }
+        collectionProgressService.collect(user, savedRecords.stream()
+                .map(DrinkingRecord::getCocktail)
+                .toList());
         return savedRecords.stream()
                 .map(record -> new HistoryCreateResponse(
                         record.getId(),
@@ -317,6 +322,7 @@ public class HistoryService {
         } catch (DataIntegrityViolationException exception) {
             throw translateWriteFailure(exception);
         }
+        collectionProgressService.collect(record.getUser(), List.of(targetCocktail));
         return new HistoryUpdateResponse(record.getId());
     }
 
